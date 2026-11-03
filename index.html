@@ -20,10 +20,22 @@
 <div class="main">
 <main class="prose">
 <div class="hero">
+        <div class="hero-eyebrow">源码级拆解 · Pi-Agent v1.4.0 · 18 章</div>
         <h1>Pi Agent 源码级教程</h1>
         <p class="sub">对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent</p>
+        <div class="hero-stats">
+          <div class="stat"><b>18</b><span>章正文</span></div>
+          <div class="stat"><b>132,700</b><span>字</span></div>
+          <div class="stat"><b>6,972</b><span>行源码引用</span></div>
+          <div class="stat"><b>11</b><span>小时读完</span></div>
+          <div class="stat"><b>2026-11-03</b><span>最后更新</span></div>
+        </div>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="modules/m01-overview.html">从 M01 开始读</a>
+          <a class="btn" href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">源码 github.com/earendil-works/pi</a>
+        </div>
+        <p class="hero-note">这不是 API 速查，也不是概念综述。全书只做一件事：把 Pi-Agent 这个 23 万行的真实 Agent 拆开，指着源码讲清楚每一层为什么这么写。Part A 先把十二个包摆到三层架构上（M01–M02）；Part B 钻进内核，看 Agent Loop 的两层循环、模型调用的十层翻译、工具锁与事件总线（M03–M07）；Part C 处理上下文：装配、压缩与会话（M08–M10）；Part D 落到运行时与生态：持久运行时、对象热重载、MCP 与 codemode、终端渲染、契约与遥测（M11–M15）。每章的代码块都标了真实文件与行号，可一键复制；三篇附录负责版本迁移对照、读源码用的 TypeScript 速查，以及把 Agent 装进你自己的服务。</p>
       </div>
-      <div class="toc" style="display:none"></div>
       <div class="part-block"><div class="part-title">Part A · 全景</div><div class="card-grid"><a class="card" href="modules/m01-overview.html">
             <span class="num">M01</span>
             <span class="ttl">开篇 —— 为什么 Pi-Agent 值得你花时间</span>
@@ -79,6 +91,26 @@
             <span class="num">APX</span>
             <span class="ttl">附录 C —— 把 Agent 装进你的服务</span>
             <span class="meta">2,900 字 · 含 220 行代码 · 约 19 分钟</span></a></div></div>
+      <footer class="site-foot">
+        <div class="foot-grid">
+          <section class="foot-card author">
+            <div class="kicker">作者</div>
+            <div class="author-name">Daniel</div>
+            <p class="author-role">上汽大众有限公司 · 一名码农</p>
+            <p class="author-mail"><a href="mailto:luhui215@hotmail.com">luhui215@hotmail.com</a></p>
+          </section>
+          <section class="foot-card ack">
+            <div class="kicker">致谢</div>
+            <ul>
+              <li><a href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">earendil-works/pi</a> —— 全书读的就是它：所有代码片段、行号与设计思路都来自 v1.4.0 源码本身。</li>
+              <li><a href="https://dg-ai-notes.pages.dev/" target="_blank" rel="noopener">dg-ai-notes</a> —— 双轨教程的内容组织与站点版式参考，本站的配色、字号梯度与阅读宽度直接复刻自它。</li>
+              <li>也感谢每一位把踩坑过程成文的人：本站很多结论最初都来自别人零散的 issue 与技术笔记。</li>
+            </ul>
+          </section>
+        </div>
+        <p>内容对应 Pi-Agent v1.4.0 源码 · <a href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">github.com/earendil-works/pi</a></p>
+        <p>最近更新 2026-11-03 · 共 18 章 · 由 site/build.mjs 生成</p>
+      </footer>
 
 </main>
 
