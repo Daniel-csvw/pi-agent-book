@@ -82,7 +82,7 @@
 <hr>
 <h2 id="sec-4-三-层不是画的-是算出来的">三、层不是画的，是算出来的</h2>
 <p>按上面那个公式，把 12 个包算一遍：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -152,10 +152,10 @@
 <td style="text-align:right">0</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>算出来是 <strong>4 层深度</strong>（0/1/2/3），不是 3 层。</p>
 <p>那为什么本章标题叫&quot;三层架构&quot;？因为<strong>两种切法都对，但回答的问题不同</strong>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>切法</th>
@@ -178,7 +178,7 @@
 <td>谁负责什么</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>职责切法是这样的：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -188,7 +188,7 @@
 <hr>
 <h2 id="sec-5-四-基础层-五个零依赖包">四、基础层：五个零依赖包</h2>
 <p>五个包的共同点：<code>dependencies</code> 里没有任何兄弟包。它们排在最前面，也最容易被单独复用。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -223,10 +223,10 @@
 <td>沙箱 JS 执行，唯一能力是调注入的工具</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>零依赖不是巧合，是<strong>准入条件</strong>。往任何一个里加一条兄弟依赖，它就掉出基础层，整个构建顺序都要重排。</p>
 <p>先把十二个包的完整台账放这儿，后面反复要查：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -343,7 +343,7 @@
 <td style="text-align:right">249</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>最后一列很容易被忽略，但它是个免费的情报：<strong>每文件行数告诉你这个包按什么切文件</strong>。</p>
 <ul>
 <li><code>schema</code> 107 / <code>ai</code> 140 → 按&quot;一个概念一个文件&quot;切，文件多而小</li>
@@ -391,7 +391,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// Core only, side-effect free: no generated catalogs, no provider factories,</span></span><span class="ln"><span class="tok-com">// no api-registry, no OAuth implementations, no compat. Provider factories</span></span><span class="ln"><span class="tok-com">// live under "@earendil-works/pi-ai/providers/*", API implementations under</span></span><span class="ln"><span class="tok-com">// "@earendil-works/pi-ai/api/*", the old global API under</span></span><span class="ln"><span class="tok-com">// "@earendil-works/pi-ai/compat".</span></span></code></pre></div>
 <p>这段注释值得逐字读，它定义了一套<strong>入口分层</strong>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>入口</th>
@@ -421,7 +421,7 @@
 <td>你还在用老写法</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong>&quot;side-effect free&quot; 是这里最硬的约束</strong>：import 主入口不会加载 310 行的 <code>models.generated.ts</code>，不会拉起 OAuth，不会注册任何 provider。这在 CLI 启动时间里能省下几十毫秒，在浏览器里能省一次网络请求。</p>
 <h3 id="sec-13-5-2-96-个-provider-文件只有-4-020-行">5.2 96 个 provider 文件只有 4,020 行</h3>
 <p>这是 <code>ai</code> 里最反直觉的比例：</p>
@@ -542,7 +542,7 @@
 <pre><code><span class="ln">grep -r "pi-durable" packages/coding-agent/src --include=*.ts    # 0 条</span><span class="ln">ls packages/coding-agent/src/core/session-manager.ts            # 存在</span></code></pre></div>
 <p><code>coding-agent</code> 有自己的会话实现，<code>durable</code> 是一套<strong>平行</strong>的运行时。</p>
 <p>为什么？因为两者对&quot;持久化&quot;的要求不一样：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -572,7 +572,7 @@
 <td>5 种存储后端</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>一个交互式 CLI，用户按 Ctrl+C 就停了，不需要&quot;在第 7 次工具调用之后精确恢复&quot;。所以它选了最简的 JSONL。而 <code>durable</code> 是给&quot;跑一小时的自动化任务&quot;用的，那个才需要事务。</p>
 <p><strong>两条线各自演化，比强行统一成本低。</strong> M10 讲前者，M11 讲后者，最后会对比一次。</p>
 <h3 id="sec-25-9-3-没有-coding-agent-schema">9.3 没有：<code>coding-agent → schema</code></h3>
@@ -598,7 +598,7 @@
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">1 telemetry   2 schema     3 chord      4 tui       5 codemode</span><span class="ln">6 mcp         7 ai         8 durable    9 env      10 agent</span><span class="ln">11 coding-agent</span></code></pre></div>
 <p>逐条核对：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>边</th>
@@ -717,7 +717,7 @@
 <td>✅</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>18 条边，18 个 ✅。<strong>没有一条反向。</strong></p>
 <p>但注意一个细节：<code>env</code>（第 9 位）排在 <code>agent</code>（第 10 位）前面，可 <code>env</code> 的深度是 3、<code>agent</code> 是 2。</p>
 <p>这说明 <strong>build 顺序是拓扑序，不是分层序</strong>。拓扑序只保证&quot;依赖在前&quot;，不强求&quot;同层相邻&quot;。<code>env</code> 排在 <code>agent</code> 之前完全合法，因为它们之间没有边。</p>
@@ -741,7 +741,7 @@
 <hr>
 <h2 id="sec-29-十二-工程暗坑">十二、工程暗坑</h2>
 <p><strong>1. npm 名和目录名对不上，重命名映射写在代码里。</strong></p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>目录</th>
@@ -766,7 +766,7 @@
 <td><code>@earendil-works/pi-&lt;目录名&gt;</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>agent</code> 和 <code>chord</code> 是例外。写脚本把 npm 名映射回目录名时，<code>pi-agent-core → agent</code> 这条必须硬编码，否则会去找一个叫 <code>agent-core</code> 的目录。</p>
 <p><strong>2. 深度算法在环上会死循环。</strong></p>
 <p>上面的脚本用 <code>seen</code> 集合防环。真实仓库里没有环（npm 也不允许），但如果你改成&quot;边遍历边算&quot;，一旦未来出现循环依赖，它会静默返回 0 而不是报错。<strong>算图之前先查环</strong>。</p>
@@ -801,7 +801,7 @@
 <p>Part B 从 <code>agent-loop.ts</code> 开始——960 行，两个循环，三条出路。那是整张图里最瘦的节点，也是唯一一个&quot;少一行就少一个能力&quot;的地方。</p>
 <hr>
 <h2 id="sec-32-源码索引">源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -876,7 +876,7 @@
 <td>远端执行环境</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m01-overview.html"><span class="lbl">上一篇</span>开篇 —— 为什么 Pi-Agent 值得你花时间</a>

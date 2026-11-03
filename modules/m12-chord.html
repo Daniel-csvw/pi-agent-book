@@ -54,7 +54,7 @@
 <hr>
 <h2 id="sec-1-一-五个词">一、五个词</h2>
 <p>先把术语钉死，后面全部靠它们。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>词</th>
@@ -89,7 +89,7 @@
 <td><code>reload.ts</code>(724)</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>README 里还有一句容易被跳过的话，它其实是这五个词的总纲：</p>
 <blockquote>
 <p>Everyone gets a <strong>reference</strong>, never the object. References work the same
@@ -105,7 +105,7 @@ locally and across processes, and survive reloads.</p>
 </ul>
 <p>第一处让它能当普通 API 用；第二处让它能在生产环境里改自己。</p>
 <p>把三个参照物摆在旁边，位置就清楚了：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -140,7 +140,7 @@ locally and across processes, and survive reloads.</p>
 <td>是，同一套引用</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第二行和第三行是它真正的差异：<strong>状态是公开可观察的，并且不跟着代码版本走。</strong></p>
 <h3 id="sec-3-1-2-durable-站在哪一层">1.2 <code>durable</code> 站在哪一层</h3>
 <p>M11 说过 <code>durable</code> 的 <code>storage/store/</code> 是两个 SQL 后端共享的一层。那一层不是它自己写的：</p>
@@ -157,7 +157,7 @@ locally and across processes, and survive reloads.</p>
 <hr>
 <h2 id="sec-4-二-包的地图">二、包的地图</h2>
 <p><code>chord/src/</code> 216 个文件 / 50,101 行，按目录切：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>目录</th>
@@ -210,11 +210,11 @@ locally and across processes, and survive reloads.</p>
 <td>取消、遥测、调用值</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意最后两行的对比：<code>sqlite/</code> 只有 513 行，<code>telemetry-sqlite/</code> 536 行。
 一个包里的&quot;存储抽象&quot;可以比&quot;存储的实现&quot;还小——因为真正的实现挂在 peer 依赖上。</p>
 <h3 id="sec-5-2-1-v1-根层的七个大文件">2.1 v1 根层的七个大文件</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -259,7 +259,7 @@ locally and across processes, and survive reloads.</p>
 <td>子主机进程的托管</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>object.ts</code> 一个人占了根层的 18%。它不只是&quot;对象&quot;，是<strong>引用的生命周期账本</strong>——
 后面 §三 会看到，一个 <code>ObjectImpl</code> 上有六种引用持有者。</p>
 <h3 id="sec-6-2-2-next-是什么">2.2 <code>next/</code> 是什么</h3>
@@ -272,7 +272,7 @@ locally and across processes, and survive reloads.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// package.json 的 exports（节选）</span></span><span class="ln"><span class="tok-str">"."</span>:              v1 顶层</span><span class="ln"><span class="tok-str">"./next"</span>:         v2</span><span class="ln"><span class="tok-str">"./delta"</span>:        独立导出</span><span class="ln"><span class="tok-str">"./sqlite"</span>:       可移植 SQLite</span></code></pre></div>
 <p>九个 v2 子目录，行数分布很不均匀：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>子目录</th>
@@ -327,7 +327,7 @@ locally and across processes, and survive reloads.</p>
 <td>574</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>store/</code> 就是 M11 §5.7 那次提交的落点。它和 v1 的 <code>object.ts</code> 几乎一样重，
 说明在 v2 里&quot;文档与提交&quot;取代了&quot;对象与引用&quot;成了中心。</p>
 <p><strong>本章讲 v1</strong>——因为&quot;改代码不用重启&quot;是 v1 的能力，v2 还没接上热重载。
@@ -340,7 +340,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// contract.ts:214-247（签名节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> remote&lt;<span class="tok-kw">const</span> D <span class="tok-kw">extends</span> RemoteDef&gt;(</span><span class="ln">	name: <span class="tok-kw">string</span>,</span><span class="ln">	def: D,</span><span class="ln">): RemoteContract&lt;D&gt;;</span></code></pre></div>
 <p><code>RemoteDef</code> 有四个必填部分（<code>contract.ts:102-108</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -365,7 +365,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 <td>变体表，每个变体有自己的 <code>state</code> 与 <code>methods</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>实现挂在主机上（<code>host.ts</code> 的 <code>serve</code>）。同一个契约，不同的主机可以给出完全不同的实现——
 因为 <code>host</code> 字段决定了&quot;这个类型的对象只在某台主机上创建&quot;。</p>
 <p><code>hostFamily</code> 更细：它按输入里的某个字符串字段路由。</p>
@@ -378,7 +378,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 <h3 id="sec-9-3-2-self-工厂能声明的五样东西">3.2 self：工厂能声明的五样东西</h3>
 <p>工厂的第二个参数是 <code>self</code>，它是唯一能&quot;声明&quot;的入口。<code>Self</code> 接口（<code>object.ts:155-197</code>）
 有五个方法，每个都用&quot;重载时要怎么处理&quot;来定义：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>方法</th>
@@ -413,7 +413,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 <td><strong>重启</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三行&quot;每次重建&quot;、&quot;重新订阅&quot;、&quot;重启&quot;，两行保留。这条分界线不是随意的：</p>
 <ul>
 <li><strong>状态是数据</strong>。数据没有代码版本，只有语义版本。所以它跳代。</li>
@@ -457,7 +457,7 @@ with different methods.</p>
 不是调了被拒绝，是代理上就没有这个成员。</p>
 <h3 id="sec-12-3-5-生命周期-谁还拿着引用">3.5 生命周期：谁还拿着引用</h3>
 <p><code>Lifetime</code> 只有两个值（<code>object.ts:75</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>值</th>
@@ -474,11 +474,11 @@ with different methods.</p>
 <td>和主机同生共死，永不回收</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>linger</code>（<code>object.ts:51</code>）是给&quot;引用刚放掉、马上又要&quot;的场景留的缓冲。
 默认值由服务选项决定，不是硬编码。</p>
 <p>真正复杂的是<strong>谁在持有引用</strong>。<code>RefOwner</code> 有六种（<code>object.ts:560</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>owner</th>
@@ -518,7 +518,7 @@ with different methods.</p>
 <td><strong>不会</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>最后一行是 §六 的关键：<strong>浏览器的引用不阻塞热重载</strong>。它拿不到新代码，
 提交之后会被标成 <code>upgrade_required</code>，让前端自己决定刷新。</p>
 <p>一个对象什么时候死？<code>object.ts:1645</code> 的注释写得很短：
@@ -559,7 +559,7 @@ with different methods.</p>
 <p><strong>任务的根不登记租约。</strong> 因为它们会被 <code>stopTasks()</code> 直接停掉（§6.3），
 用租约挡只会让闸门等一个不会自己结束的根。</p>
 <p>于是&quot;引用能活过重载&quot;可以拆成三层，每层一个机制：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>层</th>
@@ -580,7 +580,7 @@ with different methods.</p>
 <td>租约的 key 就是根，value 是代码版本（§6.3）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2 id="sec-14-四-state-可观察的-json">四、state：可观察的 JSON</h2>
 <p>状态不是&quot;字段&quot;，是&quot;订阅源&quot;。区别在于：读字段不会告诉你它变了，订阅会。</p>
@@ -602,7 +602,7 @@ with different methods.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// wire.ts:148-158</span></span><span class="ln"><span class="tok-fn">Open</span>({</span><span class="ln">	t: <span class="tok-fn">lit</span>(<span class="tok-str">"state"</span>),</span><span class="ln">	hold: Id,</span><span class="ln">	m: Name,</span><span class="ln">	<span class="tok-com">/** `snap`/`reset` without `value`: the value is `undefined`. */</span></span><span class="ln">	<span class="tok-kw">as</span>: <span class="tok-fn">union</span>([<span class="tok-fn">lit</span>(<span class="tok-str">"snap"</span>), <span class="tok-fn">lit</span>(<span class="tok-str">"reset"</span>), <span class="tok-fn">lit</span>(<span class="tok-str">"ops"</span>), <span class="tok-fn">lit</span>(<span class="tok-str">"error"</span>)]),</span><span class="ln">	value: <span class="tok-fn">opt</span>(<span class="tok-kw">unknown</span>()),</span><span class="ln">	<span class="tok-com">/** Encoded with the stream's delta encoder; the decoder</span></span><span class="ln"><span class="tok-com">	 * validates each op. */</span></span><span class="ln">	ops: <span class="tok-fn">opt</span>(<span class="tok-fn">List</span>(<span class="tok-fn">List</span>(<span class="tok-kw">unknown</span>()))),</span><span class="ln">	error: <span class="tok-fn">opt</span>(WireErrorSchema),</span><span class="ln">}),</span></code></pre></div>
 <p>四种子类型，各管一件事：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th><code>as</code></th>
@@ -627,13 +627,13 @@ with different methods.</p>
 <td>读这个成员失败了</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>为什么要区分 <code>snap</code> 和 <code>reset</code>？因为两者都带完整值，但语义不同：
 <code>snap</code> 是&quot;这就是当前值&quot;，<code>reset</code> 是&quot;之前的增量作废了&quot;。收到 <code>reset</code> 的消费者必须
 丢掉本地缓存，不能尝试合并。</p>
 <h3 id="sec-17-4-3-replicatedstate-有三种形态">4.3 <code>replicatedState</code> 有三种形态</h3>
 <p><code>state.ts</code> 导出三样东西，名字很像，用途完全不同（<code>state.ts:404-413</code> 的三个重载）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>形态</th>
@@ -658,7 +658,7 @@ with different methods.</p>
 <td>交给消费者</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>AttachedReplicatedState</code> 的注释说得很克制（<code>state.ts:85-90</code>）：
 &quot;A synchronously hydrated publication-only state backed by one source attachment&quot;。
 <strong>同步水合</strong>——订阅的那一刻值已经在了，不需要等一次异步往返。</p>
@@ -668,7 +668,7 @@ with different methods.</p>
 <pre><code><span class="ln"><span class="tok-com">// state.ts:45-51（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ReplicatedStateSourceFrame&lt;T&gt; {</span><span class="ln">	<span class="tok-com">/** Monotonic source cursor. The first frame after a snapshot must</span></span><span class="ln"><span class="tok-com">	 * be `snapshot.cursor + 1`. */</span></span><span class="ln">	cursor: <span class="tok-kw">number</span>;</span><span class="ln">	<span class="tok-kw">readonly</span> value: T;</span><span class="ln">	<span class="tok-kw">readonly</span> ops: ...;</span><span class="ln">}</span></code></pre></div>
 <p><code>cursor</code> 必须严格 <code>+1</code>。跳号就是源坏了，消费者不应该猜。</p>
 <p>为什么要有三种形态，而不是一个可变对象？因为&quot;谁有权写&quot;是一个必须显式回答的问题：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>形态</th>
@@ -693,7 +693,7 @@ with different methods.</p>
 <td>连&quot;能改&quot;都不暴露</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>这是<strong>类型上的减法</strong>：消费者拿到的类型里没有写方法，就写不出&quot;顺手改一下&quot;的代码。
 和 §3.4 里&quot;guest 的代理上就没有 owner 的方法&quot;是同一个手法——
 把权限做在类型里，而不是做在运行时检查里。</p>
@@ -716,7 +716,7 @@ with different methods.</p>
 </blockquote>
 <p>注意返回值：不是布尔，是<strong>失败原因</strong>。这个选择让错误信息不用另写一遍。</p>
 <p><code>remote</code> 不是唯一的契约形状。<code>contract.ts</code> 里有三种，切的是&quot;这些成员能不能跨链路&quot;：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>构造</th>
@@ -741,7 +741,7 @@ with different methods.</p>
 <td>一个已存在的原生对象</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>local</code> 的 <code>LocalDef</code>（<code>contract.ts:113-127</code>）里没有 <code>host</code> 也没有 <code>input</code>，因为它不需要路由。
 而 <code>LOCAL_VARIANT = &quot;&quot;</code>（<code>contract.ts:132</code>）——<strong>本地契约只有一个无名变体</strong>。</p>
 <p><code>opaque</code> 更有意思（<code>contract.ts:37-41</code>）：</p>
@@ -780,7 +780,7 @@ with different methods.</p>
 <p>于是&quot;老前端连新后端&quot;有了第三种解法：不改前端，后端加一个 <code>accepts[3] = ...</code>。
 这和 HTTP API 的版本化是同一个思路，但落在<strong>方法返回值的形状</strong>上，粒度更细。</p>
 <p>三条路一起看，才能理解 <code>chord</code> 的兼容性模型：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>情况</th>
@@ -801,7 +801,7 @@ with different methods.</p>
 <td>升 cell 的 <code>version</code> + 写 <code>migrate</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三张表，没有第四种。</p>
 <hr>
 <h2 id="sec-22-六-hot-reload-一次-reload-到底做了什么">六、hot reload：一次 reload 到底做了什么</h2>
@@ -811,7 +811,7 @@ with different methods.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// reload.ts:205-224</span></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-fn">prepare</span>(): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">waitForRetirement</span>();</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">load</span>();</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">checkProviders</span>();</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">prepareAll</span>();</span><span class="ln">		<span class="tok-com">// From here new objects of changed types are rejected</span></span><span class="ln">		<span class="tok-com">// (upgrade_conflict, retryable) until commit or abort,</span></span><span class="ln">		<span class="tok-com">// so the candidate set is final once the activations</span></span><span class="ln">		<span class="tok-com">// already in flight have been prepared.</span></span><span class="ln">		<span class="tok-kw">this</span>.host.gating = <span class="tok-kw">this</span>.changed;</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">withDeadline</span>(</span><span class="ln">			<span class="tok-kw">this</span>.<span class="tok-fn">prepareAll</span>(), <span class="tok-str">"activations in flight did not finish"</span>,</span><span class="ln">		);</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">checkRefs</span>();</span><span class="ln">		<span class="tok-kw">this</span>.tables = <span class="tok-kw">this</span>.host.<span class="tok-fn">buildTables</span>(<span class="tok-kw">this</span>.<span class="tok-fn">entries</span>());</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">gate</span>();</span><span class="ln">		<span class="tok-kw">this</span>.#<span class="tok-fn">alive</span>();</span><span class="ln">		<span class="tok-kw">this</span>.#<span class="tok-fn">stage</span>();</span><span class="ln">	} <span class="tok-kw">catch</span> (error) {</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">rollback</span>();</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-fn">reloadError</span>(error);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
 <p>九步，分三类：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>步</th>
@@ -866,7 +866,7 @@ with different methods.</p>
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第五步值得单独说。<code>host.gating</code> 一设，<strong>变更类型的新对象就被拒了</strong>——
 错误码是 <code>upgrade_conflict</code>，而且标着可重试。为什么必须拒？
 因为候选集一旦还在长，<code>prepareAll</code> 就永远追不上它。</p>
@@ -879,7 +879,7 @@ with different methods.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// reload.ts:388-398</span></span><span class="ln"><span class="tok-com">// Each cell carries its own version: a raised one gates and</span></span><span class="ln"><span class="tok-com">// migrates, a schema change without one is refused.</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, cell] <span class="tok-kw">of</span> run.decls.cells) {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">object</span>.decls.cells.<span class="tok-kw">get</span>(name) !== cell) <span class="tok-kw">continue</span>;</span><span class="ln">	<span class="tok-kw">const</span> <span class="tok-kw">from</span> = <span class="tok-kw">object</span>.decls.cellVersions.<span class="tok-kw">get</span>(name) ?? <span class="tok-num">1</span>;</span><span class="ln">	<span class="tok-kw">const</span> to = run.decls.cellVersions.<span class="tok-kw">get</span>(name) ?? <span class="tok-num">1</span>;</span><span class="ln">	<span class="tok-kw">if</span> (to &lt; <span class="tok-kw">from</span>)</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-fn">invalid</span>(</span><span class="ln">			<span class="tok-str">"state"</span>,</span><span class="ln">			<span class="tok-str">`${object.address}: version of state ${name} `</span> +</span><span class="ln">				<span class="tok-str">`lowered from ${from} to ${to}`</span>,</span><span class="ln">		);</span><span class="ln">	<span class="tok-kw">if</span> (to &gt; <span class="tok-kw">from</span>)</span><span class="ln">		candidate.reasons.<span class="tok-fn">push</span>(<span class="tok-str">`state ${name} version ${from} -&gt; ${to}`</span>);</span><span class="ln">	<span class="tok-kw">else</span> <span class="tok-kw">if</span> (!<span class="tok-fn">deepEqual</span>(cell.schema, run.decls.cellSchemas.<span class="tok-kw">get</span>(name)))</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-fn">invalid</span>(</span><span class="ln">			<span class="tok-str">"state"</span>,</span><span class="ln">			<span class="tok-str">`${object.address}: schema of state ${name} `</span> +</span><span class="ln">				<span class="tok-str">"changed without a version bump"</span>,</span><span class="ln">		);</span><span class="ln">}</span></code></pre></div>
 <p>三行分支，三种结局：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>版本比较</th>
@@ -900,7 +900,7 @@ with different methods.</p>
 <td>抛 <code>invalid</code>——改 schema 必须升版本</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>另一处是独占资源（<code>reload.ts:399-409</code>）：新跑的工厂里有 <code>exclusive</code> 资源，
 或者依赖了一个被推迟的资源，就推到 <code>atGate</code>；旧的那个如果还开着，落到 <code>replaced</code>。
 然后：</p>
@@ -933,7 +933,7 @@ with different methods.</p>
 <p><code>grandfathered</code> 是&quot;祖父条款&quot;——<strong>已经在旧代码上持着租约的引用</strong>。
 这些引用不会被赶走，它们手里的活儿跑完才算数。</p>
 <p><code>object.gate</code> 里同时放了三样东西：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -954,7 +954,7 @@ with different methods.</p>
 <td>全部跑完时 resolve</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>再加 <code>stopTasks()</code>：旧的长任务直接停。于是&quot;in flight 的活儿跑完旧代码&quot;
 就有了精确含义：<strong>方法调用能跑完，长期任务不能</strong>。</p>
 <p>这个区别不是随意的。方法调用有调用方在等结果，砍掉就是错误；
@@ -989,7 +989,7 @@ commit 只剩下把新版本挂上去，所以它可以是同步的。</p>
 <p>换成大白话：<strong>先让所有人知道新版本存在，再让新版本开始干活。</strong>
 否则子主机可能收到一条&quot;新版本发起&quot;的消息，而它那边还不知道有个新版本。</p>
 <h3 id="sec-28-6-6-三种失败-三种结局">6.6 三种失败，三种结局</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>失败在</th>
@@ -1014,7 +1014,7 @@ commit 只剩下把新版本挂上去，所以它可以是同步的。</p>
 <td><strong>主机终态</strong>，不再接任何活</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第三种是整套设计里最狠的一处取舍。注释（<code>reload.ts:564-565</code>）写着：
 &quot;the code version is half-published: the host fails terminally and admits no more work&quot;。</p>
 <p>为什么不回滚？因为 commit 的设计前提是&quot;这里不会失败&quot;。真失败了，说明有个假设破了，
@@ -1052,7 +1052,7 @@ their next call is <code>superseded</code>.</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// wire.ts:166-182（节选）</span></span><span class="ln"><span class="tok-fn">Open</span>({ t: <span class="tok-fn">lit</span>(<span class="tok-str">"prepare"</span>), reload, codeVersion, plugins, options }),</span><span class="ln"><span class="tok-fn">Open</span>({ t: <span class="tok-fn">lit</span>(<span class="tok-str">"vote"</span>), reload, error: <span class="tok-fn">opt</span>(...), report: <span class="tok-fn">opt</span>(...) }),</span><span class="ln"><span class="tok-fn">Open</span>({ t: <span class="tok-fn">lit</span>(<span class="tok-str">"commit"</span>), reload }),</span><span class="ln"><span class="tok-fn">Open</span>({ t: <span class="tok-fn">lit</span>(<span class="tok-str">"retire"</span>), codeVersion }),</span><span class="ln"><span class="tok-fn">Open</span>({ t: <span class="tok-fn">lit</span>(<span class="tok-str">"abort"</span>), reload }),</span></code></pre></div>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>帧</th>
@@ -1087,7 +1087,7 @@ their next call is <code>superseded</code>.</p>
 <td>&quot;我不再用这个版本了&quot;</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>这是教科书里的两阶段提交，但有一处不一样：<strong>协调者的 commit 在自己的准备完成之后、
 子机的 commit 之前</strong>。</p>
 <p><code>ReloadReport.children</code>（<code>reload.ts:47-51</code>）就是这一步留下的车辙：</p>
@@ -1109,7 +1109,7 @@ their next call is <code>superseded</code>.</p>
 <p>一句话概括：<strong>每个帧只有一个方向，所以 id 不会撞。</strong></p>
 <p>这是协议设计里最省事的一个决定。双向帧要让两侧各自维护 id 空间，
 单向帧就不用——谁创建的谁发包。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>方向</th>
@@ -1144,14 +1144,14 @@ their next call is <code>superseded</code>.</p>
 <td>1</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="sec-32-8-1-hold-是-quot-我要一个对象-quot">8.1 <code>hold</code> 是&quot;我要一个对象&quot;</h3>
 <p>七个消费方帧里，<code>hold</code> 是最重的一个：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// wire.ts:91-114（节选）</span></span><span class="ln"><span class="tok-fn">Open</span>({</span><span class="ln">	t: <span class="tok-fn">lit</span>(<span class="tok-str">"hold"</span>),</span><span class="ln">	id: Id,</span><span class="ln">	at: Name,</span><span class="ln">	<span class="tok-com">/** The consumer's contract token; the provider checks that it covers it. */</span></span><span class="ln">	token: DescriptionSchema,</span><span class="ln">	input: <span class="tok-kw">unknown</span>(),</span><span class="ln">	<span class="tok-com">/** A forwarded principal. Honored only on frames from the parent link. */</span></span><span class="ln">	principal: <span class="tok-fn">opt</span>(<span class="tok-kw">unknown</span>()),</span><span class="ln">	<span class="tok-com">/** The client connection the hold comes from ... */</span></span><span class="ln">	origin: <span class="tok-fn">opt</span>(Name),</span><span class="ln">	<span class="tok-com">/** False: no state for this hold until `sub`. */</span></span><span class="ln">	state: <span class="tok-fn">opt</span>(<span class="tok-fn">lit</span>(<span class="tok-kw">false</span>)),</span><span class="ln">	<span class="tok-com">/** The consumer already has values (a re-hold after a link loss). */</span></span><span class="ln">	again: <span class="tok-fn">opt</span>(<span class="tok-fn">lit</span>(<span class="tok-kw">true</span>)),</span><span class="ln">}),</span></code></pre></div>
 <p>六个可选字段，各管一个真实场景：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -1180,7 +1180,7 @@ their next call is <code>superseded</code>.</p>
 <td>链路断了又连上，我手里已有值，不急</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>principal</code> 和 <code>origin</code> 那句 &quot;Honored only on frames from the parent link&quot; 是一道安全边界：
 <strong>只有上级主机能替别人说话。</strong> 同级主机转发一个伪造的 <code>principal</code> 会被忽略。</p>
 <h3 id="sec-33-8-2-shape-先给目录-再给内容">8.2 <code>shape</code>：先给目录，再给内容</h3>
@@ -1189,7 +1189,7 @@ their next call is <code>superseded</code>.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// wire.ts:116-124</span></span><span class="ln"><span class="tok-fn">Open</span>({</span><span class="ln">	t: <span class="tok-fn">lit</span>(<span class="tok-str">"shape"</span>),</span><span class="ln">	id: Id,</span><span class="ln">	variant: <span class="tok-fn">opt</span>(<span class="tok-fn">str</span>()),</span><span class="ln">	members: <span class="tok-fn">List</span>(<span class="tok-fn">str</span>()),</span><span class="ln">	contract: <span class="tok-fn">str</span>(),</span><span class="ln">	<span class="tok-com">/** The state members whose snapshots follow this frame;</span></span><span class="ln"><span class="tok-com">	 * the consumer applies the shape once they are here. */</span></span><span class="ln">	state: <span class="tok-fn">List</span>(Name),</span><span class="ln">}),</span></code></pre></div>
 <p>四个字段各管一件事：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -1214,14 +1214,14 @@ their next call is <code>superseded</code>.</p>
 <td>后面跟几个 <code>snap</code>，到齐了才应用 shape</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>最后一行是最讲究的：<strong>shape 要等它的快照都到齐才生效</strong>。
 否则客户端会有一瞬间知道&quot;有个成员叫 <code>count</code>&quot;，但它的值还没来——
 那一瞬间任何读 <code>count</code> 的代码都会拿到 <code>undefined</code>。</p>
 <p>这条规则把&quot;订阅&quot;变成了一个原子动作：要么你什么都没有，要么你有一致的目录加快照。</p>
 <h3 id="sec-34-8-3-三种链路-一种帧">8.3 三种链路，一种帧</h3>
 <p><code>link.ts</code> 里三个实现，接口完全一样：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>构造</th>
@@ -1246,7 +1246,7 @@ their next call is <code>superseded</code>.</p>
 <td><code>link.ts:414</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三个类都继承 <code>BaseLink</code>（<code>link.ts:242</code> 的 <code>MemoryLink</code> 是第一个）。帧的编码、校验、
 重传逻辑全在基类里，子类只负责&quot;怎么把一段字符串发出去&quot;。</p>
 <p>所以&quot;同进程两个主机&quot;和&quot;跨机器两个主机&quot;走的是<strong>同一套代码</strong>，
@@ -1272,7 +1272,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 反过来，每一次修改都做深拷贝或者冻结，<code>chord</code> 就不可能在每秒钟几千次状态变更下工作。</p>
 <h3 id="sec-37-9-1-谁有写权">9.1 谁有写权</h3>
 <p>README 里给了一张表（这里只摘五条最常用的）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>值</th>
@@ -1301,7 +1301,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <td>被吞了。它把 payload 收进了副本</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第二行是使用中最容易出错的：<code>change.state</code> 只在 change 期间可变，
 <code>prepare()</code> 之后任何一次访问都会抛。这不是防御性检查，是<strong>句柄被作废了</strong>。</p>
 <h3 id="sec-38-9-2-一次变更的四个动词">9.2 一次变更的四个动词</h3>
@@ -1319,7 +1319,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 不碰 <code>base</code>，不碰 <code>ops</code>，返回一个新值。</p>
 <h3 id="sec-39-9-3-这套东西和热重载的关系">9.3 这套东西和热重载的关系</h3>
 <p><code>chord</code> 的 cell 值就是这种不可变修订。三个环节因此变得廉价：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>环节</th>
@@ -1340,7 +1340,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <td>每次变化就是一个 <code>ops</code> 数组，订阅者按需重放</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong>一个不可变修订，同时是三个功能的输入。</strong> 这是 <code>delta</code> 那 3,976 行真正的价值：
 它不是&quot;一个 diff 库&quot;，它是 <code>chord</code> 状态层的公共前提。</p>
 <h3 id="sec-40-9-4-积压的批可以一次性重放">9.4 积压的批可以一次性重放</h3>
@@ -1404,7 +1404,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> RETRYABLE: ReadonlySet&lt;ChordErrorCode&gt; = <span class="tok-kw">new</span> <span class="tok-fn">Set</span>([</span><span class="ln">	<span class="tok-str">"superseded"</span>, <span class="tok-str">"upgrade_conflict"</span>,</span><span class="ln">]);</span></code></pre></div>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>码</th>
@@ -1469,7 +1469,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <td>看情况</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>这张表真正的价值是那个 <code>retryable</code> 字段（<code>errors.ts:42</code>）：
 <strong>框架直接把&quot;这次失败是不是该重试&quot;算好了告诉你，不用字符串匹配。</strong></p>
 <p>还有一行值得记住（<code>errors.ts:1</code>）：
@@ -1547,7 +1547,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 那里会出现 <code>chord</code> 的第三种用法——不是宿主应用，也不是存储层，而是<strong>沙箱的边界</strong>。</p>
 <hr>
 <h2 id="sec-55-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1642,7 +1642,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <td>五个概念与七个导出路径</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m11-durable.html"><span class="lbl">上一篇</span>持久运行时 —— 把 Agent Loop 拆成状态机</a>

@@ -50,7 +50,7 @@
 <hr>
 <h2 id="sec-1-一-三个包的分工">一、三个包的分工</h2>
 <p>先把最容易搞混的关系钉死。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -79,7 +79,7 @@
 <td>调 <code>agent</code> 的 <code>runLoop</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="sec-2-1-1-两条互不相交的依赖线">1.1 两条互不相交的依赖线</h3>
 <p>看 <code>coding-agent/package.json:44-45</code>：依赖里有 <code>pi-agent-core</code> 和 <code>pi-ai</code>，
 没有 <code>pi-durable</code>。</p>
@@ -104,7 +104,7 @@
 <hr>
 <h2 id="sec-4-二-目录地图">二、目录地图</h2>
 <p><code>durable/src/</code> 一共 33,728 行，按目录切成十块：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>目录</th>
@@ -175,12 +175,12 @@
 <td><code>types</code> / <code>documents</code> / <code>entries</code> / <code>errors</code> / <code>search</code> 等</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>harness/</code> 里最重的四个文件：<code>scheduler.ts</code>(3,159)、<code>generation.ts</code>(1,188)、
 <code>tool.ts</code>(1,147)、<code>types.ts</code>(1,080)。后面几节基本围着它们转。</p>
 <h3 id="sec-5-2-1-harness-的-24-个文件分成五组">2.1 <code>harness/</code> 的 24 个文件分成五组</h3>
 <p>只记住&quot;最重的四个&quot;不够用。真正读代码时要能在一次跳转内找到目标，所以按职责分：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>组</th>
@@ -215,7 +215,7 @@
 <td>1,584</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>五行加起来 11,332，就是整个 <code>harness/</code>。两个细节：</p>
 <ul>
 <li><strong>状态与文档那组还有两个几十行的尾巴</strong>：<code>usage.ts</code>(73) 和 <code>provider.ts</code>(40)，
@@ -225,7 +225,7 @@
 </ul>
 <h3 id="sec-6-2-2-根层那四个不到-250-行的文件">2.2 根层那四个不到 250 行的文件</h3>
 <p>大包容易让人只盯大头。<code>durable</code> 的四个小文件反而定义了整个包的形状：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -255,7 +255,7 @@
 <td><code>defineDoc</code> / <code>defineDocFamily</code> 的四个重载</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>tasks.ts</code> 只有九行，值得看一眼：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -270,7 +270,7 @@
 <strong>entry 只追加，永远不改</strong>。所以它是&quot;发生过什么&quot;的唯一权威。</p>
 <h3 id="sec-9-3-2-document-可以被改写的状态">3.2 document：可以被改写的状态</h3>
 <p><code>defineDoc</code>（<code>documents.ts:39-80</code>）有四个重载，切的是三个维度：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -295,9 +295,9 @@
 <td>分叉时拷&quot;那一刻的值&quot;还是&quot;现在的值&quot;</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>内置文档有六个，各自的语义设置值得列一张表：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文档</th>
@@ -344,7 +344,7 @@
 <td>累计花费</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意 <code>fork</code> 那一列：<strong>只有 <code>pi.agent</code> 是 <code>asOf</code></strong>。</p>
 <p>代侧会话 id 分叉时必须换一个新的（README 里明说）——否则两个会话共用一个
 provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot;此刻在跑什么&quot;，新会话当然什么都不在跑。</p>
@@ -382,7 +382,7 @@ provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot
 <h3 id="sec-11-3-4-taskruntime-handler-能碰到的全部">3.4 <code>TaskRuntime</code>：handler 能碰到的全部</h3>
 <p>每个 phase handler 签名的第二个参数是 <code>runtime</code>（<code>types.ts:261-361</code>）。它是任务唯一的
 &quot;手&quot;——除了它，handler 没有别的途径读写世界。按用途分四组：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>组</th>
@@ -412,7 +412,7 @@ provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot
 <td>拿配置、跑钩子、报错</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>commit</code> 的签名值得拄一遍（<code>:290-297</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -456,7 +456,7 @@ provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot
 <hr>
 <h2 id="sec-13-四-六种状态-五种结局">四、六种状态，五种结局</h2>
 <h3 id="sec-14-4-1-taskstate-types-ts-658-702">4.1 <code>TaskState</code>（<code>types.ts:658-702</code>）</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>status</th>
@@ -496,12 +496,12 @@ provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot
 <td>永不再变</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意 <code>pending</code> 和 <code>running</code> 的检查点类型完全一样。<strong>运行时状态不进检查点</strong>——
 这是整套设计的核心约定：检查点里只有&quot;业务进度&quot;，没有&quot;我现在跑到哪一行&quot;。</p>
 <h3 id="sec-15-4-2-taskoutcome-types-ts-621-655">4.2 <code>TaskOutcome</code>（<code>types.ts:621-655</code>）</h3>
 <p>五种结局，区分得很细：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>status</th>
@@ -536,7 +536,7 @@ provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot
 <td>契约破了：未捕获异常，或这一轮没产生持久进展</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>orphaned</code> 和 <code>faulted</code> 的区别很实用：前者是&quot;缺东西&quot;，装上那个扩展就能继续；
 后者是&quot;代码有 bug&quot;，重试一万次也一样。诊断时先看这个字段。</p>
 <h3 id="sec-16-4-3-completing-为什么必须存在">4.3 <code>completing</code> 为什么必须存在</h3>
@@ -680,7 +680,7 @@ Session 的对外发布在更后面。</li>
 <p>第 3 条区分了两件常被混为一谈的事：<strong>&quot;写进存储&quot;和&quot;看到新值&quot;</strong>。落盘成功但发布还没跑时
 进程死掉，没问题——重启后从存储读就是新值。反过来，把发布当成落盘确认，就会丢数据。</p>
 <p><code>Transaction implements Tx</code>（<code>transaction.ts:239</code>）是接口上面那个对象。三条硬约束：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>约束</th>
@@ -705,7 +705,7 @@ Session 的对外发布在更后面。</li>
 <td>所有 prepared 变更作废，一个字节不落盘</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第一条解释了 <code>prepareBoundary</code> 的注释为什么强调 &quot;Table reads must precede the commit's
 first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和最新 head，这两次读必须在任何写之前完成。</p>
 <p>第三条是&quot;一个 phase 要么全成要么全不成&quot;的来源。检查点和这一轮的副作用（追加 entry、
@@ -723,7 +723,7 @@ first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和
 <p><code>GenerationTask</code>（<code>generation.ts:162</code>），<code>name: &quot;pi.generation&quot;</code>，<code>version: 2</code>。</p>
 <h3 id="sec-27-6-1-七个-phase">6.1 七个 phase</h3>
 <p><code>GenerationCheckpoint</code>（<code>:69-136</code>）是一个七支联合：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>phase</th>
@@ -768,9 +768,9 @@ first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和
 <td>终态</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>对比 M03 的 <code>runLoop</code>，一一对得上：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>M03</th>
@@ -807,7 +807,7 @@ first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和
 <td><code>handOver</code> 到新任务</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>prepare</code> 里还有一件容易被忽略的事：它算出一个 <code>cutoff</code>（<code>generation.ts:245-257</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -908,7 +908,7 @@ first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和
 <p><code>steeringMode</code> / <code>followUpMode</code> 来自设置（<code>agent.ts:80-81</code>），默认都是
 <code>&quot;one-at-a-time&quot;</code>——一次只放一条进去，剩下的留在队列里。</p>
 <p>两种模式的差别，只在于<strong>在哪个边界取</strong>。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>模式</th>
@@ -928,7 +928,7 @@ first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和
 <td>当作新一轮的起点</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>所以在 <code>durable</code> 里，&quot;打断&quot;不是一个信号，是<strong>队列里一条比别的优先的记录</strong>。
 <code>withdrawQueuedInputs</code>（<code>harness.ts:253</code>）在任务失败时把排队的提交撤回去，
 让用户重新决定——这是第一代做不出来的，因为它的输入直接就是一行 entry。</p>
@@ -1003,7 +1003,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <hr>
 <h2 id="sec-38-八-和-m03-的对照">八、和 M03 的对照</h2>
 <p>把两代放一张表里，边界就清楚了：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>问题</th>
@@ -1063,7 +1063,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <td><code>durable</code> 之上的宿主</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>这张表的读法是：<strong>右列每一行，都是左列某一行从&quot;内存里的事实&quot;变成&quot;存储里的事实&quot;</strong>。</p>
 <p>不是 <code>durable</code> 更聪明，是它把同样的东西记下来了。代价是每次状态变化都要一次提交，
 收益是进程可以在任何一个逗号后面死掉。</p>
@@ -1083,7 +1083,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <hr>
 <h2 id="sec-39-九-四种后端-一套语义">九、四种后端，一套语义</h2>
 <p>M10 讲了 JSONL 的 marker + sidecar。这里补全四个后端：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>后端</th>
@@ -1118,7 +1118,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <td>测试与沙箱</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>前三个的实现方式差得很远，但对外暴露的是同一个 <code>Storage</code> 接口（<code>types.ts:1329</code>）。</p>
 <h3 id="sec-40-9-1-一致性靠测试-不靠约定">9.1 一致性靠测试，不靠约定</h3>
 <p><code>testing/storage-conformance.ts</code> 2,100 行，<code>env-conformance.ts</code> 634 行。
@@ -1268,7 +1268,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 那 25 个文件里就有 <code>object.ts</code>、<code>connection.ts</code>、<code>host.ts</code>、<code>reload.ts</code>。</p>
 <hr>
 <h2 id="sec-55-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1388,7 +1388,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <td>源码注释里 <code>(spec §x.y)</code> 引用的那份规格书</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m10-session.html"><span class="lbl">上一篇</span>会话 —— 从会话树到持久运行时</a>

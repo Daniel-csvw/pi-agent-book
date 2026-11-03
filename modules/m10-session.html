@@ -54,7 +54,7 @@
 <p>前九章我们反复跟 <code>context.messages</code> 打交道：一个数组，按顺序放着这一轮要发给模型的消息。</p>
 <p>进程退出，数组就没了。下次启动，它从哪来？</p>
 <p>这引出本章的主问题：<strong>会话数据怎么存</strong>。拆开是两个正交的子问题：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -74,11 +74,11 @@
 <td>线性数组 / 树 / 追加日志</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>两个维度互不绑定。&quot;用 MySQL 存一个线性数组&quot;和&quot;用 JSONL 文件存一棵树&quot;都成立。
 混在一起谈，后面全糊。</p>
 <p>Pi 的两代实现刚好落在这个象限的两头：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -98,7 +98,7 @@
 <td>线性账本（每条 entry 带 <code>head</code> 标记）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="sec-2-1-1-三个必须">1.1 三个必须</h3>
 <p>判断一个会话存储设计好不好，用三个问题量：</p>
 <ol>
@@ -135,7 +135,7 @@
 后面 2.3 单独讲。</p>
 <h3 id="sec-6-2-2-十一种-entry">2.2 十一种 entry</h3>
 <p><code>session-manager.ts:183-194</code> 把十一种 entry 联合成一个类型。按职责分三组：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>类型</th>
@@ -200,7 +200,7 @@
 <td>不进</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意第三列：<strong>树上绝大部分节点不产生消息</strong>。会话文件是&quot;对话记录 + 运行时状态 +
 用户标注&quot;的混合体，不是单纯的 messages 数组。这个隐含成本第七节再算。</p>
 <p>其中 <code>custom</code> 与 <code>custom_message</code> 的区分值得记一笔（<code>:118-165</code>）：</p>
@@ -217,7 +217,7 @@
 它已经写在文件的第 300 行了，怎么改？只能重写整个文件。</p>
 <p>反过来，新节点自己记住父亲是谁，追加就永远是&quot;在文件末尾加一行，谁也碰不到&quot;。
 这两个动作的成本差了一个数量级：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -247,7 +247,7 @@
 <td>双向指针必须同时改，崩溃就断链</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>代价是&quot;往下走&quot;变慢。第一代的答案是：<strong>根本不需要往下走</strong>。
 上下文永远是从当前叶子往根回溯，方向是单侧的。</p>
 <p>一条很硬的推理链，第一代的每个设计都从这里长出来：</p>
@@ -334,7 +334,7 @@
 存在的节点，重载时那条链直接断掉，用户看到&quot;后半段对话凭空消失&quot;。</p>
 <h3 id="sec-14-3-5-什么时候全量重写">3.5 什么时候全量重写</h3>
 <p>追加是常态，三个时刻必须重写整个文件：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>时刻</th>
@@ -359,7 +359,7 @@
 <td>补上 header</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>_rewriteFile</code>（<code>:1124-1134</code>）就是 <code>openSync(file, &quot;w&quot;)</code> 后全量写一遍。
 对一次会话没什么。对几十万条 entry 的老会话就是 O(n) 停顿——
 而且发生在你最不希望停顿的时刻（打开会话）。这个成本点第七节要用。</p>
@@ -413,7 +413,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (<span class="tok-fn">migrateToCurrentVersion</span>(<span class="tok-kw">this</span>.fileEntries)) {</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">_rewriteFile</span>();</span><span class="ln">}</span></code></pre></div>
 <p><code>migrateToCurrentVersion</code>（<code>:337-347</code>）按 header 的 <code>version</code> 依次跑：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>版本跃迁</th>
@@ -433,7 +433,7 @@
 <td>消息角色 <code>hookMessage</code> 改名为 <code>custom</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>v1→v2 是结构性的，代码值得看一眼（<code>:287-313</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -560,7 +560,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> pathWithoutLabels: SessionEntry[] = [];</span><span class="ln"><span class="tok-kw">const</span> replacementByLabelId = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span>&gt;();</span><span class="ln"><span class="tok-kw">const</span> pendingLabelIds: <span class="tok-kw">string</span>[] = [];</span><span class="ln"><span class="tok-kw">let</span> pathParentId: <span class="tok-kw">string</span> | <span class="tok-kw">null</span> = <span class="tok-kw">null</span>;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> entry <span class="tok-kw">of</span> path) {</span><span class="ln">	<span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"label"</span>) { pendingLabelIds.<span class="tok-fn">push</span>(entry.id); <span class="tok-kw">continue</span>; }</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> labelId <span class="tok-kw">of</span> pendingLabelIds) {</span><span class="ln">		replacementByLabelId.<span class="tok-kw">set</span>(labelId, entry.id);</span><span class="ln">	}</span><span class="ln">	pendingLabelIds.length = <span class="tok-num">0</span>;</span><span class="ln">	<span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span>) {</span><span class="ln">		<span class="tok-kw">const</span> kept = replacementByLabelId.<span class="tok-kw">get</span>(entry.firstKeptEntryId);</span><span class="ln">		pathWithoutLabels.<span class="tok-fn">push</span>({</span><span class="ln">			...entry, parentId: pathParentId,</span><span class="ln">			firstKeptEntryId: entry.firstKeptEntryId === entry.id</span><span class="ln">				? entry.id : (kept ?? entry.firstKeptEntryId),</span><span class="ln">		});</span><span class="ln">	} <span class="tok-kw">else</span> {</span><span class="ln">		pathWithoutLabels.<span class="tok-fn">push</span>({ ...entry, parentId: pathParentId });</span><span class="ln">	}</span><span class="ln">	pathParentId = entry.id;</span><span class="ln">}</span></code></pre></div>
 <p>三处失效引用，逐一处理：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>问题</th>
@@ -585,7 +585,7 @@
 <td>用 <code>replacementByLabelId</code> 换一次</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第一行最反直觉：<strong>label 不是元数据，是真正的树节点</strong>。
 你给第 5 条消息打了个标记，这条 label entry 就成了第 6 条消息的父亲。
 删它必断链，所以必须重挂。</p>
@@ -597,7 +597,7 @@
 而且是<strong>单向的、纯字符串的</strong>——不影响任何解析逻辑，只用于回溯展示。</p>
 <h3 id="sec-31-6-4-分叉的两种成本">6.4 分叉的两种成本</h3>
 <p>把 6.1 和 6.3 放在一起看，第一代其实提供了两种&quot;分叉&quot;：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -632,7 +632,7 @@
 <td>导出/归档/交接</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意第二行：<strong>默认的分叉是 O(1) 的，这正是树结构的价值</strong>。
 但它有个前提——所有分支必须待在同一个文件里，由同一个进程写。</p>
 <p>这个前提，就是第一代撑不住的地方。</p>
@@ -690,7 +690,7 @@ assistant 消息整条跳过，理由是&quot;回放半截内容会让 API 报�
 <p><code>SessionManager</code> 直接用 <code>node:fs</code> 的 <code>openSync</code> / <code>appendFileSync</code> / <code>readSync</code>，
 没有介质接口，换介质就得重写这个类。这不是疏忽——CLI 就跑在本地磁盘上，
 加一层抽象只多一次函数调用。但只要想在别处跑，这层绑定立刻变成墙：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>想跑在</th>
@@ -725,7 +725,7 @@ assistant 消息整条跳过，理由是&quot;回放半截内容会让 API 报�
 <td>不行，但<strong>明确写清</strong>了&quot;一个进程拥有一个 storage&quot;</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>最后一行值得注意：第二代也没有做跨进程锁。它做的是<strong>把限制写成契约</strong>，
 而不是让它在某天以数据损坏的形式暴露。</p>
 <h3 id="sec-36-7-4-分叉的单位是文件-不是-entry">7.4 分叉的单位是文件，不是 entry</h3>
@@ -761,7 +761,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> EntryRecord = {</span><span class="ln">	<span class="tok-kw">readonly</span> id: EntryId;</span><span class="ln">	<span class="tok-kw">readonly</span> conversationId: ConversationId;</span><span class="ln">	<span class="tok-com">/** Application-defined entry discriminator. */</span></span><span class="ln">	<span class="tok-kw">readonly</span> kind: <span class="tok-kw">string</span>;</span><span class="ln">	<span class="tok-com">/** Messages for model context; absent for display/bookkeeping entries. */</span></span><span class="ln">	<span class="tok-kw">readonly</span> model?: <span class="tok-kw">readonly</span> Message[];</span><span class="ln">	<span class="tok-com">/** JSON payload consumed by views, extensions, or bookkeeping logic. */</span></span><span class="ln">	<span class="tok-kw">readonly</span> data?: JsonValue;</span><span class="ln">	<span class="tok-com">/** First entry in the active context selected by this entry. */</span></span><span class="ln">	<span class="tok-kw">readonly</span> head?: EntryId;</span><span class="ln">	<span class="tok-com">/** Context-only overrides of earlier visible entries. */</span></span><span class="ln">	<span class="tok-kw">readonly</span> edits?: <span class="tok-kw">readonly</span> ContextEdit[];</span><span class="ln">	<span class="tok-com">/** Task that appended this entry, when it was produced by durable work. */</span></span><span class="ln">	<span class="tok-kw">readonly</span> byTaskId?: TaskId;</span><span class="ln">};</span></code></pre></div>
 <p>跟第一代对比着看，三处结构性差异：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -791,13 +791,13 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>单独一列，与 <code>data</code> 分开</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>最后一行很关键：<code>model</code>（给模型看的）和 <code>data</code>（给程序看的）是<strong>两列</strong>。
 第一代里，一条 entry 要么是 message（给模型），要么是 custom（给程序），
 二选一。第二代允许同一条 entry 两者都带。</p>
 <h3 id="sec-39-8-1-六种内置-kind">8.1 六种内置 kind</h3>
 <p><code>entries.ts:15-34</code> 一共只定义了六个：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>kind</th>
@@ -844,7 +844,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>compaction 任务</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>pi.system</code> 的 content 为什么是空的？因为它不是一条真消息，是个<strong>边界标记</strong>：
 真正的系统提示词由运行时根据当前工具集重新拼，entry 只说&quot;从这一条开始变过了&quot;。
 这跟 M08 的&quot;每轮重算系统提示词&quot;是同一件事——提示词不进文件，只进标记。</p>
@@ -859,7 +859,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>即：<code>H</code> 是可见范围内最新的 head 标记，区间从 <code>H.head</code> 指向的 entry 到末尾；
 同一 target 多次编辑时区间里最新那条赢；上下文 = <code>H</code> 自己 + 区间内除 head 以外的 entry。</p>
 <p>跟 5.2 的 <code>buildContextEntries</code> 对着看，会发现两边在解同一道题：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>问题</th>
@@ -894,7 +894,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>entry 自带 <code>edits</code>，区间内后者覆盖前者</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第一列那个&quot;沿 parentId 回溯&quot;是重点：它的成本是 O(路径长度)，每次构建上下文都要走一遍。
 第二列的新方案成本是 O(1)——<code>ConversationTails</code> 直接把&quot;每个会话最新的 head 标记&quot;缓存在内存里。</p>
 <p><code>conversation-tails.ts:8-11</code> 给了两个容量常数：</p>
@@ -925,7 +925,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <pre><code><span class="ln"><span class="tok-kw">const</span> copies = parent === <span class="tok-kw">undefined</span> ? []</span><span class="ln">	: <span class="tok-kw">await</span> <span class="tok-fn">prepareForkDocumentCopies</span>(</span><span class="ln">		<span class="tok-kw">this</span>.#host.storage, parent.conversationId, parent.at, id, <span class="tok-kw">this</span>.#context);</span></code></pre></div>
 <p><strong>文档也要跟着分叉</strong>。</p>
 <p>这是第一代根本没想到的一层。<code>forks.ts:26-59</code> 里把文档分成两种策略：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文档策略</th>
@@ -945,7 +945,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>拷贝父会话当前的値</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>为什么这重要？因为第二代的会话不只存消息，还存<strong>状态</strong>：当前模型、
 待处理的输入队列、压到哪了、这次 run 花了多少 token。
 你在某条 entry 上分叉，新会话应该拿到&quot;那一刻的全部状态&quot;，而不只是消息。</p>
@@ -966,7 +966,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">type</span> MainMarker = {</span><span class="ln">	<span class="tok-kw">readonly</span> format: <span class="tok-kw">typeof</span> FORMAT_VERSION;</span><span class="ln">	<span class="tok-kw">readonly</span> <span class="tok-kw">type</span>: <span class="tok-str">"commit"</span>;</span><span class="ln">	<span class="tok-kw">readonly</span> seq: Seq;</span><span class="ln">	<span class="tok-kw">readonly</span> writes: <span class="tok-kw">readonly</span> MainOperation[];</span><span class="ln">};</span></code></pre></div>
 <p>一行一个提交。<code>writes</code> 是这个提交做了什么的清单，操作类型在 <code>:37-42</code>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>操作</th>
@@ -1006,7 +1006,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>marker 里</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>规律很清楚：<strong>小对象直接进 marker，大对象进 sidecar，marker 里只留一个序号引用</strong>。</p>
 <p>实际写出来是这样（真实文件里也是一行一条，这里为排版展开了）：</p>
 <div class="code-block" data-lang="text">
@@ -1036,7 +1036,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>这是一个非常经典的方案，名字叫 <strong>write-ahead + commit record</strong>。
 数据库的 WAL 用的是同一套。差别在于：第一代根本没这个东西。</p>
 <p>对比两边在最坏情况下的表现：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>崩溃时刻</th>
@@ -1061,7 +1061,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>同样是 OS 缓冲；传 <code>fsync: true</code> 可以 flock 后才算提交</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第二行是核心：<strong>粒度的区别</strong>。第一代的一致性单位是&quot;一条 entry&quot;，
 第二代是&quot;一次提交&quot;。前者只能保证单条不碎，后者能保证一组互不碎。</p>
 <h3 id="sec-46-9-4-recover-启动时重建全部状态">9.4 recover()：启动时重建全部状态</h3>
@@ -1123,7 +1123,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>对照第一代：<code>_appendEntry</code> 失败回滚三件然后 <code>throw</code>（3.4），
 调用方（TUI）拿到异常弹个错，会话继续跑，下一句话又能追加成功。
 两种都合理，区别是<strong>代价模型不同</strong>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -1148,12 +1148,12 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>重开 Session（从已提交状态恢复）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>左边的模型成立的前提是&quot;一次追加只动一处&quot;。一旦你允许一个提交改三处，
 部分成功就会留下不一致的组合，所以只能全死。</p>
 <h3 id="sec-52-10-5-几个数字">10.5 几个数字</h3>
 <p>这些常数把设计意图钉得很死：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>常数</th>
@@ -1200,7 +1200,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <td>分叉时扫文档的页大小</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>限流按个数不按字节：单次提交能装多少已被输出上限卡住，个数 × 单次上限就是可控上界。</p>
 <hr>
 <h2 id="sec-53-十一-完整链路">十一、完整链路</h2>
@@ -1311,7 +1311,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 只要一个东西会被重写、分叉、重排，就不能用下标引用它。</p>
 <h3 id="sec-65-14-2-两代的分工">14.2 两代的分工</h3>
 <p>最后把本章对比表压成一张：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -1361,7 +1361,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <td>需要恢复/多端/多会话的宿主</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>两代不是替代关系。截止 v1.4 的代码快照，<code>coding-agent</code> 仍然用它自己的
 <code>SessionManager</code>；<code>packages/durable</code> 是并行的另一条线，被 <code>harness/</code> 之上的一整层使用。</p>
 <p>所以&quot;会话搬到独立运行时&quot;这句话，准确的说法是：
@@ -1373,7 +1373,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 它才是&quot;崩溃之后能接着跑&quot;的真正原因——存储只是把它的状态记下来。</p>
 <hr>
 <h2 id="sec-67-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1453,7 +1453,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <td><code>fork()</code> / <code>create()</code> / conversation 句柄</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m09-compaction.html"><span class="lbl">上一篇</span>上下文压缩 —— 两道闸门，两种摘要</a>

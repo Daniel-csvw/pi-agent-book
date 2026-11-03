@@ -43,7 +43,7 @@
       <div class="module-meta">8,300 字 · 含 299 行代码 · 约 35 分钟</div>
     </header>
     <p><code>packages/tui</code>：<strong>46 个文件 / 19,925 行</strong>。（<code>task.md</code> 原记 17,734 行，是旧数。）</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -108,7 +108,7 @@
 <td>raw mode、<code>StdinBuffer</code>、键盘协商</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>运行时依赖只有三个：<code>get-east-asian-width</code>（列宽）、<code>marked</code>（Markdown）、
 <code>marked-cjk-friendly</code>（中文折行）。没有 <code>chalk</code>（<code>colors.ts</code> 自己写），没有
 <code>ink</code>，没有 React，没有 <code>blessed</code>。</p>
@@ -156,7 +156,7 @@ ANSI 状态、光标记账、图片、按键——都是为了<strong>让这五�
 <p><code>invalidate()</code> 是唯一的失效手段（<code>tui.ts:147</code>）。它的语义是&quot;下次 render
 别用缓存&quot;，而不是&quot;重画&quot;。</p>
 <p>组件一共二十来个，都在 <code>components/</code> 下：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>组件</th>
@@ -205,7 +205,7 @@ ANSI 状态、光标记账、图片、按键——都是为了<strong>让这五�
 <td>辅助</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>顶层容器 <code>Container</code> 把子组件按顺序拼起来，<code>TuiBase</code> 在它之上加了&quot;请求
 重绘&quot;和&quot;叠层&quot;。真正的屏幕实现只有两个：<code>TuiMainScreen</code> 和
 <code>TuiAltScreen</code>。</p>
@@ -213,7 +213,7 @@ ANSI 状态、光标记账、图片、按键——都是为了<strong>让这五�
 <p><code>render(width)</code> 只拿到宽度，高度是渲染完才知道的——组件返回几行就占几行。
 整棵树里只有 <code>Stack</code>（<code>components/stack.ts</code>，154 行）能控制分配。</p>
 <p>它的旋钮和 CSS flexbox 同名同义：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -238,7 +238,7 @@ ANSI 状态、光标记账、图片、按键——都是为了<strong>让这五�
 <td>钳制区间</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>算法就两次分配（<code>stack.ts:135-154</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -280,7 +280,7 @@ ANSI 状态、光标记账、图片、按键——都是为了<strong>让这五�
 before compositing so overlays and line slicing see plain SGR codes&quot;。光标
 标记是一个 APC 序列，如果折行或切列时撞上它，列宽就会算错。</p>
 <p>然后是十条出路。这张表值得逐行读，因为<strong>每一行都是一个真实踩过的坑</strong>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -351,7 +351,7 @@ before compositing so overlays and line slicing see plain SGR codes&quot;。光�
 <td>唯一省字节的路</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第 3 条和第 4 条是一对。标准做法是高度变了就全量重绘——但 Termux 里软键盘
 的弹出会改变高度，于是<strong>每敲一个字就重放一遍全部历史</strong>。所以这里给 Termux
 开了一个例外（<code>isTermuxSession()</code>，<code>:112-114</code>），代价是视口可能对不齐。</p>
@@ -416,7 +416,7 @@ before compositing so overlays and line slicing see plain SGR codes&quot;。光�
 <code>\x1b[{extraLines}A</code> 回到新内容末尾，最后 <code>\x1b[?2026l</code> 上屏。</p>
 <h3 id="sec-7-4-2-全量-vs-差分-把字节数算出来">4.2 全量 vs 差分：把字节数算出来</h3>
 <p>现在可以回答本章的量化问题了。终端 80×24，每行 78 个可见字符，共 150 行。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>路径</th>
@@ -451,7 +451,7 @@ before compositing so overlays and line slicing see plain SGR codes&quot;。光�
 <td><strong>12,025</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>比值：99 / 12,025 = <strong>0.82%</strong>。</p>
 <p>一个 spinner 每秒 10 帧、转 60 秒：</p>
 <ul>
@@ -580,7 +580,7 @@ does not run grapheme segmentation on every line&quot; 说明了第一条路径�
 <p>第二条是缓存，512 条，FIFO 淘汰（<code>WIDTH_CACHE_SIZE = 512</code>，<code>:51</code>）。</p>
 <h3 id="sec-15-7-1-五条宽度规则">7.1 五条宽度规则</h3>
 <p><code>graphemeWidth</code>（<code>:182-245</code>）里的判断顺序值得抄一遍：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>输入</th>
@@ -620,7 +620,7 @@ does not run grapheme segmentation on every line&quot; 说明了第一条路径�
 <td><code>get-east-asian-width</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>\t</code> 算 3 列是个<strong>约定</strong>，不是标准。标准里 tab 是&quot;到下一个制表位&quot;，
 宽度取决于当前列。终端里这不重要（组件很少输出 tab），但代码必须选一个
 数：<code>visibleWidth</code> 把 <code>\t</code> 替换成三个空格，<code>graphemeWidth</code> 也返回 3。
@@ -692,7 +692,7 @@ emoji 的 UTF-16 高位和低位之间，两半分别写出去就是两个替换
 <hr>
 <h2 id="sec-20-九-两种屏幕">九、两种屏幕</h2>
 <p><code>pi-tui</code> 有两个屏幕实现，行数差三倍：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -732,7 +732,7 @@ emoji 的 UTF-16 高位和低位之间，两半分别写出去就是两个替换
 <td>1,800</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>60 行对 1,800 行，多出来的不是渲染，是<strong>一个迷你窗口系统</strong>：滚动条、鼠标
 选区、双击选词、搜索高亮、剪贴板、闪烁提示。</p>
 <h3 id="sec-21-9-1-为什么-main-screen-是默认">9.1 为什么 main screen 是默认</h3>
@@ -804,7 +804,7 @@ base64 会很慢，所以它缓存最近 16 张（<code>tui-alt-screen.ts:78-80<
 </ul>
 </blockquote>
 <p>它认五种序列族，每族的结束条件不同：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>族</th>
@@ -839,12 +839,12 @@ base64 会很慢，所以它缓存最近 16 张（<code>tui-alt-screen.ts:78-80<
 <td>一个字节</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>还有两个特例：老式鼠标 <code>ESC [ M</code> 后面跟<strong>三个原始字节</strong>（不看范围），
 以及括号粘贴 <code>\x1b[200~</code> … <code>\x1b[201~</code>——里面可以有任何东西，包括看起来
 像 Esc 的字节。</p>
 <h3 id="sec-29-11-1-两个超时">11.1 两个超时</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>场景</th>
@@ -869,7 +869,7 @@ base64 会很慢，所以它缓存最近 16 张（<code>tui-alt-screen.ts:78-80<
 <td>高延迟链路</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>resolveEscapeTimeoutMs</code>（<code>terminal.ts:150-159</code>）只看两个环境变量：设了
 <code>PI_TUI_ESC_TIMEOUT</code> 就用它，否则 <code>SSH_CONNECTION</code> / <code>SSH_TTY</code> 存在就取
 100 ms。注释解释了为什么 SSH 要长：<strong>旧式 Alt+键就是 <code>ESC</code> 加一个字节</strong>，
@@ -1089,7 +1089,7 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 <p>M15 讲 <code>schema</code> 与 <code>telemetry</code>：前者 43 文件 / 4,565 行，是一个<strong>不用 <code>eval</code> 的 JSON Schema 校验器</strong>；后者 8 文件 / 1,572 行，是一套与厂商无关的遥测契约。前一章在省字节，最后一章在定边界——什么值算合法，什么允许进日志。</p>
 <hr>
 <h2 id="sec-46-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1184,7 +1184,7 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 <td>分配量与每帧写入字节的基准</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m13-mcp-codemode.html"><span class="lbl">上一篇</span>扩展入口 —— MCP 连出去，codemode 收进来</a>

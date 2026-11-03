@@ -56,7 +56,7 @@
 <pre><code><span class="ln"># 只数 packages/*/src 下的 .ts，排除 test / dist</span><span class="ln">find packages -path '*/src/*' -name '*.ts' | wc -l        # 920</span><span class="ln">find packages -path '*/src/*' -name '*.ts' -exec cat {} + | wc -l   # 228,895</span></code></pre></div>
 <p>920 个文件，22.9 万行 TypeScript。这个体量谈不上&quot;minimal&quot;。</p>
 <p>但按包拆开，分布是这样的（数据源 <code>docs/source-index.md</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -139,7 +139,7 @@
 <td>评测工具</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>内核 <code>agent</code> 只占 1.1%。剩下 98.9% 全是它的外围。</p>
 <p>这就是&quot;极简&quot;的第一个含义：<strong>不是整个项目小，是核心小</strong>。<code>agent</code> 包 6 个文件：</p>
 <div class="code-block" data-lang="text">
@@ -153,7 +153,7 @@
 <p>而这 2,553 行要支撑的是 226,336 行的外围——<strong>内外比 1 : 88</strong>。</p>
 <h3 id="sec-2-1-1-但真实行数还要多一倍">1.1 但真实行数还要多一倍</h3>
 <p>上面那个 22.9 万只是 &quot;.ts 文件里的源码&quot;。把 <code>test/</code> 目录也算进去，整个仓库是这样的：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>分类</th>
@@ -183,7 +183,7 @@
 <td style="text-align:right">539,887</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三个数字值得停下来看。</p>
 <p><strong>一，测试行数比源码多 26%。</strong> 288,596 vs 229,029。而且<strong>文件数</strong>更极端：2,266 个 <code>.ts</code> 里，1,148 个是测试，占 50.7%——随便拎一个文件名出来，一半概率是 <code>.test.ts</code>。</p>
 <p><strong>二，内核的测试比例最高。</strong> <code>agent</code> 包 7 个源文件 2,587 行，配 8 个测试文件 4,206 行，比例 <strong>1 : 1.63</strong>。拆开看：</p>
@@ -211,7 +211,7 @@
 <p><strong>四，没有 orchestrator。</strong> 旧版教程里有一个 <code>packages/orchestrator/</code> 和 <code>@earendil-works/pi-orchestrator</code>，负责多 agent 编排。v1.4.0 已经整个删掉了。</p>
 <p>四个&quot;不做&quot;指向同一个结论：<strong>凡是&quot;策略&quot;的东西全部外置，内核只保留&quot;机制&quot;</strong>。这是 <code>agent</code> 能停在 2,559 行的唯一原因。</p>
 <p>而且每个&quot;不做&quot;都留了替代路径，不是关上门：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>内核不做</th>
@@ -241,7 +241,7 @@
 <td>应用层</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>这张表是本书反复出现的模式：<strong>内核对每个需求都给一个&quot;你自己写&quot;的出口，而不是一个开关</strong>。代价是你得写代码，好处是内核永远不膨胀。</p>
 <hr>
 <h2 id="sec-4-三-readme-公示-7-个包-仓库里有-12-个">三、README 公示 7 个包，仓库里有 12 个</h2>
@@ -250,7 +250,7 @@
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">@earendil-works/chord</span><span class="ln">@earendil-works/pi-telemetry</span><span class="ln">@earendil-works/pi-ai</span><span class="ln">@earendil-works/pi-durable</span><span class="ln">@earendil-works/pi-agent-core</span><span class="ln">@earendil-works/pi-coding-agent</span><span class="ln">@earendil-works/pi-tui</span></code></pre></div>
 <p>而 <code>packages/</code> 下实际有 12 个目录，全部 version <code>1.4.0</code>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>目录</th>
@@ -320,7 +320,7 @@
 <td style="text-align:center">❌</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>差的 5 个不是&quot;忘了写&quot;。看名字就知道它们偏工具链：</p>
 <ul>
 <li><code>schema</code> —— 类型契约，<code>agent</code>、<code>ai</code>、<code>chord</code>、<code>durable</code> 都依赖它，但用户不直接用</li>
@@ -339,7 +339,7 @@
 <p>11 步，<code>evals</code> 不在里面（它是测试工具，构建时不参与）。注意 <code>build:offline</code> 是同一个序列，只把 <code>ai</code> 换成 <code>npm run build:offline</code>——因为它默认会去网络拉模型目录。</p>
 <p>为什么必须手写这个顺序而不能交给 <code>npm run build --workspaces</code>？因为 workspace 的构建顺序取决于拓扑排序，而这个仓库里存在<strong>不经过 npm 依赖声明的隐式依赖</strong>——比如 <code>coding-agent</code> 的构建脚本会去读 <code>tui</code> 产出的原生二进制。手写顺序是&quot;显式声明拓扑&quot;，代价是每次新增包都要记得改这一行。</p>
 <p>把每个包的 <code>dependencies</code> 拿出来，能得到真正的依赖图（数据源 <code>docs/source-index.json</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -396,7 +396,7 @@
 <td>—</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三个观察。</p>
 <p><strong>第一，5 个包零依赖。</strong> <code>telemetry</code> <code>schema</code> <code>tui</code> <code>mcp</code> <code>codemode</code> 谁也不依赖，所以它们排在最前面，也最容易被单独复用。<code>tui</code> 甚至可以脱离 Pi 当通用终端 UI 库用。</p>
 <p><strong>第二，<code>agent</code> 只依赖 <code>ai</code> 和 <code>schema</code>。</strong> 它不知道 <code>coding-agent</code> 存在，不知道 <code>durable</code> 存在，更不知道 <code>tui</code>。这是内核能做小的结构保证——<strong>依赖少，能看见的东西就少</strong>。</p>
@@ -426,7 +426,7 @@ and its ExecutionEnv client</p>
 <p>All interfaces use the same agent and session mechanisms.</p>
 </blockquote>
 <p>Pi 有五种用法，共用同一套内核：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>入口</th>
@@ -467,7 +467,7 @@ and its ExecutionEnv client</p>
 <td>自己写产品</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>五条路的字节流完全不同——ANSI 转义序列、纯文本、JSONL、管道、函数调用——但往下走两层就汇到一起：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -503,7 +503,7 @@ and its ExecutionEnv client</p>
 <p>这是全书唯一一节不读代码的内容。但跳过它，后面每一章的「实验」都会停在
 「你应该能看到」。</p>
 <h3 id="sec-9-7-1-四步-每步一个判据">7.1 四步，每步一个判据</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -538,7 +538,7 @@ and its ExecutionEnv client</p>
 <td><code>1.4.0</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第 0 步的门槛不是随手定的。根 <code>package.json:68-70</code> 写着
 <code>&quot;node&quot;: &quot;&gt;=22.19.0&quot;</code>。Node 从 22.x 起能直接执行 <code>.ts</code>：把类型剥掉，
 当普通 JS 跑。Pi 就是靠这个做到「不 build 也能跑 src」。版本不够时
@@ -618,7 +618,7 @@ build 过之后，<code>pi</code> 这个命令跑的就是它。</p>
 就不写「应该会输出」。</p>
 <h3 id="sec-13-7-5-装依赖-四个坑-本机全踩了">7.5 装依赖：四个坑，本机全踩了</h3>
 <p><code>npm install</code> 是这一节唯一的失败点。四次尝试的真实报错：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -648,7 +648,7 @@ build 过之后，<code>pi</code> 这个命令跑的就是它。</p>
 <td>✅ <code>added 130 packages in 7m</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>四条对策，按顺序试：</p>
 <ol>
 <li><strong>先看一眼源。</strong> <code>npm config get registry</code>。很多公司机器默认指向内网
@@ -690,7 +690,7 @@ workspace，<code>esbuild</code> 也会在 postinstall 里再抓一次平台二�
 <hr>
 <h2 id="sec-14-八-那-22-万行到底在补什么">八、那 22 万行到底在补什么</h2>
 <p>内核只做一件事：给定上下文，驱动&quot;模型 ↔ 工具&quot;的循环。它不管的事有六类，对应六个大包。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>缺什么</th>
@@ -730,7 +730,7 @@ workspace，<code>esbuild</code> 也会在 postinstall 里再抓一次平台二�
 <td style="text-align:right">3,305</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>按顺序说。</p>
 <p><strong><code>ai</code>（28,551 行）</strong> —— 7 家 provider 各有一套事件格式、错误码、工具调用协议、thinking 参数。<code>ai</code> 把它们归一成一件事：<code>stream(model, context, options)</code> 返回一个事件流，事件类型固定 12 种。这套归一层之所以占 12.5%，是因为协议适配天然啰嗦——一个 provider 一个文件，每个文件几百到两千行。</p>
 <p><strong><code>tui</code>（19,971 行）</strong> —— 终端渲染不是 <code>console.log</code>。要处理宽字符、ANSI 转义、光标定位、双缓冲差分。Pi 的 TUI 能做到&quot;改一个字符只发一个字符的字节量&quot;，靠的就是这 2 万行。</p>
@@ -784,7 +784,7 @@ plain closures</p>
 <p>每章结尾都有「自己动手验证」和「工程暗坑」，前者给能跑的命令，后者只写真踩过的坑。</p>
 <h3 id="sec-16-9-1-十六条任务-五个里程碑">9.1 十六条任务，五个里程碑</h3>
 <p>书是分五批写完的，每批有硬判据。列在这儿，你可以用它检查我有没有偷工：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>批次</th>
@@ -819,7 +819,7 @@ plain closures</p>
 <td>构建通过、0 失效引用</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>&quot;闭环&quot;的具体含义是：该部分的每一章都能独立回答一个问题，且章与章之间的指针都对得上。比如 Part B 结束后，你应该能从&quot;我敲了一行字&quot;一直讲到&quot;toolResult 写回 transcript&quot;，中间不需要跳出去查。</p>
 <h3 id="sec-17-9-2-三条不同的读法">9.2 三条不同的读法</h3>
 <p>同一本书，三类人应该走不一样的路。</p>
@@ -921,7 +921,7 @@ plain closures</p>
 <p>下一章把 12 个包摊开成一张三层架构图，每个箭头都带出处，并给出一个判据：给定一个文件路径，三步之内能说出它属于哪一层。</p>
 <hr>
 <h2 id="sec-23-源码索引">源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1026,7 +1026,7 @@ plain closures</p>
 <td>引用校验</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <span></span>

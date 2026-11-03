@@ -55,7 +55,7 @@
 <p>四种。这是所有 provider 都能表达的<strong>最小公约数</strong>——M04 讲过的十种方言，翻译的对象就是这个联合类型。</p>
 <h3 id="sec-2-1-1-字段对照">1.1 字段对照</h3>
 <p>四种消息的字段数差得很远，值得摆在一起看：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>消息</th>
@@ -90,7 +90,7 @@
 <td>见下</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>AssistantMessage</code>（<code>:585-616</code>）是唯一一个&quot;必须记录是谁回答的&quot;的消息：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -99,7 +99,7 @@
 <p>M10 讲会话恢复时会发现，正是这十七个字段让&quot;重放一次历史对话&quot;变成可能——你不仅知道模型说了什么，还知道它当时是怎么说的。</p>
 <h3 id="sec-3-1-2-content-是唯一形状各异的字段">1.2 <code>content</code> 是唯一形状各异的字段</h3>
 <p>四种消息里，除 <code>content</code> 之外的字段都长得规矩。<code>content</code> 却四种形状：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>消息</th>
@@ -134,7 +134,7 @@
 <td>否</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三条规律：</p>
 <p><strong>一，只有 <code>user</code> 和 <code>toolResult</code> 能带图片。</strong> 因为&quot;看图&quot;是输入能力：
 用户发截图，工具回传渲染结果（M05 的 <code>read</code> 读图片文件就靠这个）。
@@ -225,7 +225,7 @@
 <p>两者的区别是语义：<code>branchSummary</code> 是&quot;这段历史被放弃了&quot;，<code>compactionSummary</code> 是&quot;这段历史被浓缩了&quot;。<strong>同样是摘要，一个向前看，一个向后看。</strong> 所以它们是两个类型，不是同一个类型加个 <code>kind</code> 字段。</p>
 <h3 id="sec-12-2-5-三类来源-三种信任等级">2.5 三类来源，三种信任等级</h3>
 <p>四条自定义消息看着平级，按&quot;谁产生的&quot;分却是三层：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>消息</th>
@@ -255,7 +255,7 @@
 <td>高（内部写）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <ul>
 <li><code>bashExecution</code> 的每个字段都来自一次真实进程（<code>output</code>、<code>exitCode</code>）</li>
 <li><code>custom</code> 是<strong>唯一允许外部代码任意注入</strong>的通道，
@@ -288,7 +288,7 @@
 <p>关键在于：<strong><code>agent</code> 包完全不知道 <code>coding-agent</code> 有哪些消息类型。</strong></p>
 <p><code>agent</code> 包的 <code>types.ts</code> 里没有 <code>bashExecution</code> 这个词。它只提供&quot;一个可被扩充的插槽&quot;，<code>coding-agent</code> 往里塞。编译产物里也没有循环依赖。</p>
 <p>对比一下常见的替代方案：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -309,7 +309,7 @@
 <td>每传一层都要带上类型参数，传染性极强</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>声明合并的代价是<strong>隐式的</strong>：你看到一个 <code>AgentMessage</code> 的 <code>switch</code>，里面却有 <code>case &quot;bashExecution&quot;</code>，而在当前文件里搜不到这个类型的定义。新手会困惑&quot;这个 role 到底哪来的&quot;。</p>
 <p>这也解释了为什么 <code>messages.ts</code> 开头要有那段文件注释（<code>:1-6</code>）——它是在补声明合并丢掉的可发现性。</p>
 <h3 id="sec-16-3-3-代价-穷尽检查必须写">3.3 代价：穷尽检查必须写</h3>
@@ -394,7 +394,7 @@ drwxr-xr-x  5 user  staff  160 Nov  2 10:00 .
 <p><strong>默认丢、显式转</strong>这个方向选得很对：一个不认识的类型，默认行为应该是&quot;不要发给外部服务&quot;，而不是&quot;试着塞过去&quot;。安全默认值 + 显式覆盖，这是所有&quot;往外部系统发数据&quot;的接口都该有的姿态。</p>
 <h3 id="sec-23-4-4-闸门只有一个-入口有八处">4.4 闸门只有一个，入口有八处</h3>
 <p><code>convertToLlm</code> 在 <code>coding-agent</code> 里被调用八次，分布在六个文件：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>位置</th>
@@ -427,7 +427,7 @@ drwxr-xr-x  5 user  staff  160 Nov  2 10:00 .
 <td>生成 bug 报告</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>看第四类就明白为什么这么多：<strong>压缩本身也是一次模型调用。</strong>
 M09 会讲，压缩的做法是&quot;把历史摘要成一段话&quot;，那个摘要请求同样得把历史
 降级成 <code>Message[]</code> 才能发给 provider。所以这不是&quot;主循环的门&quot;，
@@ -455,7 +455,7 @@ M09 会讲，压缩的做法是&quot;把历史摘要成一段话&quot;，那个�
 <p>Use this for operations that work at the AgentMessage level: context window management (pruning old messages), injecting context from external sources. <strong>Contract: must not throw or reject.</strong></p>
 </blockquote>
 <p>两个阶段的<strong>输入输出类型不同</strong>，所以职责不同：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -485,7 +485,7 @@ M09 会讲，压缩的做法是&quot;把历史摘要成一段话&quot;，那个�
 <td>必须</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>如果合成一步，压缩就没法工作了——压缩要<strong>产出</strong>一条 <code>compactionSummary</code>（自定义类型），但那个函数如果只能输出 <code>Message</code>，就吐不出自定义消息。</p>
 <p><strong>&quot;在超集里改造，在边界处降级&quot;</strong>——分开两步，是因为中间会有&quot;半成品仍是超集&quot;的阶段。</p>
 <h3 id="sec-26-5-2-顺序不能换">5.2 顺序不能换</h3>
@@ -519,7 +519,7 @@ it summarizes</strong>.</p>
 <hr>
 <h2 id="sec-28-六-过滤-三个独立开关">六、过滤：三个独立开关</h2>
 <p>&quot;这条消息要不要给模型看&quot;和&quot;要不要给人看&quot;是两个问题。Pi 把它们拆成三个互不相干的开关：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>开关</th>
@@ -548,7 +548,7 @@ it summarizes</strong>.</p>
 <td>隐私/带宽场景</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="sec-29-6-1-excludefromcontext-走的是丢弃-不是标记">6.1 <code>excludeFromContext</code> 走的是丢弃，不是标记</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -583,7 +583,7 @@ it summarizes</strong>.</p>
 <p><strong>存的时候尽量多，发的时候尽量少。</strong> 这句话可以概括整个消息系统。</p>
 <h3 id="sec-34-7-1-反方向-一次响应怎么变回消息">7.1 反方向：一次响应怎么变回消息</h3>
 <p>以 <code>api/anthropic-messages.ts</code> 为例，一边收 SSE 事件一边往 <code>output</code> 里填：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -623,7 +623,7 @@ it summarizes</strong>.</p>
 <td><code>:709</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>两个细节值得看：</p>
 <p><strong>一，<code>api</code>/<code>provider</code>/<code>model</code> 是回填的。</strong> 响应体里没有&quot;我是被谁请求的&quot;，
 这三项必须由翻译器从请求上下文里写进去。所以身份字段是<strong>请求侧的承诺</strong>，
@@ -633,7 +633,7 @@ it summarizes</strong>.</p>
 相同就留空，省字节。而 <code>:711-716</code> 会拿这个实际模型名去查 fallback 定价——
 <strong>降级往往也意味着换价</strong>。</p>
 <p><code>mapStopReason</code>（<code>:1660-1682</code>）就是归一化的全部内容：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>provider 原文</th>
@@ -658,7 +658,7 @@ it summarizes</strong>.</p>
 <td><code>error</code> + <code>&quot;sensitive&quot;</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>stop_sequence</code> 那一支的注释写着 <em>We don't supply stop sequences,
 so this should never happen</em>——<strong>收到一个&quot;不可能发生&quot;的值也照样映射，
 不抛错</strong>。这是&quot;失败也是消息&quot;的又一处落地。</p>
@@ -792,7 +792,7 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <p>下一章打开事件系统。</p>
 <hr>
 <h2 id="sec-40-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -847,7 +847,7 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <td>字段回填 <code>:590-601</code>、<code>responseId</code> <code>:705</code>、<code>responseModel</code> <code>:709</code>、<code>rawStopReason</code> <code>:842</code>、<code>mapStopReason</code> <code>:1660-1682</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m05-tools.html"><span class="lbl">上一篇</span>工具系统 —— 八个工具，一道文件锁</a>

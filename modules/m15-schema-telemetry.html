@@ -43,7 +43,7 @@
       <div class="module-meta">9,700 字 · 含 518 行代码 · 约 45 分钟</div>
     </header>
     <p>两个包，一共 <strong>51 个文件 / 6,137 行</strong>，都不产出任何功能。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -66,9 +66,9 @@
 <td>与厂商无关的遥测契约</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>schema/src</code> 的主要文件：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -128,9 +128,9 @@
 <td><code>date-time</code> / <code>ipv4</code> / <code>idn-hostname</code> 等 21 种</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>telemetry/src</code> 全部：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -170,10 +170,10 @@
 <td>适配器一致性测试套件</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>翻 <code>package.json</code>，两个包的 <code>dependencies</code> 都是<strong>空的</strong>。有依赖的是用它们
 的那些包：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>使用方</th>
@@ -202,7 +202,7 @@
 <td><code>models.json</code> 这类配置文件的形状</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>这一章要回答 <code>task.md</code> 里那句验收：<strong>把 schema 抽出来，到底解决了什么问题</strong>。</p>
 <hr>
 <h2 id="sec-1-一-问题-一份-schema-五个读者">一、问题：一份 schema，五个读者</h2>
@@ -575,7 +575,7 @@ is never walked for identifiers.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-fn">coerce</span>(value: <span class="tok-kw">unknown</span>): <span class="tok-kw">unknown</span> {</span><span class="ln">  <span class="tok-kw">const</span> base = <span class="tok-kw">this</span>.c.r.rootBase;</span><span class="ln">  <span class="tok-kw">const</span> withoutNulls = <span class="tok-kw">this</span>.<span class="tok-fn">dropOptionalNulls</span>(value, <span class="tok-kw">this</span>.schema, base);</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">this</span>.<span class="tok-fn">coerceTypes</span>(<span class="tok-kw">this</span>.<span class="tok-fn">convertOnly</span>(withoutNulls), <span class="tok-kw">this</span>.schema, base);</span><span class="ln">}</span></code></pre></div>
 <p>三遍，顺序不能换（<code>coerce.ts:5-13</code> 的注释）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>遍</th>
@@ -600,7 +600,7 @@ is never walked for identifiers.</p>
 <td>Ajv 的 <code>coerceTypes</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第一遍必须在最前面。如果先做第 2 遍，<code>{ limit: null }</code> 里的 <code>null</code>
 可能被转成 <code>0</code>——那&quot;没传&quot;就变成了&quot;传了 0&quot;。</p>
 <p>第 2、3 遍分开也有理由。第 2 遍是<strong>看结构</strong>的：它知道 <code>$ref</code> 指向哪、
@@ -667,7 +667,7 @@ is never walked for identifiers.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// ai/src/api/constrained-sampling.ts:15-32</span></span><span class="ln"><span class="tok-kw">const</span> UNSUPPORTED_STRICT_SCHEMA_KEYS = [</span><span class="ln">  <span class="tok-str">"$ref"</span>, <span class="tok-str">"$defs"</span>, <span class="tok-str">"definitions"</span>, <span class="tok-str">"allOf"</span>, <span class="tok-str">"oneOf"</span>,</span><span class="ln">  <span class="tok-str">"patternProperties"</span>, <span class="tok-str">"dependentSchemas"</span>, <span class="tok-str">"dependencies"</span>,</span><span class="ln">  <span class="tok-str">"unevaluatedProperties"</span>, <span class="tok-str">"propertyNames"</span>, <span class="tok-str">"contains"</span>,</span><span class="ln">  <span class="tok-str">"prefixItems"</span>, <span class="tok-str">"not"</span>, <span class="tok-str">"if"</span>, <span class="tok-str">"then"</span>, <span class="tok-str">"else"</span>,</span><span class="ln">] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
 <p>按&quot;为什么编译不了&quot;分一下组：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>组</th>
@@ -702,7 +702,7 @@ is never walked for identifiers.</p>
 <td>要与已生成的内容做匹配</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>除了这十六个，还有一批是<strong>形状</strong>被拒（<code>makeJsonSchemaNodeStrict</code> 里逐个
 <code>throw</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -846,7 +846,7 @@ span 时，第二份的类型变成 <code>{ &quot;duplicate telemetry span names
 不删就会把两次的长度加在一起。</p>
 <h3 id="sec-31-10-2-高基数进-span-低基数才进指标">10.2 高基数进 span，低基数才进指标</h3>
 <p>同一件事在两个粒度上的两个名字：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>事实</th>
@@ -871,7 +871,7 @@ span 时，第二份的类型变成 <code>{ &quot;duplicate telemetry span names
 <td><code>tool.name</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>理由很物理：span 是一行记录，metric 是一个<strong>聚合桶</strong>。桶的键只有几十种
 取值才叫桶，几万种取值叫索引。§9.1 那条类型收紧只是把这条规律写成了
 编译期规则。</p>
@@ -914,7 +914,7 @@ characters&quot;）。为什么是这么小的数：错误信息进的是错误�
 <code>TelemetryContext</code>。因为 span 是 context 的超集——根 context 也要能开
 span，一个对象同时扮演两个角色，省掉一层包装。</p>
 <h3 id="sec-35-11-1-两个实现-两种时间观">11.1 两个实现，两种时间观</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -954,7 +954,7 @@ span，一个对象同时扮演两个角色，省掉一层包装。</p>
 <td>只有落盘的行</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第二行最能说明&quot;契约&quot;是什么。<code>chord/src/telemetry-sqlite/index.ts:335-337</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1209,7 +1209,7 @@ JSON Schema 并列。</li>
 从别处拆出来的——先有重复，才有抽取。</p>
 <hr>
 <h2 id="sec-52-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1329,7 +1329,7 @@ JSON Schema 并列。</li>
 <td>JSON1 查询，布尔与 1 的区分</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m14-tui.html"><span class="lbl">上一篇</span>终端渲染 —— 一个 spinner 只该写 99 个字节</a>

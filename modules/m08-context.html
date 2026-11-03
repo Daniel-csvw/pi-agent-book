@@ -100,7 +100,7 @@ cwd 不同、<code>AGENTS.md</code> 不同、<code>skills/</code> 不同。</li>
 <p><code>buildSystemPromptSections</code>（<code>system-prompt.ts:128-191</code>）按代码顺序
 往一个普通对象里塞键。JS 对象的字符串键按插入顺序枚举，
 所以<strong>写入顺序就是最终顺序</strong>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -165,7 +165,7 @@ cwd 不同、<code>AGENTS.md</code> 不同、<code>skills/</code> 不同。</li>
 <td>逐个非空时</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>九行，但第 9 行是&quot;零到多个&quot;。<strong>八节是骨架，自定义节是挂在末尾的</strong>。</p>
 <p><code>preamble</code> 的默认值是一句话（:155-156）：</p>
 <div class="code-block" data-lang="ts">
@@ -265,7 +265,7 @@ hidden declarations). They are reachable only through another tool.</p>
 <strong>改一个数组，三节同步变</strong>——这就是&quot;一个真源&quot;。</p>
 <h3 id="sec-12-3-2-一句话描述与规则子弹">3.2 一句话描述与规则子弹</h3>
 <p>两个 map：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -285,7 +285,7 @@ hidden declarations). They are reachable only through another tool.</p>
 <td><code>rules</code> 节，每个一条</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>它们由工具定义自己声明，在 <code>_rebuildSystemPrompt</code>
 （<code>agent-session.ts:1741-1767</code>）里被收集：</p>
 <div class="code-block" data-lang="ts">
@@ -343,7 +343,7 @@ M04 讲过 <code>timestamp: 0</code> 的同一个动机。</p>
 因为规则都是源码里手写的。</p>
 <h3 id="sec-14-3-4-三个-quot-整段替换-quot-语义完全不同">3.4 三个&quot;整段替换&quot;，语义完全不同</h3>
 <p>这是本章最容易混的地方。三个字段名字都像&quot;换掉提示词&quot;：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>字段</th>
@@ -372,7 +372,7 @@ M04 讲过 <code>timestamp: 0</code> 的同一个动机。</p>
 <td><strong>一个都不生成</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>customPrompt</code> 的代码路径在 <code>:152-169</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -436,7 +436,7 @@ has and appends one system message patching only the changed sections.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/resource-loader.ts:212-231</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">loadContextFileFromDir</span>(</span><span class="ln">	dir: <span class="tok-kw">string</span>,</span><span class="ln">): { path: <span class="tok-kw">string</span>; content: <span class="tok-kw">string</span> } | <span class="tok-kw">null</span> {</span><span class="ln">	<span class="tok-kw">const</span> candidates = [</span><span class="ln">		<span class="tok-str">"AGENTS.override.md"</span>,</span><span class="ln">		<span class="tok-str">"AGENTS.md"</span>,</span><span class="ln">		<span class="tok-str">"AGENTS.MD"</span>,</span><span class="ln">		<span class="tok-str">"CLAUDE.md"</span>,</span><span class="ln">		<span class="tok-str">"CLAUDE.MD"</span>,</span><span class="ln">	];</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> filename <span class="tok-kw">of</span> candidates) {</span><span class="ln">		<span class="tok-kw">const</span> filePath = <span class="tok-fn">join</span>(dir, filename);</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-fn">existsSync</span>(filePath)) {</span><span class="ln">			<span class="tok-kw">try</span> {</span><span class="ln">				<span class="tok-kw">if</span> (!<span class="tok-fn">statSync</span>(filePath).<span class="tok-fn">isFile</span>()) <span class="tok-kw">continue</span>;</span><span class="ln">				<span class="tok-kw">return</span> {</span><span class="ln">					path: filePath,</span><span class="ln">					content: <span class="tok-fn">stripBom</span>(<span class="tok-fn">readFileSync</span>(filePath, <span class="tok-str">"utf-8"</span>)),</span><span class="ln">				};</span><span class="ln">			} <span class="tok-kw">catch</span> (error) {</span><span class="ln">				console.<span class="tok-fn">error</span>(</span><span class="ln">					chalk.<span class="tok-fn">yellow</span>(<span class="tok-str">`Warning: Could not read ${filePath}: ${error}`</span>),</span><span class="ln">				);</span><span class="ln">			}</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">null</span>;</span><span class="ln">}</span></code></pre></div>
 <p>五个名字，<strong>一个目录只取一个</strong>，按顺序第一个存在的赢。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>优先级</th>
@@ -471,7 +471,7 @@ has and appends one system message patching only the changed sections.</p>
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>override</code> 在最前，是给&quot;我改一下但不想动原文件&quot;的场景。
 两个大小写变体并列，因为 macOS/Windows 大小写不敏感，
 Linux 敏感——只写一个会在某些系统上失效。</p>
@@ -632,7 +632,7 @@ the shadowed path itself</p>
 <h3 id="sec-23-5-2-两道校验">5.2 两道校验</h3>
 <p><code>loadSkillFromFile</code>（:277+）读 frontmatter，然后过两个校验函数。</p>
 <p><code>validateName</code>（:92-115）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>规则</th>
@@ -662,7 +662,7 @@ the shadowed path itself</p>
 <td>报错</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>validateDescription</code>（:117-134）：必填，≤ 1024 字符。</p>
 <p>两条上限都不是随手定的。名字要在 XML 标签内容里出现
 （<code>&lt;name&gt;...&lt;/name&gt;</code>），64 字符足够，也避免模型看到超长名字
@@ -690,7 +690,7 @@ the shadowed path itself</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// A hidden reader is still reachable through another tool, so skills stay</span></span><span class="ln"><span class="tok-com">// but the hint names no tool.</span></span><span class="ln"><span class="tok-kw">const</span> readers = [<span class="tok-str">"read"</span>, <span class="tok-str">"bash"</span>] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span><span class="ln"><span class="tok-kw">const</span> skillFileReadTool =</span><span class="ln">	readers.<span class="tok-fn">find</span>((tool) =&gt; declaredTools.<span class="tok-fn">includes</span>(tool)) ??</span><span class="ln">	(readers.<span class="tok-fn">some</span>((tool) =&gt; selectedTools.<span class="tok-fn">includes</span>(tool)) ? <span class="tok-str">"indirect"</span> : <span class="tok-kw">undefined</span>);</span><span class="ln"><span class="tok-kw">if</span> (skillFileReadTool &amp;&amp; skills.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	<span class="tok-kw">const</span> skillsPrompt = <span class="tok-fn">formatSkillsForPrompt</span>(skills, skillFileReadTool).<span class="tok-fn">trim</span>();</span><span class="ln">	<span class="tok-kw">if</span> (skillsPrompt) promptSections.skills = skillsPrompt;</span><span class="ln">}</span></code></pre></div>
 <p>三种结果：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>情况</th>
@@ -715,7 +715,7 @@ the shadowed path itself</p>
 <td><strong>整节不写</strong></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第二态是关键。<code>declaredTools</code> 是减法后的集合，<code>selectedTools</code>
 是减法前的。两者都查，才能区分&quot;藏了&quot;和&quot;没有&quot;。
 藏了说明还能通过别的工具调到，所以技能列表有用但工具名不能说——
@@ -760,7 +760,7 @@ prompt template 的参数是自然语言，不是 shell 脚本，
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> ARG_PATTERN = <span class="tok-kw">new</span> <span class="tok-fn">RegExp</span>(</span><span class="ln">	[</span><span class="ln">		<span class="tok-str">"\\$\\{(\\d+|ARGUMENTS|@):-([^}]*)\\}"</span>,</span><span class="ln">		<span class="tok-str">"\\$\\{@:(\\d+)(?::(\\d+))?\\}"</span>,</span><span class="ln">		<span class="tok-str">"\\$(ARGUMENTS|@|\\d+)"</span>,</span><span class="ln">	].<span class="tok-fn">join</span>(<span class="tok-str">"|"</span>),</span><span class="ln">	<span class="tok-str">"g"</span>,</span><span class="ln">);</span></code></pre></div>
 <p>拆开看是三组选择，对应六种写法：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>写法</th>
@@ -793,7 +793,7 @@ prompt template 的参数是自然语言，不是 shell 脚本，
 <td>从第 N 个起取 L 个</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>${@:N}</code> 有个边界处理（:89-91）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1125,7 +1125,7 @@ and may change between versions&quot;。
 <h3 id="sec-42-方法三-清单进提示词-正文靠工具拉">方法三：清单进提示词，正文靠工具拉</h3>
 <p>Skills 的核心是<strong>把上下文加载变成一次工具调用</strong>。</p>
 <p>对比两种极端：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -1155,7 +1155,7 @@ and may change between versions&quot;。
 <td>模型不知道要读</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第三种风险最容易被忽略：<strong>模型不知道自己不知道</strong>。
 所以清单里的 <code>description</code> 必须写成&quot;什么时候该用我&quot;，
 而不是&quot;我是什么&quot;。Pi 的校验里 <code>description</code> 是必填、
@@ -1177,7 +1177,7 @@ and may change between versions&quot;。
 摘要怎么保持可续写、压缩之后 session 树怎么变。</p>
 <hr>
 <h2 id="sec-44-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1292,7 +1292,7 @@ and may change between versions&quot;。
 <td><code>before_agent_start</code> 与缓存说明</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m07-event-driven.html"><span class="lbl">上一篇</span>事件驱动 —— 十颗钉子，四十一个挂钩</a>

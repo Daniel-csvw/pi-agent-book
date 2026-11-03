@@ -69,7 +69,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">await</span> agent.<span class="tok-fn">prompt</span>(<span class="tok-str">"找出所有 TODO 并修复"</span>);</span><span class="ln"><span class="tok-com">// 它自己决定：先 grep，看到 3 处结果，再 read，再 edit，最后说"改完了"</span></span></code></pre></div>
 <p>区别不在模型，在<strong>谁掌握控制流</strong>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -98,7 +98,7 @@
 <td>直到模型说停</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>把控制流交给概率模型，代价是它可能停不下来、可能绕圈、可能在 <code>rm -rf</code> 之前不问一声。</p>
 <p>所以一个能用的 Agent Loop，真正的工作量不在&quot;循环&quot;本身，在<strong>围住循环的那圈硬约束</strong>：步数、token、abort 信号、工具权限、输出截断、失败重试。</p>
 <p>下面看 Pi 怎么围。</p>
@@ -132,7 +132,7 @@
 <hr>
 <h2 id="sec-4-四-五个函数-撑起一个循环">四、五个函数，撑起一个循环</h2>
 <p><code>agent-loop.ts</code> 对外只暴露 4 个类型 / 常量 + 5 个函数：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>导出</th>
@@ -167,9 +167,9 @@
 <td><code>:821</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>前四个构成一个 2×2 矩阵：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -189,7 +189,7 @@
 <td><code>runAgentLoopContinue</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>带不带新消息很好理解：<code>prompt</code> 要往上下文里塞一条 user，<code>continue</code> 是&quot;接着上次&quot;（重试，或者工具结果已经在上下文里了）。</p>
 <p>返回流还是 Promise，是留给不同宿主的选择。</p>
 <h3 id="sec-5-4-1-为什么-agentloop-不是-async">4.1 为什么 agentLoop 不是 async</h3>
@@ -238,7 +238,7 @@
 <pre><code><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { Static } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-schema"</span>;</span></code></pre></div>
 <p>用来把工具参数的 schema 推导成 TS 类型（<code>types.ts:466</code>）。纯类型，零运行时。真正跑起来的时候，agent 包只认 <code>pi-ai</code>。</p>
 <p>按职责分一下这 13 个：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>符号</th>
@@ -298,7 +298,7 @@
 <td><code>:41</code> / <code>:374</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>有两个符号值得单独说，因为它们悄悄重新定义了&quot;状态&quot;这个词。</p>
 <p><strong><code>getCurrentTools</code> 收的不是工具列表，是消息数组。</strong> 调用长这样（<code>:356-359</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -321,7 +321,7 @@
 <p>模型说&quot;我要 grep&quot; → 执行 grep → 把结果塞回去 → 模型再说 → ...</p>
 </blockquote>
 <p><code>hasMoreToolCalls</code> 就是齿距。它的赋值只有三处：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>行号</th>
@@ -346,7 +346,7 @@
 <td>有调用，且没被全体要求终止 → 继续</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意 <code>:271</code> 在 <code>if (toolCalls.length &gt; 0)</code> <strong>之前</strong>。这个顺序很讲究：先默认停，再看有没有调用。没有就自然退出，逻辑上不需要 else 分支。</p>
 <h3 id="sec-12-5-3-外层在补什么">5.3 外层在补什么</h3>
 <p>内层停下有三种原因：没工具了、没插话了、被 terminate 了。</p>
@@ -362,7 +362,7 @@
 <pre><code><span class="ln"><span class="tok-kw">if</span> (hasMoreToolCalls || pendingMessages.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	explicitContinuation = <span class="tok-kw">false</span>;</span><span class="ln">}</span></code></pre></div>
 <p>宿主要 continue，但内层本来就会再转一圈（有工具或插话）——这次请求已经被&quot;自然满足&quot;了，不需要外层再补。清掉记号，避免多跑一轮。</p>
 <h3 id="sec-13-5-4-三条退出路径">5.4 三条退出路径</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>退出点</th>
@@ -387,7 +387,7 @@
 <td><code>turn_end</code> → <code>agent_end</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三条都以 <code>agent_end</code> 收尾。区别在<strong>第一类不执行工具、不调 <code>finishTurn</code></strong>——模型请求本身就失败了，没有&quot;这一轮干了什么&quot;可汇报。</p>
 <h3 id="sec-14-5-5-turn_start-为什么有两个发出点">5.5 turn_start 为什么有两个发出点</h3>
 <p>翻代码会发现 <code>turn_start</code> 在 <code>:127</code> 和 <code>:216</code> 各发一次。会不会重复？</p>
@@ -399,7 +399,7 @@
 <p><code>runAgentLoopContinue</code>（<code>:155-156</code>）做了同样的事。于是两个入口的事件序列完全一致——下游不用关心这一轮是 <code>prompt</code> 起的还是 <code>continue</code> 起的。</p>
 <h3 id="sec-15-5-6-runloop-里的五个可变状态">5.6 runLoop 里的五个可变状态</h3>
 <p><code>runLoop</code> 只有 160 行，但塞了五个跨轮存活的可变量。列清楚它们，循环就再没有&quot;魔法&quot;了。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>变量</th>
@@ -440,7 +440,7 @@
 <td>每轮多次</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong><code>lastCompletedTurn</code> 里装的是引用，不是快照。</strong> 构造它的时候（<code>:289-294</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -448,7 +448,7 @@
 <p><code>newMessages</code> 是 <code>runLoop</code> 外面那个数组，后面每个 turn 都往里 push。所以宿主在 <code>finishTurn</code> 里拿到的 <code>turn.newMessages</code> 是一个<strong>还在长</strong>的数组——这一轮看到长度 5，下一轮同一个对象可能已经 9 了。</p>
 <p>这不是 bug，是有意的：钩子想知道&quot;到现在为止累计发生了什么&quot;，读长度就行，不用自己拼。但如果你把 <code>turn.newMessages</code> 存起来当快照，之后回读会看到别的内容。要快照，自己去 <code>[...turn.newMessages]</code>。</p>
 <p><strong><code>pendingMessages</code> 有五个赋值点，每个对应一种时序。</strong> 按执行顺序排：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>行号</th>
@@ -483,7 +483,7 @@
 <td>follow-up 借同一个变量走同一条注入路径</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>:315</code> 是个省钱技巧。follow-up 和 steering 语义完全不同（一个&quot;等你说完&quot;，一个&quot;打断你&quot;），但<strong>注入机制一模一样</strong>：塞进 <code>pendingMessages</code> → <code>continue</code> 回外层 → 内层再转一圈。所以复用同一个变量、同一段注入代码（<code>:220-225</code>），只在最外层多一个判断。</p>
 <p><strong><code>explicitContinuation</code> 被清掉的机会比设上的多。</strong> 设它只有一处（<code>:303</code>），清它有三处：<code>:306</code> 被自然满足、<code>:314</code> 有 follow-up 顶替、<code>:321</code> 兑现完。这个比例是对的——一个&quot;待办记号&quot;本来就该在大部分情况下被别的路径消化掉，只在所有路径都没兜住时才真正执行。那一次执行就是&quot;用当前上下文再发一次请求&quot;，不注入任何消息。</p>
 <hr>
@@ -543,7 +543,7 @@
 <pre><code><span class="ln"><span class="tok-kw">const</span> followUpMessages = (<span class="tok-kw">await</span> config.getFollowUpMessages?.()) || [];</span><span class="ln"><span class="tok-kw">if</span> (followUpMessages.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	explicitContinuation = <span class="tok-kw">false</span>;</span><span class="ln">	pendingMessages = followUpMessages;</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
 <p>触发条件是&quot;内层已经停了&quot;——没工具调用了、没插话了。也就是说，它<strong>不打断</strong>当前工作，只负责&quot;既然你完事了，这儿还有一件&quot;。</p>
 <p>两者的区别：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -578,7 +578,7 @@
 <td>&quot;干完了顺便把这个也做了&quot;</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="sec-20-6-4-出路三-finishturn-宿主说了算">6.4 出路三：finishTurn —— 宿主说了算</h3>
 <p><code>:295</code>：</p>
 <div class="code-block" data-lang="ts">
@@ -621,7 +621,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">type</span> StopReason =</span><span class="ln">	| <span class="tok-str">"pending"</span></span><span class="ln">	| <span class="tok-str">"stop"</span> | <span class="tok-str">"length"</span> | <span class="tok-str">"toolUse"</span></span><span class="ln">	| <span class="tok-str">"error"</span> | <span class="tok-str">"aborted"</span> | <span class="tok-str">"deferred"</span>;</span></code></pre></div>
 <p>循环只认两个。剩下五个各自有归属：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>取值</th>
@@ -674,7 +674,7 @@
 <td>宿主自己轮询</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>pending</code> 是纯内部值。每个 provider 开流时先造一条 <code>content: []</code>、<code>stopReason: &quot;pending&quot;</code> 的 partial 消息（<code>anthropic-messages.ts:601</code>、<code>openai-completions.ts:333</code> 等 11 处都是这么开的，见 <code>ai/src/api/</code>），<code>done</code> 一到就换成终态。循环永远碰不到它。</p>
 <p><code>toolUse</code> 的存在最有意思：类型里还留着，4 个 provider 也还在发（<code>anthropic-messages.ts:1670</code>、<code>openai-completions.ts:1569</code>、<code>mistral-conversations.ts:917</code>、<code>bedrock-converse-stream.ts:1238</code>），<strong>但循环已经不看它了</strong>。</p>
 <p>这是兼容性残留——<code>coding-agent</code> 的 UI、<code>durable</code> 的日志格式可能还在读这个字段，删掉会破契约，所以类型留着，判断搬到别处。读源码时看到这种&quot;还在产出、但核心逻辑已经不用&quot;的东西，往往就是历史的断面，它比 commit 记录更能说明这一步重构是怎么走的。</p>
@@ -688,7 +688,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">let</span> messages = context.messages;</span><span class="ln"><span class="tok-kw">if</span> (config.transformContext) {</span><span class="ln">	messages = <span class="tok-kw">await</span> config.<span class="tok-fn">transformContext</span>(messages, signal); <span class="tok-com">// :400</span></span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> llmMessages = <span class="tok-kw">await</span> config.<span class="tok-fn">convertToLlm</span>(messages);       <span class="tok-com">// :404</span></span><span class="ln"><span class="tok-kw">const</span> llmContext = <span class="tok-fn">normalizeContext</span>({ messages: llmMessages }); <span class="tok-com">// :406</span></span></code></pre></div>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>阶段</th>
@@ -713,7 +713,7 @@
 <td><code>ai</code> 包</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>顺序不能换。<code>transformContext</code> 在<strong>语义层</strong>动手（&quot;这条通知消息没用，剪掉&quot;），<code>convertToLlm</code> 在<strong>协议层</strong>动手（&quot;custom → user&quot;）。先语义后协议。</p>
 <p>文件头那句注释（<code>:1-3</code>）说的就是这件事：</p>
 <blockquote>
@@ -726,7 +726,7 @@
 <pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">defaultConvertToLlm</span>(messages: AgentMessage[]): Message[] {</span><span class="ln">	<span class="tok-kw">return</span> messages.<span class="tok-fn">filter</span>(</span><span class="ln">		(message) =&gt;</span><span class="ln">			message.role === <span class="tok-str">"system"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"user"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"assistant"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"toolResult"</span>,</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
 <p>只留四种，其余全丢。</p>
 <h3 id="sec-25-7-2-三个-quot-请求前-quot-钩子-别搞混">7.2 三个&quot;请求前&quot;钩子，别搞混</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>钩子</th>
@@ -755,7 +755,7 @@
 <td>续期 OAuth token</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>为什么 <code>prepareRequest</code> 不能注入消息？看类型定义（<code>types.ts:180</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -773,7 +773,7 @@
 <pre><code><span class="ln"><span class="tok-kw">const</span> sections = <span class="tok-fn">diffSystemPromptSections</span>(</span><span class="ln">	<span class="tok-fn">getCurrentSystemMessage</span>(messages)?.sections ?? {},</span><span class="ln">	<span class="tok-fn">buildSystemPromptSections</span>(options),</span><span class="ln">);</span><span class="ln"><span class="tok-kw">return</span> sections</span><span class="ln">	? { role: <span class="tok-str">"system"</span>, content: <span class="tok-str">""</span>, sections, timestamp: Date.<span class="tok-fn">now</span>() }</span><span class="ln">	: <span class="tok-kw">undefined</span>;</span></code></pre></div>
 <p>系统提示词变了，<strong>不是去改 <code>context.systemPrompt</code>，而是追加一条只含差异的 system 消息</strong>。</p>
 <p>同样套路出现在三处：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>变更</th>
@@ -802,7 +802,7 @@
 <td><code>:199-208</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>前两个同源：<strong>transcript 是唯一事实源，任何状态变更都必须能在 transcript 里回放出来</strong>。</p>
 <p>为什么这么较真？因为 <code>durable</code> 包要把会话持久化、能恢复、能分叉。如果系统提示词藏在某个变量里，恢复时只能&quot;再算一遍&quot;，而重算结果未必和当初一致（工具集可能变了）。写进 transcript，才能做到&quot;读出来就是当时的样子&quot;。</p>
 <p><code>declareToolChanges</code> 的注释（<code>:332-341</code>）把这层意思说透了：</p>
@@ -831,7 +831,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">reasoning:</span><span class="ln">	nextTurnSnapshot.thinkingLevel === <span class="tok-kw">undefined</span></span><span class="ln">		? config.reasoning</span><span class="ln">		: nextTurnSnapshot.thinkingLevel === <span class="tok-str">"off"</span></span><span class="ln">			? <span class="tok-kw">undefined</span></span><span class="ln">			: nextTurnSnapshot.thinkingLevel,</span></code></pre></div>
 <p>三层嵌套，看着啰嗦，其实在做三态映射：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>钩子返回</th>
@@ -856,7 +856,7 @@
 <td>&quot;用这个等级&quot;</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>为什么&quot;关掉&quot;要映成 <code>undefined</code> 而不是保留 <code>&quot;off&quot;</code>？因为 <code>reasoning</code> 最终是传给 <code>pi-ai</code> 的可选配置，<code>undefined</code> 意味着&quot;不传这个字段，用 provider 默认&quot;。<code>&quot;off&quot;</code> 是 agent 层自己的概念，往下传没意义。</p>
 <p><strong>同一个值在两层的名字不一样，中间必须翻译一次。</strong> 这段三元表达式就是那个翻译层。而它上面一行 <code>thinkingLevel: config.reasoning ?? &quot;off&quot;</code>（<code>:232</code>）是反方向翻译：进请求时把 <code>undefined</code> 还原成 <code>&quot;off&quot;</code> 给钩子看。一个概念、两种表示、三个翻译点，这是分层系统必然的摩擦成本。</p>
 <hr>
@@ -1015,7 +1015,7 @@
 <p>这样外部消费者<strong>只有一条路径要处理</strong>：订阅事件，等 <code>agent_end</code>。不需要 try/catch，不需要区分&quot;正常结束&quot;和&quot;崩了&quot;。</p>
 <p>代价是：真实异常被降级成了数据，调试时得看 <code>errorMessage</code> 字段。这是个权衡——把复杂度从&quot;N 个调用方&quot;收敛到&quot;内核的一处&quot;。</p>
 <p>三层的可恢复性完全不同，这是设计时就得想清楚的：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>层</th>
@@ -1044,7 +1044,7 @@
 <td>结束</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>只有第一层是&quot;把错误交还给模型&quot;，后两层都是&quot;把错误交还给调用方&quot;。</p>
 <p>界线画在哪里？不在&quot;错在哪一层&quot;，而在<strong>谁能修</strong>。参数写错了模型能改；provider 挂了它改不了。</p>
 <p>这条界线也解释了为什么 <code>stopReason === &quot;length&quot;</code> 被归到第一层而不是第二层（9.5 节）：截断虽然发生在 provider 那边，但修复动作（重发一个参数更完整的调用）在模型这一侧。</p>
@@ -1078,7 +1078,7 @@
 <p>如果改成允许并发 run，state 就得加锁，事件顺序也得定义&quot;交错规则&quot;。不值得。</p>
 <h3 id="sec-42-11-3-reducer">11.3 reducer</h3>
 <p><code>processEvents</code>（<code>agent.ts:575-622</code>）把事件流折叠成状态：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>事件</th>
@@ -1115,7 +1115,7 @@
 <td><code>streamingMessage = undefined</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意这里 <code>messages.push</code> 的是<strong>事件里的消息</strong>，不是循环内部的数组。<code>Agent</code> 自己维护一份 transcript，靠事件同步。</p>
 <p>所以 <code>Agent.state.messages</code> 和 <code>runLoop</code> 里的 <code>currentContext.messages</code> 是两份数据。内容一致（因为事件就是那边 push 时发的），但对象不同。</p>
 <h3 id="sec-43-11-4-agent_end-不等于-idle">11.4 agent_end 不等于 idle</h3>
@@ -1260,7 +1260,7 @@
 <p>下一章拆 <code>packages/ai</code>——那 28,551 行里的统一层。</p>
 <hr>
 <h2 id="sec-48-源码索引">源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1305,7 +1305,7 @@
 <td>钩子真实用法 <code>:803-947</code>、工具钩子 <code>:668-671</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m02-package-map.html"><span class="lbl">上一篇</span>三层架构 —— 十二个包各自站在哪一层</a>

@@ -43,7 +43,7 @@
       <div class="module-meta">10,000 字 · 含 944 行代码 · 约 50 分钟</div>
     </header>
     <p>两个包，一共 35 个文件、6,324 行。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>包</th>
@@ -69,7 +69,7 @@
 <td>6 个</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>放在 50,101 行的 <code>chord</code>、33,728 行的 <code>durable</code> 旁边，这是仓库里最小的一对。</p>
 <p>但它们是十二个包里唯一朝<strong>相反方向</strong>做同一件事的两个：一个把外面的能力拉进
 Agent，一个把 Agent 的调用压缩成一段代码送出去。</p>
@@ -112,7 +112,7 @@ them, or filter large output, instead of many separate calls.</p>
 </blockquote>
 <p>（<code>coding-agent/src/extensions/codemode/tool.ts:108-113</code>）</p>
 <p>一句话总结两个包的分工：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -147,7 +147,7 @@ them, or filter large output, instead of many separate calls.</p>
 <td>一段脚本 + 一段输出</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <hr>
 <h2 id="sec-2-二-mcp-一次会话的骨架">二、MCP：一次会话的骨架</h2>
 <p><code>packages/mcp</code> 的结构很干净，四层：</p>
@@ -375,7 +375,7 @@ SSE 流</strong>。</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// protocol/content.ts:73-77</span></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * Tool result content in the shape LLM APIs accept: text and base64</span></span><span class="ln"><span class="tok-com"> * images. Matches the `TextContent` and `ImageContent` types of</span></span><span class="ln"><span class="tok-com"> * `@earendil-works/pi-ai`.</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> LlmContent =</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>; text: <span class="tok-kw">string</span> }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"image"</span>; data: <span class="tok-kw">string</span>; mimeType: <span class="tok-kw">string</span> };</span></code></pre></div>
 <p>翻译函数是一个 <code>switch</code>（<code>protocol/content.ts:79-103</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>MCP 块</th>
@@ -420,7 +420,7 @@ SSE 流</strong>。</p>
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>toLlmContent</code> 还有一个兜底（<code>protocol/content.ts:105-118</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -548,7 +548,7 @@ injected tools</p>
 wasm 实例。代价是启动开销，换来的是：终止就是销毁，隔离不需要靠清理。</p>
 <h3 id="sec-21-6-3-execute-和-start-是两条路">6.3 <code>execute</code> 和 <code>start</code> 是两条路</h3>
 <p><code>CodemodeSandboxBase</code> 只有两个公开方法（<code>execution.ts:501</code> 和 <code>:530</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -588,7 +588,7 @@ wasm 实例。代价是启动开销，换来的是：终止就是销毁，隔离
 <td>宿主要重放一次执行时</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>execute</code> 是产品功能，<code>start</code> 是可靠性设施。后者的存在理由只有一句：
 <strong>重启之后能把上一次没跑完的脚本原样再跑一遍</strong>（§10）。</p>
 <hr>
@@ -770,7 +770,7 @@ its interrupt budget is used up.</p>
 <p>客户端要 10 MB 内存，服务端配了 32 MB，给 10 MB；客户端要 1 GB，给 32 MB。
 <code>Math.min</code> 两行，把「谁能说要多少」这条边界钉死了。</p>
 <h3 id="sec-30-8-4-三者对照">8.4 三者对照</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -823,7 +823,7 @@ its interrupt budget is used up.</p>
 <td><code>pi-codemode/portable</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>portable.ts</code> 的存在理由只有一句话（<code>portable.ts:1-6</code>）：</p>
 <blockquote>
 <p>Sandboxes that need no Node built-ins: <code>InlineCodemodeSandbox</code> runs the VM on
@@ -903,7 +903,7 @@ otherwise corrupt what the prelude reports to the host.</p>
 没有定时器&quot;。比一句干巴巴的 <code>timeout</code> 有用得多。</p>
 <h3 id="sec-35-9-4-image-只收-base64-并且验魔数">9.4 <code>image()</code>：只收 base64，并且验魔数</h3>
 <p><code>image()</code> 拒绝三种输入，每种有自己的理由（<code>prelude-source.ts:403-429</code>）：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>拒绝什么</th>
@@ -933,7 +933,7 @@ otherwise corrupt what the prelude reports to the host.</p>
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第一条背后的推理写在注释里（<code>prelude-source.ts:416-418</code>）：</p>
 <blockquote>
 <p>Providers reject the whole request on a bad image, and a persisted image
@@ -985,7 +985,7 @@ covers loops that print empty strings.</p>
 默认确定的——时间、随机数、时区、GC 都能悄悄改结果。</p>
 <h3 id="sec-39-10-2-四件事被钉死">10.2 四件事被钉死</h3>
 <p><code>vm.ts:23-36</code> 把清单列了出来：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>不确定性</th>
@@ -1014,7 +1014,7 @@ covers loops that print empty strings.</p>
 <td>结果带 <code>seq</code>，严格按序应用，早到的先缓冲</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>前四项靠 WASI 层和 <code>Intrinsics</code> 完成：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1076,7 +1076,7 @@ VM，那次 drain 的 <code>idle</code> 永远不会到达：</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> McpExposure = <span class="tok-str">"codemode"</span> | <span class="tok-str">"deferred"</span> | <span class="tok-str">"direct"</span> | <span class="tok-str">"hidden"</span>;</span></code></pre></div>
 <p>每档的含义，<code>mcp/index.ts:117-121</code> 给了一行定义：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>档位</th>
@@ -1106,7 +1106,7 @@ VM，那次 drain 的 <code>idle</code> 永远不会到达：</p>
 <td>不可调</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong>默认是 <code>codemode</code></strong>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1169,7 +1169,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 <h3 id="sec-48-11-5-一张对比表">11.5 一张对比表</h3>
 <p>现在可以回答 task.md 的验收问题了。两个包不是&quot;两个功能&quot;，而是<strong>一条链的
 两段</strong>：能力从外面进来（MCP），使用方式被压成脚本（codemode）。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -1234,7 +1234,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 <td><code>quickjs-wasi</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>最后一列那两行值得再读一遍：<strong>整个扩展生态只靠两个依赖支撑</strong>。MCP 那边是
 &quot;起一个子进程&quot;，codemode 那边是&quot;跑一个 wasm&quot;。两个都是最小的可移植假设。</p>
 <hr>
@@ -1248,7 +1248,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 但校验、钩子、权限在分叉之前就跑完了。这就是 §11.2 那句&quot;同一条管道&quot;
 在图上的样子。</p>
 <p>还有一条边可以数：从模型到模型，经过了几次序列化。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>位置</th>
@@ -1277,7 +1277,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 <td>字符串（<code>text()</code> 拼出来的）</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>五次。其中两次是&quot;字符串套 JSON&quot;，因为它必须在 VM 的消息通道里过一遍。
 这两次序列化换来的是什么：<strong>脚本能改的一切都改不了宿主</strong>（§7.1 的
 <code>BridgeError</code>）。</p>
@@ -1417,7 +1417,7 @@ codemode 脚本里没有 <code>fetch</code>、没有 <code>process</code>、没�
 字节</strong>。</p>
 <hr>
 <h2 id="sec-62-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1537,7 +1537,7 @@ codemode 脚本里没有 <code>fetch</code>、没有 <code>process</code>、没�
 <td>工具描述、声明预算、嵌套调用树</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m12-chord.html"><span class="lbl">上一篇</span>对象与热重载 —— 改代码为什么不用重启</a>

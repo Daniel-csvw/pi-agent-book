@@ -69,7 +69,7 @@
 <pre><code><span class="ln">Anthropic    { role: "user", content: [{ type: "text", text: "..." }] }</span><span class="ln">OpenAI       { role: "user", content: "..." }</span><span class="ln">Google       { role: "user", parts: [{ text: "..." }] }</span><span class="ln">Bedrock      { role: "user", content: [{ text: "..." }] }</span></code></pre></div>
 <p>四种。差异点各不同：Anthropic 要数组加 <code>type</code>，Google 把 <code>content</code> 改名 <code>parts</code>，Bedrock 学 Anthropic 但<strong>不要</strong> <code>type</code>。</p>
 <p>纯文本是最简单的情况。真正的差异有四个维度：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>维度</th>
@@ -99,11 +99,11 @@
 <td>Anthropic 贴 <code>cache_control</code>，Bedrock 插独立 <code>cachePoint</code> 节点</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>四个维度乘以十个 API，就是这一层的全部工作量。</p>
 <h3 id="sec-2-1-1-十个-api-不是一个数字">1.1 十个 api，不是一个数字</h3>
 <p><code>KnownApi</code>（<code>types.ts:64-74</code>）正好十个取值。它们和翻译器文件是<strong>一一对应</strong>的：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>api</th>
@@ -163,7 +163,7 @@
 <td>256</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>十个体量差七倍。看两个极端：</p>
 <ul>
 <li><strong><code>openai-completions</code> 最胖（1,729 行）</strong>，因为它不是&quot;一家&quot;的协议，是一整个兼容圈（DeepSeek、Groq、Together、vLLM、Ollama……）的共同方言。同一份代码要兜住这些厂商各自的怪癖。</li>
@@ -254,7 +254,7 @@
 <hr>
 <h2 id="sec-8-三-第二层-12-种事件">三、第二层：12 种事件</h2>
 <p><code>AssistantMessageEvent</code>（<code>types.ts:823-839</code>）一共 12 个成员。下面这张表可以当查表用：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -337,7 +337,7 @@
 <td>失败结束</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>除了 <code>contentIndex</code> 和 <code>delta</code> 这类差异字段，<strong>10 个事件还都带 <code>partial</code></strong>（1 到 10 号），只有 <code>done</code> / <code>error</code> 不带——因为这两个不是&quot;过程中的一帧&quot;，是终局。</p>
 <p>不用记 12 个。记模式：<strong>三类内容 × 三步 + 两头</strong>。</p>
 <div class="code-block" data-lang="text">
@@ -428,7 +428,7 @@
 <hr>
 <h2 id="sec-14-五-为什么要有-stream-和-streamsimple-两个">五、为什么要有 <code>stream</code> 和 <code>streamSimple</code> 两个</h2>
 <p>两个函数体几乎一样（<code>compat.ts:252</code> 和 <code>:278</code>），差别只在 options 类型：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -463,7 +463,7 @@
 <td>Agent 循环</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>stream()</code> 是机制，<code>streamSimple()</code> 是策略。Agent 循环选策略版，因为它不关心&quot;模型到底支不支持 xhigh&quot;。</p>
 <h3 id="sec-15-5-1-buildbaseoptions-才是真正的适配器">5.1 <code>buildBaseOptions</code> 才是真正的适配器</h3>
 <p><code>streamSimple</code> 多做的事集中在 <code>api/simple-options.ts</code> 的 <code>buildBaseOptions</code>（<code>:36-66</code>）。它把 6 个&quot;简单选项&quot;展开成 21 个字段：</p>
@@ -490,7 +490,7 @@
 <h3 id="sec-17-5-3-同一个契约-两种合规写法">5.3 同一个契约，两种合规写法</h3>
 <p>回到 2.4 的差异：旧门面先 <code>resolveApiProvider</code> 再返回流，新入口先返回流再在 <code>async</code> 里解析 provider。</p>
 <p>按第四节第三条契约，两者都合规：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -515,7 +515,7 @@
 <td>只需包住循环</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>新写法的调用方更省事，代价是<strong>错误发生的时刻不可预测</strong>——你拿到流不代表请求已经开始。这是一个典型取舍：<strong>把麻烦从调用方挪到实现方。</strong></p>
 <p>判断依据很简单：这个 API 会被多少不认识实现细节的人调用？越多，越应该&quot;先返回流，错误进流&quot;。</p>
 <hr>
@@ -541,7 +541,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> getSupportedThinkingLevels&lt;TApi <span class="tok-kw">extends</span> Api&gt;(</span><span class="ln">	model: Model&lt;TApi&gt;,</span><span class="ln">): ModelThinkingLevel[] {</span><span class="ln">	<span class="tok-kw">if</span> (!model.reasoning) <span class="tok-kw">return</span> [<span class="tok-str">"off"</span>];</span><span class="ln"></span><span class="ln">	<span class="tok-kw">return</span> EXTENDED_THINKING_LEVELS.<span class="tok-fn">filter</span>((level) =&gt; {</span><span class="ln">		<span class="tok-kw">const</span> mapped = model.thinkingLevelMap?.[level];</span><span class="ln">		<span class="tok-kw">if</span> (mapped === <span class="tok-kw">null</span>) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;                    <span class="tok-com">// 显式拒绝</span></span><span class="ln">		<span class="tok-kw">if</span> (level === <span class="tok-str">"xhigh"</span> || level === <span class="tok-str">"max"</span>) <span class="tok-kw">return</span> mapped !== <span class="tok-kw">undefined</span>;</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">true</span>;                                          <span class="tok-com">// 其余默认支持</span></span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
 <p>三态语义：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>值</th>
@@ -562,7 +562,7 @@
 <td>映射到 provider 自己的档位名</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong><code>undefined</code> 和 <code>null</code> 在别的地方也这么用</strong>——M03 讲 <code>mergeClientIdentity</code> 时，<code>attribution</code> 字段的 <code>undefined</code> 是&quot;我没意见&quot;、<code>null</code> 是&quot;明确不要&quot;。同一个约定，两处独立使用。</p>
 <p><code>xhigh</code> / <code>max</code> 特殊对待的理由：这两档会显著增加成本，默认不开，必须模型显式声明。</p>
 <h3 id="sec-20-6-2-clamp-的两个方向">6.2 clamp 的两个方向</h3>
@@ -582,7 +582,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// For models with adaptive thinking: use an effort level.</span></span><span class="ln"><span class="tok-com">// For older models: use budget-based thinking.</span></span><span class="ln"><span class="tok-kw">if</span> (model.compat?.forceAdaptiveThinking === <span class="tok-kw">true</span>) {</span><span class="ln">	<span class="tok-kw">const</span> effort = <span class="tok-fn">mapThinkingLevelToEffort</span>(model, options.reasoning);</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">stream</span>(model, context, { ...base, thinkingEnabled: <span class="tok-kw">true</span>, effort });</span><span class="ln">}</span></code></pre></div>
 <p>预算那张表在 <code>simple-options.ts:71-76</code>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>等级</th>
@@ -622,7 +622,7 @@
 <td>同上</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>xhigh</code> / <code>max</code> 在 token 制里被 <code>clampReasoning</code>（<code>:78-80</code>）折成 <code>high</code>——因为预算制没有&quot;更努力&quot;这个维度，只有&quot;更多 token&quot;。<strong>同一个语义，在不同厂商那里能表达的粒度不同</strong>，这是 provider 抽象永远漏不掉的一层。</p>
 <p>再加一条约束：<code>MIN_ANSWER_TOKENS = 1024</code>（<code>:69</code>）。当 <code>maxTokens &lt;= thinkingBudget</code> 时，预算被压到 <code>maxTokens - 1024</code>，保证答案还有地方写。否则会出现&quot;模型思考完，没配额输出&quot;这种空回复。</p>
 <hr>
@@ -633,7 +633,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> CACHE_RETENTIONS = [<span class="tok-str">"none"</span>, <span class="tok-str">"short"</span>, <span class="tok-str">"long"</span>] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
 <p>但四家的&quot;怎么标记&quot;完全不同：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>Provider</th>
@@ -668,7 +668,7 @@
 <td>同 Anthropic</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>四种思路，用一句话概括区别：</p>
 <ul>
 <li><strong>Anthropic 像贴便签</strong>：内容还是那些内容，附加一个&quot;这段不变&quot;的字段</li>
@@ -701,7 +701,7 @@
 <code>auth.json</code>、更不认识命令行。<code>ai</code> 是<strong>无状态的翻译库</strong>：给一个 model 和一个
 context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从哪来，它一概不管。</p>
 <p>这一层在 <code>packages/coding-agent/src/core/</code>，三个文件，2,475 行：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -726,7 +726,7 @@ context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从�
 <td>builtin / <code>models.json</code> / 扩展怎么叠成一个 <code>Provider</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三个文件对应三个动作：<strong>解析 → 装配 → 派活</strong>。一个一个看。</p>
 <h3 id="sec-26-8-1-那串字符不是-id-是一条查询">8.1 那串字符不是 id，是一条查询</h3>
 <p><code>--model</code> 认三种写法：</p>
@@ -753,7 +753,7 @@ context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从�
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> others = raw.<span class="tok-fn">filter</span>((model) =&gt; model !== named);</span><span class="ln"><span class="tok-kw">const</span> candidates = named ? [named, ...others] : others;</span><span class="ln"><span class="tok-kw">if</span> (candidates.length === <span class="tok-num">0</span>) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">if</span> (<span class="tok-kw">new</span> <span class="tok-fn">Set</span>(candidates.<span class="tok-kw">map</span>((model) =&gt; model.provider)).size === <span class="tok-num">1</span>)</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: candidates[<span class="tok-num">0</span>] };</span><span class="ln"><span class="tok-kw">if</span> (named &amp;&amp; <span class="tok-fn">usable</span>(named.provider))</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: named };</span><span class="ln"><span class="tok-kw">const</span> usableOthers = others.<span class="tok-fn">filter</span>((model) =&gt; <span class="tok-fn">usable</span>(model.provider));</span><span class="ln"><span class="tok-kw">if</span> (usableOthers.length === <span class="tok-num">1</span>)</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: usableOthers[<span class="tok-num">0</span>] };</span><span class="ln"><span class="tok-kw">if</span> (usableOthers.length === <span class="tok-num">0</span> &amp;&amp; named)</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: named };</span><span class="ln"><span class="tok-kw">return</span> { status: <span class="tok-str">"ambiguous"</span>, candidates, usableCount: usableOthers.length };</span></code></pre></div>
 <p>六行判断，五档结果：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>顺序</th>
@@ -788,7 +788,7 @@ context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从�
 <td><code>ambiguous</code> + 候选列表</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><code>usable</code> 只用来<strong>打破平局</strong>，不参与&quot;能不能用&quot;的判决。注释就写在函数头上
 （<code>:145-148</code>）：&quot;<code>usable</code> only breaks ties between providers, so a unique match
 resolves even without credentials.&quot;</p>
@@ -1065,7 +1065,7 @@ turn once.</p>
 <p>下一章打开工具系统。</p>
 <hr>
 <h2 id="sec-38-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1135,7 +1135,7 @@ turn once.</p>
 <td>三层叠加 <code>:560-580</code>、三重分派 <code>:588-608</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m03-agent-loop.html"><span class="lbl">上一篇</span>Agent Loop —— 两层循环，三条出路</a>

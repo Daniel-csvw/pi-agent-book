@@ -48,9 +48,11 @@
   --space-12: 48px;
   --space-16: 64px;
 
-  --read-width: 720px;
-  --toc-width: 240px;
-  --page-max: 1296px;
+  /* 正文列 + 侧栏 264 + 目录 260 + 两道 32 间隔 + 两侧 24 内边距 = 1476，
+     刚好塞进 --page-max，宽屏下不再把正文挤成一条窄栏 */
+  --read-width: 840px;
+  --toc-width: 260px;
+  --page-max: 1480px;
   --topbar-h: 56px;
 
   --radius-sm: 4px;
@@ -209,6 +211,8 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .prose {
   max-width: var(--read-width);
   min-width: 0;
+  /* 不能给 auto 水平外边距：grid item 一旦有 auto margin 就退化成 fit-content，
+     正文会按最长的不可断行（代码 token）撑宽，1181~1309px 下会压到右侧目录上 */
 }
 
 /* ---------- 章节头 ---------- */
@@ -370,6 +374,14 @@ pre code {
 .tok-meta { color: var(--code-meta); }
 
 /* ---------- 表格 ---------- */
+/* 窄屏下表格整体横向滚动：不把 table 改成 display:block（那会丢列宽算法），
+   而是由 build.mjs 在表格外裹一层 .table-wrap */
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 0 var(--space-5);
+}
+.table-wrap table { margin: 0; }
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -464,22 +476,59 @@ tbody tr:hover { background: var(--paper-sunken); }
 .pager a.next { text-align: right; }
 
 /* ---------- 首页 ---------- */
-.hero {
-  max-width: 860px;
+/* 首页没有侧栏，layout() 会省掉 .shell —— 此时 .main 自己充当居中容器，
+   否则它按「正文 1fr + 目录列」铺满整页，正文停在最左边、右侧留一条空列。 */
+body.is-index .main {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: var(--space-16) var(--space-6) var(--space-8);
+  padding: var(--space-8) var(--space-6) var(--space-16);
+}
+body.is-index .prose { max-width: none; }
+
+.hero {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-6) var(--space-8);
   text-align: center;
 }
 .hero h1 { font-size: 56px; margin-bottom: var(--space-4); }
 .hero .sub { color: var(--muted); font-size: var(--fs-body); line-height: var(--lh-prose); }
 
-.card-grid {
-  max-width: 960px;
+/* 分组容器管宽度与左右留白：.part-title 和卡片共用一条左边线 */
+.part-block {
+  max-width: 1200px;
   margin: 0 auto var(--space-16);
   padding: 0 var(--space-6);
+}
+.part-block .part-title {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+  font-weight: 600;
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.card-grid {
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* 一行三块：18 章正好 6 行，分组内卡片高度一致 */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
+}
+@media (max-width: 1080px) {
+  .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .card-grid { grid-template-columns: minmax(0, 1fr); }
+  /* 窄屏下内联代码允许断行：nowrap 会让超长文件路径 chip（476px+）
+     把整个文档撑出横向滚动条（实测 480 宽溢出 76px） */
+  code { white-space: normal; overflow-wrap: anywhere; }
 }
 .card {
   display: block;
@@ -513,7 +562,7 @@ tbody tr:hover { background: var(--paper-sunken); }
 .card .meta { font-size: var(--fs-xs); color: var(--soft); }
 
 /* ---------- 移动端 ---------- */
-@media (max-width: 1180px) {
+@media (max-width: 1240px) {
   .main { grid-template-columns: minmax(0, 1fr); }
   .toc { display: none; }
   .prose { max-width: 100%; }
@@ -531,6 +580,8 @@ tbody tr:hover { background: var(--paper-sunken); }
   :root { --fs-h1: 32px; --fs-h2: 24px; --fs-body: 16px; }
   .hero h1 { font-size: 36px; }
   .main { padding-top: var(--space-4); }
+  body.is-index .main { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .part-block { padding: 0 var(--space-4); }
 }
 
 @media print {

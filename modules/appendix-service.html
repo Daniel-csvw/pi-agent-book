@@ -57,7 +57,7 @@
 <pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">resolveAppMode</span>(parsed: Args, stdinIsTTY: <span class="tok-kw">boolean</span>,</span><span class="ln">	stdoutIsTTY: <span class="tok-kw">boolean</span>): AppMode {</span><span class="ln">	<span class="tok-kw">if</span> (parsed.mode === <span class="tok-str">"rpc"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"rpc"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (parsed.mode === <span class="tok-str">"json"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"json"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (parsed.print || !stdinIsTTY || !stdoutIsTTY) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"print"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-str">"interactive"</span>;</span><span class="ln">}</span></code></pre></div>
 <p><code>stdout</code> 被重定向就自动降级成 <code>print</code>——所以管道里跑 <code>pi &quot;问题&quot;</code> 不会
 卡在 TUI 里等输入。四种跑法对照：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>跑法</th>
@@ -92,7 +92,7 @@
 <td>全部事件</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>RPC 的定位写在文件头（<code>rpc-mode.ts:1-11</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -137,7 +137,7 @@ settings 里的默认值、各 provider 的默认模型。都找不到时把原�
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// 本页示例，实跑于 v1.4.0</span></span><span class="ln"><span class="tok-kw">import</span> { createAgentSession, SessionManager } <span class="tok-kw">from</span></span><span class="ln">	<span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> { session } = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSession</span>({</span><span class="ln">	sessionManager: SessionManager.<span class="tok-fn">inMemory</span>(),</span><span class="ln">});</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> off = session.<span class="tok-fn">subscribe</span>((e) =&gt; <span class="tok-fn">handle</span>(e));</span><span class="ln"><span class="tok-kw">await</span> session.<span class="tok-fn">prompt</span>(<span class="tok-str">"用 ls 看当前目录"</span>);</span><span class="ln"><span class="tok-fn">off</span>();</span><span class="ln">session.<span class="tok-fn">dispose</span>();</span></code></pre></div>
 <p>五个 API，各自的位置和返回值：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>调用</th>
@@ -172,7 +172,7 @@ settings 里的默认值、各 provider 的默认模型。都找不到时把原�
 <td><code>void</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>三个容易踩的点：</p>
 <p><strong><code>inMemory()</code> 不是「什么都不做」。</strong> 不传时走 <code>SessionManager.create</code>
 （<code>sdk.ts:201</code>），消息会以 JSONL 落到 <code>~/.pi/agent/sessions/</code> 下。
@@ -221,7 +221,7 @@ session 里。实测（同一 session，两次 prompt）：</p>
 <h2 id="sec-5-五-subscribe-能拿到什么">五、subscribe 能拿到什么</h2>
 <p>这一节是整页的骨架。表里的「实测键」是把 <code>Object.keys(e)</code> 打出来的结果，
 不是从类型定义抄的。</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>事件</th>
@@ -271,7 +271,7 @@ session 里。实测（同一 session，两次 prompt）：</p>
 <td>彻底结束</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>完整事件类型在 <code>agent-session.ts:209-250</code>，是 <code>AgentEvent</code> 的扩展：
 <code>agent_end</code> 被换掉（多了 <code>willRetry</code>），另加了 <code>agent_settled</code>、
 <code>queue_update</code>、<code>compaction_*</code> 等（<code>:211-250</code>）。</p>
@@ -349,7 +349,7 @@ session 里。实测（同一 session，两次 prompt）：</p>
 用户在 2.6 秒看到第一个词，而不是在 2.8 秒看到一整句。</p>
 <h3 id="sec-13-接口文档">接口文档</h3>
 <p>给同事的那一版，不含 Pi 的任何概念：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>type</th>
@@ -389,7 +389,7 @@ session 里。实测（同一 session，两次 prompt）：</p>
 <td>显示错误</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>中断没有单独的接口：<strong>直接断开请求</strong>。服务端 <code>res.on(&quot;close&quot;)</code> 会 abort。</p>
 <p>实测：客户端 2 秒超时断开（curl 退出码 28），6 秒后再发一个请求，
 仍然 <code>HTTP 200</code> 加 <code>event: done</code>——会话没坏，<code>busy</code> 也释放了。</p>
@@ -497,7 +497,7 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
 </ul>
 <hr>
 <h2 id="sec-21-源码索引">源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>符号</th>
@@ -552,7 +552,7 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
 <td>—</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="appendix-typescript.html"><span class="lbl">上一篇</span>附录 B —— 读源码用的 TypeScript 速查</a>

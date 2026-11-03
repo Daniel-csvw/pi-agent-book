@@ -52,7 +52,7 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 <h2 id="sec-1-一-一次工具调用-十颗钉子">一、一次工具调用，十颗钉子</h2>
 <p>先把 <code>AgentEvent</code> 摆全（<code>packages/agent/src/types.ts:521-551</code>）。这个联合类型只有
 十个成员，分四层：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>层</th>
@@ -112,7 +112,7 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 <td><code>result</code> <code>isError</code> <code>durationMs</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>十种，四层，每层都是「开始 →（更新 ×N）→ 结束」的节奏。跟 M04 的
 <code>AssistantMessageEvent</code> 十二种不同：<strong>那十二种是&quot;内容块&quot;的粒度，
 这十种是&quot;生命周期&quot;的粒度。</strong></p>
@@ -186,7 +186,7 @@ listeners for that event are still part of run settlement.</p>
 <p>这些不是事件，是<strong>回调</strong>——有返回值，能改行为。M05 讲的五步管道里，
 <code>beforeToolCall</code> 就是那道&quot;一票否决&quot;的关卡。</p>
 <h3 id="sec-8-2-4-三条通道的分工">2.4 三条通道的分工</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th></th>
@@ -219,7 +219,7 @@ listeners for that event are still part of run settlement.</p>
 <td>扩展的拦截</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong>&quot;能不能改&quot;由签名决定，&quot;等不等&quot;由实现决定。</strong> 记住这两条就不会混。</p>
 <h3 id="sec-9-2-5-一个场景-走一遍三条通道">2.5 一个场景，走一遍三条通道</h3>
 <p>假设你想&quot;每次工具执行完打印一行日志&quot;。三条通道各写一遍：</p>
@@ -301,7 +301,7 @@ AgentSession via agent-core hooks.</p>
 <hr>
 <h2 id="sec-15-四-四十一个钩子的地图">四、四十一个钩子的地图</h2>
 <p>不用背，按&quot;你什么时候想动手&quot;查：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>时机</th>
@@ -411,7 +411,7 @@ AgentSession via agent-core hooks.</p>
 <td>无</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>规律很清楚，四个层：</p>
 <ul>
 <li><strong><code>*_start</code> / <code>*_end</code></strong>：纯通知，没有返回值</li>
@@ -422,7 +422,7 @@ AgentSession via agent-core hooks.</p>
 <p><strong>越往后，权限越大，能出的事也越大。</strong></p>
 <h3 id="sec-16-4-1-四十一个里-常用的只有六个">4.1 四十一个里，常用的只有六个</h3>
 <p>按 <code>examples/extensions/</code> 那 70 个例子统计，出场率最高的六个：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>钩子</th>
@@ -462,7 +462,7 @@ AgentSession via agent-core hooks.</p>
 <td><code>input-transform</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>剩下三十五个大多和 <strong>UI 渲染</strong>有关（<code>custom-header</code>、<code>status-line</code>、
 那一批 widget 相关的），或者和 <strong>provider 定制</strong>有关（<code>debug-provider</code>、
 <code>provider-payload</code>）。这两类是&quot;做产品&quot;，不是&quot;改行为&quot;。</p>
@@ -472,7 +472,7 @@ AgentSession via agent-core hooks.</p>
 <p>每个 handler 都拿两个参数：<code>event</code> 和 <code>ctx</code>。
 <strong><code>event</code> 是数据，<code>ctx</code> 是能力。</strong></p>
 <p><code>ctx</code> 由 <code>createContext()</code>（<code>runner.ts:884</code>）现造，字段分三组：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>组</th>
@@ -497,7 +497,7 @@ AgentSession via agent-core hooks.</p>
 <td>探测环境能力</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意它<strong>每次都新建</strong>，不是共享单例。你可以在 handler 里随便用，
 但不能靠 <code>ctx</code> 的对象身份做判断。</p>
 <p>而 <code>ctx</code> 上的&quot;动作&quot;方法都先过一道 <code>assertActive()</code>（<code>runner.ts:1022-1031</code>）：</p>
@@ -545,7 +545,7 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 <p><code>emitUserBash</code>（<code>:1269-1298</code>）稍有不同：catch → <code>emitError</code> → <strong>重新抛</strong>。
 上报一次是为了让用户看见，重抛是为了让调用方停手。</p>
 <h3 id="sec-22-5-4-一张表">5.4 一张表</h3>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>类别</th>
@@ -570,11 +570,11 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 <td>抛，阻断执行</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p><strong>越有权限的钩子，越不该宽容。</strong> 这是一条可以搬到任何插件系统的规则。</p>
 <h3 id="sec-23-5-5-四种返回值-四种权力">5.5 四种返回值，四种权力</h3>
 <p>四十一个钩子的返回值，语义只有四种：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>返回</th>
@@ -604,7 +604,7 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 <td><code>turn_end</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>前三个是&quot;踩刹车&quot;，第四个是&quot;踩油门&quot;。</p>
 <p>第四个最反直觉：<strong>一个叫&quot;结束&quot;的事件里的钩子，能让循环不结束。</strong>
 <code>turn_end</code> 的 <code>continue</code> 被 <code>finishTurn</code> 直接翻译成 <code>{ action: &quot;continue&quot; }</code>
@@ -968,7 +968,7 @@ promise，agent 就永久卡住。</p>
 <p>打开上下文装配。</p>
 <hr>
 <h2 id="sec-42-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -1033,7 +1033,7 @@ promise，agent 就永久卡住。</p>
 <td><code>hello.ts</code> <code>confirm-destructive.ts</code> <code>auto-commit-on-exit.ts</code> <code>event-bus.ts</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m06-messages.html"><span class="lbl">上一篇</span>消息系统 —— 四种给模型看，八种给系统记</a>

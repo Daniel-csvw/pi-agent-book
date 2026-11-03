@@ -56,7 +56,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolName =</span><span class="ln">	| <span class="tok-str">"read"</span> | <span class="tok-str">"bash"</span> | <span class="tok-str">"powershell"</span> | <span class="tok-str">"edit"</span></span><span class="ln">	| <span class="tok-str">"write"</span> | <span class="tok-str">"grep"</span> | <span class="tok-str">"find"</span> | <span class="tok-str">"ls"</span>;</span></code></pre></div>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>工具</th>
@@ -124,12 +124,12 @@
 <td><code>truncateTail</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>八个工具本体合计 <strong>1,867 行</strong>。而支撑它们的基础设施——<code>truncate</code> / <code>output-accumulator</code> / <code>file-mutation-queue</code> / <code>path-utils</code> / <code>edit-diff</code> / <code>render-utils</code> / <code>tool-definition-wrapper</code> / <code>index</code>——合计 <strong>1,795 行</strong>。</p>
 <p><strong>一半的代码在管另一半。</strong> 这是本章想说清的事：工具本身都是&quot;薄&quot;的（<code>write</code> 只有 97 行），真正的工作量在于&quot;怎么让这八个东西不互相踩&quot;。</p>
 <h3 id="sec-2-1-1-三套预设-不是一套">1.1 三套预设，不是一套</h3>
 <p><code>index.ts</code> 提供三个工厂，权限依次放大：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>工厂</th>
@@ -154,7 +154,7 @@
 <td>全权限</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>注意 <code>createCodingTools</code> 里<strong>没有 <code>grep</code> / <code>find</code> / <code>ls</code></strong>。这不是漏了——有 <code>bash</code> 就够了，<code>grep</code> 那三个工具的价值是&quot;不经过 shell 也能搜&quot;，属于减依赖而非加能力。</p>
 <p>而 <code>createReadOnlyTools</code> 把 <code>bash</code> 排除在外，才是真正的安全边界：<strong>只读模式不能有 shell</strong>，因为 shell 什么都能干。</p>
 <h3 id="sec-3-1-2-三种体格">1.2 三种体格</h3>
@@ -175,7 +175,7 @@
 <pre><code><span class="ln">ToolDefinition.promptSnippet</span><span class="ln">        ↓  createToolDefinition</span><span class="ln">Context.tools[]</span><span class="ln">        ↓  normalizeContext（M04 2.1）</span><span class="ln">messages[0].toolsAdded</span><span class="ln">        ↓  provider 渲染</span><span class="ln">系统提示词里的工具说明</span></code></pre></div>
 <p>这条链有个实用推论：<strong>改 <code>guidelines</code> 就是改 Agent 行为，不用动一行逻辑代码。</strong></p>
 <p>看 <code>write</code> 和 <code>edit</code> 的分工是怎么定的——完全靠提示词，不靠代码：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>工具</th>
@@ -200,7 +200,7 @@
 <td>减少重复打开</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第三行尤其关键：一次 <code>edit</code> 调用的每个 <code>await</code> 都在持有文件锁。<strong>引导模型批量改，等于减少持锁次数。</strong></p>
 <hr>
 <h2 id="sec-5-二-四层类型-一个工具为什么有四张脸">二、四层类型：一个工具为什么有四张脸</h2>
@@ -377,7 +377,7 @@
 </blockquote>
 <p><strong>工具失败不 reject。</strong> 七种失败，一种产物。</p>
 <p>七种精确列出来，都在 <code>agent-loop.ts</code>：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>#</th>
@@ -430,7 +430,7 @@
 <td>原异常 message</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>第 2、3 条共用一个 catch，因为它们都在同一个 <code>try</code> 里——<strong>垫片和校验的失败在调用方看来是同一回事。</strong> 这种合并是故意的：模型不需要知道&quot;你的 JSON 形状不对&quot;和&quot;你少传了 path&quot;的区别，它只需要知道&quot;参数不行，重来&quot;。</p>
 <h3 id="sec-26-6-2-错误标志是-quot-平行字段-quot">6.2 错误标志是&quot;平行字段&quot;</h3>
 <p>注意 <code>createErrorToolResult</code>（<code>:922-927</code>）返回的对象里<strong>没有 <code>isError</code></strong>：</p>
@@ -441,7 +441,7 @@
 <p>为什么不用一个带 <code>isError</code> 的函数？因为 <code>afterToolCall</code> 钩子可能把错误结果改成成功（比如重试后成功），也可能反过来。<strong>把&quot;是不是错误&quot;和&quot;结果内容&quot;分开，钩子才能独立改其中一个。</strong></p>
 <h3 id="sec-27-6-3-为什么-quot-伪造成消息-quot-是最优解">6.3 为什么&quot;伪造成消息&quot;是最优解</h3>
 <p>三个候选方案，对比一下：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>方案</th>
@@ -470,7 +470,7 @@
 <td>能</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>模型看到错误消息，下一轮会自己调整参数——这是 Agent 自愈能力的来源。而&quot;消息&quot;意味着进 transcript，M03 的&quot;变更即追加&quot;和 M09 的压缩都能把它当正常数据对待。</p>
 <hr>
 <h2 id="sec-28-七-截断三姊妹-2000-行-50kb">七、截断三姊妹：2000 行 / 50KB</h2>
@@ -479,7 +479,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> DEFAULT_MAX_LINES = <span class="tok-num">2000</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> DEFAULT_MAX_BYTES = <span class="tok-num">50</span> * <span class="tok-num">1024</span>;   <span class="tok-com">// 50KB</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> GREP_MAX_LINE_LENGTH = <span class="tok-num">500</span>;</span></code></pre></div>
 <p>三个函数，对应三种&quot;该保哪一头&quot;：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>函数</th>
@@ -508,7 +508,7 @@
 <td>只关心开头和结局</td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <h3 id="sec-29-7-1-永远不返回半行">7.1 永远不返回半行</h3>
 <p>这是三条规则中最容易忽略、也最容易被破坏的一条。文件头注释（<code>:8</code>）写的是 &quot;Never returns partial lines (except bash tail truncation edge case)&quot;。</p>
 <p>为什么较真？因为<strong>半行会破坏行号</strong>。如果第 2000 行被切成 <code>function foo(a, b</code>，那模型后续用 <code>offset=2001</code> 接着读，从中间断的地方开始，行号全错一位。<code>read.ts</code> 的续读提示依赖 <code>truncation.outputLines</code>，这个数必须是完整行数。</p>
@@ -533,7 +533,7 @@
 <p><code>&amp; 0xc0 === 0x80</code> 这个判断在本章会出现三次（<code>truncate.ts</code>、<code>output-accumulator.ts</code> 两处），是 UTF-8 处理的通用手法——<strong>按字节限流，但按字符切</strong>。</p>
 <h3 id="sec-32-7-4-搜索类工具-条数上限兜底-字节只兜底">7.4 搜索类工具：条数上限兜底，字节只兜底</h3>
 <p><code>grep</code> / <code>find</code> / <code>ls</code> 不用行数限制，因为它们的输出行数本来就由<strong>条数</strong>决定了：</p>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>工具</th>
@@ -558,7 +558,7 @@
 <td><code>Use limit=1000 for more</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 <p>所以它们调 <code>truncateHead</code> 时传的是 <code>maxLines: Number.MAX_SAFE_INTEGER</code>（<code>grep.ts:283</code>、<code>find.ts:146</code>、<code>ls.ts:140</code>）——<strong>行数上限等于关掉，只留 50KB 字节兜底。</strong></p>
 <p>为什么还要留字节兜底？因为单行可能极长。一个 <code>min.js</code> 匹配到的一行可能有几百 KB，100 条这样的行远超 50KB。这时 <code>truncateHead</code> 会按<strong>字节</strong>截，<code>truncatedBy</code> 是 <code>&quot;bytes&quot;</code> 而不是 <code>&quot;lines&quot;</code>。</p>
 <p><code>grep</code> 还有第二道：单行先过 <code>truncateLine</code>，超过 500 字符切成 <code>... [truncated]</code>，并置 <code>linesTruncated</code>，最后统一提示：</p>
@@ -732,7 +732,7 @@
 <p>下一章打开消息系统。</p>
 <hr>
 <h2 id="sec-46-本章源码索引">本章源码索引</h2>
-<table>
+<div class="table-wrap"><table>
 <thead>
 <tr>
 <th>文件</th>
@@ -802,7 +802,7 @@
 <td><code>ToolExecutionMode</code> <code>:47</code></td>
 </tr>
 </tbody>
-</table>
+</table></div>
 
 <div class="pager">
       <a class="prev" href="m04-model-call.html"><span class="lbl">上一篇</span>模型调用 —— 一行代码背后的十层翻译</a>
