@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>上下文压缩 —— 两道闸门，两种摘要 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="active">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M09</div>
+      <h1>上下文压缩 —— 两道闸门，两种摘要</h1>
+      <div class="module-meta">10,100 字 · 含 1,062 行代码 · 约 55 分钟</div>
+    </header>
+    <p>M08 的最后一节说：每轮都要重算系统提示词。
+原因是提示词依赖的工具集、目录、技能会变。</p>
+<p>但还有一件事 M08 没提：<strong>重算的输入 <code>messages</code> 本身在变长</strong>。</p>
+<p>用户问十句，模型跑二十次工具，<code>messages</code> 就有三十条以上。
+每条工具结果动辄几千字符，一次 <code>read</code> 一整个文件就是上万字。
+20 万 token 的窗口，撑不了多久。</p>
+<p>撑不住的时候只有三条路：</p>
+<ul>
+<li><strong>报错</strong>。把 400 甩给用户，让人自己想办法。</li>
+<li><strong>静默截断</strong>。砍掉最早几条，假装没发生过。</li>
+<li><strong>主动压缩</strong>。把旧历史改写成摘要，保留最近的原文。</li>
+</ul>
+<p>Pi 走第三条，而且走得很认真：<code>compaction.ts</code> 1,105 行、
+<code>branch-summarization.ts</code> 387 行、<code>utils.ts</code> 164 行，不到 1,700 行，
+处理的是同一个问题——</p>
+<blockquote>
+<p>当对话必须变短时，<strong>丢掉什么、记住什么、凭什么决定</strong>。</p>
+</blockquote>
+<p>这一章拆这道题。两条线索：</p>
+<ol>
+<li><strong>普通压缩</strong>：同一个会话越跑越长，就地压扁。</li>
+<li><strong>分支压缩</strong>：会话在树上分叉，被放弃的那条路怎么留个念想。</li>
+</ol>
+<p>两者共用摘要调用与文件清单，但四个地方全不一样：
+<strong>切点算法</strong>、<strong>提示词</strong>、<strong>预算口径</strong>、<strong>摘要存放位置</strong>。
+章末有一张逐项对照表。</p>
+<hr>
+<h2 id="sec-1-一-压缩不是删除">一、压缩不是删除</h2>
+<h3 id="sec-2-1-1-磁盘上的历史一条都不能少">1.1 磁盘上的历史一条都不能少</h3>
+<p>先排除一个直觉方案：既然太长了，就把前面的消息删掉。</p>
+<p>做不到。原因不在模型，在存储。</p>
+<p><code>session-manager.ts</code> 的注释写得很直白：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// session-manager.ts:1525-1531</span></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * Get all session entries (excludes header). Returns a shallow copy.</span></span><span class="ln"><span class="tok-com"> * The session is append-only: use appendXXX() to add entries, branch() to</span></span><span class="ln"><span class="tok-com"> * change the leaf pointer. Entries cannot be modified or deleted.</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-fn">getEntries</span>(): SessionEntry[] {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.fileEntries.<span class="tok-fn">filter</span>((e): e <span class="tok-kw">is</span> SessionEntry =&gt; e.<span class="tok-kw">type</span> !== <span class="tok-str">"session"</span>);</span><span class="ln">}</span></code></pre></div>
+<p><code>append-only</code>：只能追加，不能改、不能删。</p>
+<p>这不是洁癖，是四个功能的前提：</p>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>依赖</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>恢复会话</td>
+<td>重放 JSONL 就能重建上下文</td>
+</tr>
+<tr>
+<td>分叉（fork / tree）</td>
+<td>每个 entry 有 <code>parentId</code>，靠链式指针回溯</td>
+</tr>
+<tr>
+<td>审计 / 导出</td>
+<td>发生过什么，文件里必须有</td>
+</tr>
+<tr>
+<td>崩溃恢复</td>
+<td>半截写入最多丢最后一行</td>
+</tr>
+</tbody>
+</table>
+<p>如果压缩真的删了消息，上面四个全废。
+所以压缩的做法是——<strong>在末尾追加一条&quot;墓碑&quot;，声明之前的不用看了</strong>。</p>
+<h3 id="sec-3-1-2-一条-entry-代替一段历史">1.2 一条 entry 代替一段历史</h3>
+<p>墓碑长这样（<code>CompactionEntry</code>）：</p>
+<ul>
+<li><code>summary</code>：改写后的摘要正文</li>
+<li><code>firstKeptEntryId</code>：从哪条开始保留原文</li>
+<li><code>tokensBefore</code>：压缩前多少 token</li>
+<li><code>details</code>：<code>{ readFiles, modifiedFiles }</code></li>
+<li><code>usage</code>：生成摘要那次调用的 token 消耗</li>
+<li><code>systemMessage</code>：压缩瞬间的系统提示词快照</li>
+</ul>
+<p>读上下文时，<code>buildContextEntries</code> 按这个规则筛：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// session-manager.ts:476-512（节选，参数折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">buildContextEntries</span>(</span><span class="ln">	entries: SessionEntry[],</span><span class="ln">	leafId?: <span class="tok-kw">string</span> | <span class="tok-kw">null</span>,</span><span class="ln">	byId?: Map&lt;<span class="tok-kw">string</span>, SessionEntry&gt;,</span><span class="ln">): SessionEntry[] {</span><span class="ln">	<span class="tok-kw">const</span> path = <span class="tok-fn">buildSessionPath</span>(entries, leafId, byId);</span><span class="ln">	<span class="tok-kw">let</span> compaction: CompactionEntry | <span class="tok-kw">null</span> = <span class="tok-kw">null</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> entry <span class="tok-kw">of</span> path) {</span><span class="ln">		<span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span>) compaction = entry;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (!compaction) <span class="tok-kw">return</span> path;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">const</span> compactionIdx = path.<span class="tok-fn">findIndex</span>((entry) =&gt; entry.id === compaction.id);</span><span class="ln">	<span class="tok-kw">if</span> (compactionIdx &lt; <span class="tok-num">0</span>) <span class="tok-kw">return</span> path;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">const</span> contextEntries: SessionEntry[] = [compaction];</span><span class="ln">	<span class="tok-kw">let</span> foundFirstKept = <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = <span class="tok-num">0</span>; i &lt; compactionIdx; i++) {</span><span class="ln">		<span class="tok-kw">const</span> entry = path[i];</span><span class="ln">		<span class="tok-kw">if</span> (entry.id === compaction.firstKeptEntryId) foundFirstKept = <span class="tok-kw">true</span>;</span><span class="ln">		<span class="tok-kw">if</span> (</span><span class="ln">			foundFirstKept &amp;&amp;</span><span class="ln">			!(entry.<span class="tok-kw">type</span> === <span class="tok-str">"message"</span> &amp;&amp; entry.message.role === <span class="tok-str">"system"</span>)</span><span class="ln">		) {</span><span class="ln">			contextEntries.<span class="tok-fn">push</span>(entry);</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">	contextEntries.<span class="tok-fn">push</span>(...path.<span class="tok-fn">slice</span>(compactionIdx + <span class="tok-num">1</span>));</span><span class="ln">	<span class="tok-kw">return</span> contextEntries;</span><span class="ln">}</span></code></pre></div>
+<p>三步，值得逐句读：</p>
+<ol>
+<li>沿当前叶子往上走，找<strong>最后一条</strong> compaction，它自己排在结果数组首位。</li>
+<li>从路径开头扫到 compaction 之前，只保留跨过 <code>firstKeptEntryId</code> 之后的，
+且<strong>跳过 system 消息</strong>（提示词状态由 <code>systemMessage</code> 字段承担）。</li>
+<li>compaction 之后的所有 entry 无条件保留。</li>
+</ol>
+<p>于是模型看到的是：
+<code>摘要 + 被保留的尾部原文 + 压缩之后继续发生的一切</code>。</p>
+<p>原始 JSONL 里那几千条消息还在，只是不再进入上下文。
+换一个叶子读就是另一条分支的上下文——M10 展开。</p>
+<h3 id="sec-4-1-3-三个必须守住的东西">1.3 三个必须守住的东西</h3>
+<p>墓碑方案要成立，切点就不能乱切。三条硬约束：</p>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th>违反的后果</th>
+<th>谁来守</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tool call 与 tool result 必须成对</td>
+<td>Anthropic 等 provider 直接 400</td>
+<td><code>isCutPointMessage</code> 不允许切在 toolResult</td>
+</tr>
+<tr>
+<td>保留区必须是&quot;最近的&quot;</td>
+<td>模型丢掉刚做的事，重复劳动</td>
+<td>从后往前累加 <code>keepRecentTokens</code></td>
+</tr>
+<tr>
+<td>摘要必须能&quot;接着干&quot;</td>
+<td>摘要写成一本书的导读，模型不知道下一步</td>
+<td>六节结构化模板 + 禁止续写</td>
+</tr>
+</tbody>
+</table>
+<p>第三条最容易被低估。摘要不是给人看的总结，
+是给<strong>另一个即将接手同一任务的模型</strong>看的交接单，
+所以提示词里写着 <code>another LLM will use to continue the work</code>。</p>
+<hr>
+<h2 id="sec-5-二-两道闸门">二、两道闸门</h2>
+<p>什么时候压？Pi 在两个位置各设一道闸门。</p>
+<h3 id="sec-6-2-1-第一道-请求之前">2.1 第一道：请求之前</h3>
+<p>每次准备下一轮（<code>prepareNextTurnWithContext</code>，即 M08 里算系统提示词的那个钩子），
+第一件事就是检查阈值：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:792-801（折行）</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-kw">async</span> <span class="tok-fn">_compactBeforeNextAssistantResponse</span>(</span><span class="ln">	context: AgentContext,</span><span class="ln">): Promise&lt;AgentContext&gt; {</span><span class="ln">	<span class="tok-kw">const</span> projection = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">buildSessionProjection</span>();</span><span class="ln">	<span class="tok-com">// A virtual selection is checked in prepareRequest, against the model the</span></span><span class="ln">	<span class="tok-com">// request is routed to.</span></span><span class="ln">	<span class="tok-kw">const</span> model = <span class="tok-kw">this</span>.model;</span><span class="ln">	<span class="tok-kw">if</span> (</span><span class="ln">		!model || <span class="tok-fn">isVirtualModel</span>(model) ||</span><span class="ln">		!<span class="tok-kw">this</span>.<span class="tok-fn">_exceedsCompactionThreshold</span>(model, projection)</span><span class="ln">	) {</span><span class="ln">		<span class="tok-kw">return</span> { ...context, messages: projection.messages };</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_runAutoCompaction</span>(<span class="tok-str">"threshold"</span>, <span class="tok-kw">false</span>);</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		...context,</span><span class="ln">		messages: <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">buildSessionProjection</span>().messages,</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p>三个细节：<code>contextWindow &lt;= 0</code> 直接返回 false（:783-790，没声明窗口的本地模型
+不压也不报错）；虚拟模型跳过（窗口要等路由后才知道，改在 <code>prepareRequest</code>
+里对着 <code>route.model</code> 查，:854-857）；压完必须重建投影（新 compaction entry
+会让旧 <code>projection.messages</code> 失效）。</p>
+<p>请求前再查一次，是因为&quot;上一轮结束&quot;到&quot;这一轮请求&quot;之间还会进东西：
+用户刚打的字、<code>steering</code> 插话、<code>follow_up</code> 排队、扩展注入的消息。</p>
+<h3 id="sec-7-2-2-第二道-响应之后">2.2 第二道：响应之后</h3>
+<p>另一道在模型回完之后，按 <code>stopReason</code> 分类处理：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:3032-3056（节选）</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-kw">async</span> <span class="tok-fn">_checkCompaction</span>(assistantMessage, skipAbortedCheck = <span class="tok-kw">true</span>) {</span><span class="ln">	<span class="tok-kw">const</span> settings = <span class="tok-kw">this</span>.settingsManager.<span class="tok-fn">getCompactionSettings</span>(<span class="tok-kw">this</span>.model);</span><span class="ln">	<span class="tok-kw">if</span> (!settings.enabled) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">if</span> (skipAbortedCheck &amp;&amp; assistantMessage.stopReason === <span class="tok-str">"aborted"</span>) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-com">// Skip overflow check if the message came from a different model.</span></span><span class="ln">	<span class="tok-kw">const</span> messageModel = <span class="tok-kw">this</span>.<span class="tok-fn">_modelForMessage</span>(assistantMessage);</span><span class="ln">	<span class="tok-kw">const</span> sameModel = messageModel !== <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">const</span> contextWindow = (messageModel ?? <span class="tok-kw">this</span>.model)?.contextWindow ?? <span class="tok-num">0</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-com">// Skip compaction checks if this assistant message is older than the latest</span></span><span class="ln">	<span class="tok-com">// compaction boundary.</span></span><span class="ln">	<span class="tok-kw">const</span> branch = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">getBranch</span>();</span><span class="ln">	<span class="tok-kw">const</span> compactionEntry = <span class="tok-fn">getLatestCompactionEntry</span>(branch);</span><span class="ln">	<span class="tok-kw">const</span> assistantIsFromBeforeCompaction =</span><span class="ln">		compactionEntry !== <span class="tok-kw">null</span> &amp;&amp;</span><span class="ln">		assistantMessage.timestamp &lt;= <span class="tok-kw">new</span> <span class="tok-fn">Date</span>(compactionEntry.timestamp).<span class="tok-fn">getTime</span>();</span><span class="ln">	<span class="tok-kw">if</span> (assistantIsFromBeforeCompaction) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-com">// …</span></span><span class="ln">}</span></code></pre></div>
+<p>四道提前返回，每一道都对应一个真实事故：</p>
+<table>
+<thead>
+<tr>
+<th>提前返回</th>
+<th>防的是什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!settings.enabled</code></td>
+<td>用户显式关掉自动压缩</td>
+</tr>
+<tr>
+<td><code>stopReason === &quot;aborted&quot;</code></td>
+<td>用户按了 Esc，不该顺手压一次</td>
+</tr>
+<tr>
+<td><code>messageModel === undefined</code></td>
+<td>换模型后旧模型的溢出错误会误触发</td>
+</tr>
+<tr>
+<td>消息早于最近一次 compaction</td>
+<td>压缩刚结束，旧 usage 又把阈值顶爆</td>
+</tr>
+</tbody>
+</table>
+<p>第三条：切模型后上一条消息还挂着旧模型的 <code>contextOverflow</code> 标记，
+只看当前 <code>this.model</code> 会凭空压一次；<code>_modelForMessage</code> 找回物理模型，
+对不上就跳过。</p>
+<p>第四条同理：刚压完，保留区的 <code>usage</code> 记的是<strong>压缩前</strong>的大小，
+拿它算阈值必然又超，于是无限压缩。</p>
+<h3 id="sec-8-2-3-三种-reason">2.3 三种 reason</h3>
+<p>自动路径只有两种，加上手动一共三种：</p>
+<table>
+<thead>
+<tr>
+<th>reason</th>
+<th>触发点</th>
+<th>会重试原请求吗</th>
+<th>失败文案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>manual</code></td>
+<td>用户 <code>/compact</code>、RPC、扩展</td>
+<td>不会</td>
+<td><code>Compaction failed: …</code></td>
+</tr>
+<tr>
+<td><code>threshold</code></td>
+<td>请求前 / 响应后超阈值</td>
+<td>不会</td>
+<td><code>Auto-compaction failed: …</code></td>
+</tr>
+<tr>
+<td><code>overflow</code></td>
+<td>provider 报溢出或输出被截断</td>
+<td>首轮会</td>
+<td><code>Context overflow recovery failed: …</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>reason</code> 会一路透传进事件（<code>compaction_start</code> / <code>compaction_end</code> /
+<code>session_before_compact</code> / <code>session_compact</code> / <code>session_compact_failed</code>），
+扩展据此决定显示什么、要不要插手。</p>
+<h3 id="sec-9-2-4-溢出只赔一次">2.4 溢出只赔一次</h3>
+<p><code>threshold</code> 只是&quot;快到线了，提前压&quot;，压完继续跑，没风险。
+<code>overflow</code> 是&quot;已经撞墙了&quot;——除了压，还得<strong>重放刚才那轮请求</strong>。
+Pi 给这个重放只留一次机会：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:3100-3127（节选）</span></span><span class="ln"><span class="tok-kw">if</span> (<span class="tok-kw">this</span>._overflowRecoveryAttempted) {</span><span class="ln">	<span class="tok-kw">const</span> errorMessage = contextOverflow</span><span class="ln">		? <span class="tok-str">"Context overflow recovery failed after one compact-and-retry attempt. "</span> +</span><span class="ln">			<span class="tok-str">"Try reducing context or switching to a larger-context model."</span></span><span class="ln">		: <span class="tok-str">"Truncated response recovery failed after one compact-and-retry attempt."</span>;</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">_emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"compaction_end"</span>, reason: <span class="tok-str">"overflow"</span>, result: <span class="tok-kw">undefined</span>,</span><span class="ln">		aborted: <span class="tok-kw">false</span>, willRetry: <span class="tok-kw">false</span>, errorMessage });</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_emitSessionCompactFailed</span>({ <span class="tok-com">/* … */</span> });</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">// …</span></span><span class="ln"><span class="tok-kw">this</span>._overflowRecoveryAttempted = <span class="tok-kw">true</span>;</span><span class="ln"><span class="tok-kw">this</span>.<span class="tok-fn">_omitRecoveryAttempt</span>(assistantMessage);</span><span class="ln"><span class="tok-kw">const</span> retry = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_runAutoCompaction</span>(<span class="tok-str">"overflow"</span>, willRetry);</span><span class="ln"><span class="tok-kw">if</span> (retry) <span class="tok-kw">this</span>._failedResponse = assistantMessage;</span><span class="ln"><span class="tok-kw">return</span> retry;</span></code></pre></div>
+<p>为什么只给一次？成本是双向的：每次压缩都要花一次完整模型调用
+（输入可能是几十万 token）；压完还溢出，说明问题不在历史长度
+（可能是单条工具结果就超窗口，或 <code>maxTokens</code> 配错），再压也是白花钱。</p>
+<p><code>_omitRecoveryAttempt</code> 那一步容易忽略：上一次失败的 assistant 消息要
+<strong>持久地排除在上下文之外</strong>，否则重放的请求里还带着那条&quot;失败的回答&quot;。</p>
+<h3 id="sec-10-2-5-输出被截断也算溢出">2.5 输出被截断也算溢出</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:3089-3091</span></span><span class="ln"><span class="tok-kw">const</span> recoverableLength =</span><span class="ln">	sameModel &amp;&amp; assistantIsProjected &amp;&amp;</span><span class="ln">	<span class="tok-fn">isRecoverableLength</span>(assistantMessage, messageModel.maxTokens);</span><span class="ln"><span class="tok-kw">if</span> (contextOverflow || recoverableLength) {</span></code></pre></div>
+<p><code>stopReason === &quot;length&quot;</code> 表面上不是溢出——模型正常结束，只是被 <code>maxTokens</code> 截了。
+为什么归到溢出里？</p>
+<p>因为 provider 有时会<strong>悄悄把可用上下文压小</strong>（安全余量、路由降级），
+表现就是&quot;输入没超、输出却提前停了&quot;。所以输出低于标称 <code>maxTokens</code>
+算可恢复的长度失败，值得压一次；正好等于上限则是 <code>maxTokens</code> 配小了。</p>
+<h3 id="sec-11-2-6-手动路径">2.6 手动路径</h3>
+<p><code>/compact</code> 走 <code>AgentSession.compact()</code>（:2849-2994），
+它和自动路径的差别只有三处：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:2849-2873（节选）</span></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-fn">compact</span>(customInstructions?: <span class="tok-kw">string</span>): Promise&lt;CompactionResult&gt; {</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">abort</span>();</span><span class="ln">	<span class="tok-kw">this</span>._compactionAbortController = <span class="tok-kw">new</span> <span class="tok-fn">AbortController</span>();</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">_emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"compaction_start"</span>, reason: <span class="tok-str">"manual"</span> });</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">const</span> model = <span class="tok-kw">this</span>.model;</span><span class="ln">		<span class="tok-kw">if</span> (!model) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-fn">formatNoModelSelectedMessage</span>());</span><span class="ln">		<span class="tok-kw">const</span> settings = <span class="tok-kw">this</span>.settingsManager.<span class="tok-fn">getCompactionSettings</span>(model);</span><span class="ln">		<span class="tok-kw">const</span> pathEntries = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">getBranch</span>();</span><span class="ln">		<span class="tok-kw">const</span> preparation = <span class="tok-fn">prepareCompaction</span>(pathEntries, settings);</span><span class="ln">		<span class="tok-kw">if</span> (!preparation) {</span><span class="ln">			<span class="tok-kw">const</span> lastEntry = pathEntries[pathEntries.length - <span class="tok-num">1</span>];</span><span class="ln">			<span class="tok-kw">if</span> (lastEntry?.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span>) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Already compacted"</span>);</span><span class="ln">			<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Nothing to compact (session too small)"</span>);</span><span class="ln">		}</span><span class="ln">		<span class="tok-com">// …</span></span></code></pre></div>
+<ol>
+<li><strong>先 <code>await this.abort()</code></strong>。手动压缩不允许在模型跑一半时插队，
+否则同一份上下文会被两条路径同时改写。</li>
+<li><strong>绝不重试、绝不续跑</strong>。压完就停在那儿等用户。</li>
+<li><strong>失败要 throw</strong>。自动路径失败只发事件（后台出错不能炸前端），
+手动路径失败必须抛给调用方（用户按了按钮，得知道结果）。</li>
+</ol>
+<p>两条报错也很有意思：<code>Already compacted</code> 和 <code>Nothing to compact (session too small)</code>。
+它们说明 <code>prepareCompaction</code> 返回 <code>undefined</code> 有两种含义，
+得看路径末端 entry 的类型才能区分。</p>
+<h3 id="sec-12-2-7-三条路汇到同一个函数">2.7 三条路汇到同一个函数</h3>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">/compact ──┐</span><span class="ln">RPC ───────┤</span><span class="ln">扩展 ──────┴─→ AgentSession.compact()      ─┐</span><span class="ln">                                            ├→ _runDefaultCompaction()</span><span class="ln">请求前超阈值 ─→ _runAutoCompaction("threshold") ─┤        │</span><span class="ln">响应后溢出 ───→ _runAutoCompaction("overflow")  ─┘        ▼</span><span class="ln">                                                    compact()</span><span class="ln">                                                        │</span><span class="ln">                        ┌───────────────────────────────┘</span><span class="ln">                        ▼</span><span class="ln">              prepareCompaction → 切点 + 分段</span><span class="ln">                        ▼</span><span class="ln">              generateSummaryWithUsage → 摘要文本</span><span class="ln">                        ▼</span><span class="ln">              appendCompaction → 墓碑写进 JSONL</span></code></pre></div>
+<p><code>_runDefaultCompaction</code>（:2804-2827）只有十几行，
+作用是&quot;解析出这次摘要用哪个模型、哪个 key&quot;，再调用核心 <code>compact()</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:2804-2810（参数已折行）</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-kw">async</span> <span class="tok-fn">_runDefaultCompaction</span>(</span><span class="ln">	preparation: CompactionPreparation,</span><span class="ln">	model: Model&lt;<span class="tok-kw">any</span>&gt;,</span><span class="ln">	customInstructions: <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span>,</span><span class="ln">	signal: AbortSignal,</span><span class="ln">	reason: <span class="tok-str">"manual"</span> | <span class="tok-str">"threshold"</span> | <span class="tok-str">"overflow"</span>,</span><span class="ln">): Promise&lt;CompactionResult&gt; {</span><span class="ln">	<span class="tok-com">// Resolve the request only when Pi summarizes itself: routing may call models</span></span><span class="ln">	<span class="tok-com">// or fail.</span></span><span class="ln">	<span class="tok-kw">const</span> request = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_getSummarizationRequestAuth</span>(model, signal);</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">compact</span>(</span><span class="ln">		preparation, request.model, request.apiKey, request.headers,</span><span class="ln">		customInstructions, signal, request.thinkingLevel,</span><span class="ln">		<span class="tok-kw">this</span>.agent.streamFunction, request.env,</span><span class="ln">		<span class="tok-kw">this</span>.settingsManager.<span class="tok-fn">getRetrySettings</span>(),</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">_summarizationRetryCallbacks</span>({ source: <span class="tok-str">"compaction"</span>, reason }),</span><span class="ln">		<span class="tok-kw">undefined</span>, <span class="tok-com">// sessionId</span></span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>注意 <code>undefined, // sessionId</code>。压缩请求<strong>不复用</strong>会话的 prompt cache 路由 id，
+理由在下一节 <code>cacheRetention: &quot;none&quot;</code> 里。</p>
+<hr>
+<h2 id="sec-13-三-token-从哪来">三、token 从哪来</h2>
+<p>要判断&quot;超没超&quot;，先得知道&quot;现在多少&quot;。这一步没有完美答案，只能估。</p>
+<p>Pi 用两级策略：<strong>有真实值就用真实值，没有就按字符数估</strong>。</p>
+<h3 id="sec-14-3-1-第一级-provider-报回来的-usage">3.1 第一级：provider 报回来的 usage</h3>
+<p>每次 assistant 消息都带 <code>usage</code>，四个字段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:140-142（折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">calculateContextTokens</span>(usage: Usage): <span class="tok-kw">number</span> {</span><span class="ln">	<span class="tok-kw">return</span> (</span><span class="ln">		usage.totalTokens ||</span><span class="ln">		usage.input + usage.output + usage.cacheRead + usage.cacheWrite</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p><code>totalTokens</code> 有就直接用；没有就加四个分量
+（输入、输出、缓存读、缓存写都算进上下文）。</p>
+<p>不是所有 assistant 消息的 usage 都可信：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:148-161（节选）</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">getAssistantUsage</span>(msg: AgentMessage): Usage | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">if</span> (msg.role === <span class="tok-str">"assistant"</span> &amp;&amp; <span class="tok-str">"usage"</span> <span class="tok-kw">in</span> msg) {</span><span class="ln">		<span class="tok-kw">const</span> assistantMsg = msg <span class="tok-kw">as</span> AssistantMessage;</span><span class="ln">		<span class="tok-kw">if</span> (</span><span class="ln">			assistantMsg.stopReason !== <span class="tok-str">"aborted"</span> &amp;&amp;</span><span class="ln">			assistantMsg.stopReason !== <span class="tok-str">"error"</span> &amp;&amp;</span><span class="ln">			assistantMsg.usage &amp;&amp;</span><span class="ln">			<span class="tok-fn">calculateContextTokens</span>(assistantMsg.usage) &gt; <span class="tok-num">0</span></span><span class="ln">		) {</span><span class="ln">			<span class="tok-kw">return</span> assistantMsg.usage;</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>aborted</code> 的调用中途断了，usage 只有半截；<code>error</code> 的调用可能根本没送到；
+全零的 usage 是某些 provider 的占位符。三种全部跳过，往前找上一条有效的。</p>
+<h3 id="sec-15-3-2-第二级-尾部增量估算">3.2 第二级：尾部增量估算</h3>
+<p>真实 usage 是&quot;上一次请求时的快照&quot;，之后又追加了几条消息。
+所以总量 = 快照 + 尾部估算：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:196-224（节选，参数折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">estimateContextTokens</span>(</span><span class="ln">	messages: AgentMessage[],</span><span class="ln">): ContextUsageEstimate {</span><span class="ln">	<span class="tok-kw">const</span> usageInfo = <span class="tok-fn">getLastAssistantUsageInfo</span>(messages);</span><span class="ln">	<span class="tok-kw">if</span> (!usageInfo) {</span><span class="ln">		<span class="tok-kw">let</span> estimated = <span class="tok-num">0</span>;</span><span class="ln">		<span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> messages) estimated += <span class="tok-fn">estimateTokens</span>(message);</span><span class="ln">		<span class="tok-kw">return</span> { tokens: estimated, usageTokens: <span class="tok-num">0</span>, trailingTokens: estimated,</span><span class="ln">			lastUsageIndex: <span class="tok-kw">null</span> };</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">const</span> usageTokens = <span class="tok-fn">calculateContextTokens</span>(usageInfo.usage);</span><span class="ln">	<span class="tok-kw">let</span> trailingTokens = <span class="tok-num">0</span>;</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = usageInfo.index + <span class="tok-num">1</span>; i &lt; messages.length; i++) {</span><span class="ln">		trailingTokens += <span class="tok-fn">estimateTokens</span>(messages[i]);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> { tokens: usageTokens + trailingTokens, usageTokens, trailingTokens,</span><span class="ln">		lastUsageIndex: usageInfo.index };</span><span class="ln">}</span></code></pre></div>
+<p>返回四个字段而不是一个数字，是为了让调用方能回答&quot;这个数有多少是猜的&quot;。
+<code>lastUsageIndex: null</code> 表示整个数字都是估的，可信度最低。</p>
+<h3 id="sec-16-3-3-estimatetokens-的九个分支">3.3 estimateTokens 的九个分支</h3>
+<p>估算函数本身很简单，难点在<strong>按消息类型分类</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:298-349（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">estimateTokens</span>(message: AgentMessage): <span class="tok-kw">number</span> {</span><span class="ln">	<span class="tok-kw">let</span> chars = <span class="tok-num">0</span>;</span><span class="ln">	<span class="tok-kw">switch</span> (message.role) {</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"system"</span>: {</span><span class="ln">			<span class="tok-kw">const</span> system = message <span class="tok-kw">as</span> SystemMessage;</span><span class="ln">			chars = <span class="tok-fn">estimateTextAndImageContentChars</span>(system.content);</span><span class="ln">			<span class="tok-kw">if</span> (system.sections) {</span><span class="ln">				<span class="tok-kw">for</span> (<span class="tok-kw">const</span> section <span class="tok-kw">of</span> Object.<span class="tok-fn">values</span>(system.sections)) {</span><span class="ln">					<span class="tok-kw">if</span> (section) chars += section.length;</span><span class="ln">				}</span><span class="ln">			}</span><span class="ln">			<span class="tok-kw">if</span> (system.toolsAdded) chars += JSON.<span class="tok-fn">stringify</span>(system.toolsAdded).length;</span><span class="ln">			<span class="tok-kw">return</span> Math.<span class="tok-fn">ceil</span>(chars / <span class="tok-num">4</span>);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"assistant"</span>: {</span><span class="ln">			<span class="tok-kw">const</span> assistant = message <span class="tok-kw">as</span> AssistantMessage;</span><span class="ln">			<span class="tok-kw">for</span> (<span class="tok-kw">const</span> block <span class="tok-kw">of</span> assistant.content) {</span><span class="ln">				<span class="tok-kw">if</span> (block.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>) chars += block.text.length;</span><span class="ln">				<span class="tok-kw">else</span> <span class="tok-kw">if</span> (block.<span class="tok-kw">type</span> === <span class="tok-str">"thinking"</span>) chars += block.thinking.length;</span><span class="ln">				<span class="tok-kw">else</span> <span class="tok-kw">if</span> (block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>) {</span><span class="ln">					chars += block.name.length + JSON.<span class="tok-fn">stringify</span>(block.arguments).length;</span><span class="ln">				}</span><span class="ln">			}</span><span class="ln">			<span class="tok-kw">return</span> Math.<span class="tok-fn">ceil</span>(chars / <span class="tok-num">4</span>);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">			chars = message.command.length + message.output.length;</span><span class="ln">			<span class="tok-kw">return</span> Math.<span class="tok-fn">ceil</span>(chars / <span class="tok-num">4</span>);</span><span class="ln">		<span class="tok-com">// … 其余分支见下表</span></span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-num">0</span>;</span><span class="ln">}</span></code></pre></div>
+<p>逐个角色看：</p>
+<table>
+<thead>
+<tr>
+<th>role</th>
+<th>计入什么</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system</code></td>
+<td>content + 各节长度 + <code>toolsAdded</code> 的 JSON</td>
+<td>提示词本身也占窗口</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td>文本 + 图片占位</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td>text + thinking + toolCall 名字与参数</td>
+<td>参数是 JSON 字符串</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td>content</td>
+<td>扩展注入的消息</td>
+</tr>
+<tr>
+<td><code>toolResult</code></td>
+<td>content</td>
+<td>通常最大的一块</td>
+</tr>
+<tr>
+<td><code>bashExecution</code></td>
+<td>command + output</td>
+<td><code>!</code> 命令的输出</td>
+</tr>
+<tr>
+<td><code>branchSummary</code></td>
+<td>summary</td>
+<td>分支摘要</td>
+</tr>
+<tr>
+<td><code>compactionSummary</code></td>
+<td>summary</td>
+<td>上一次压缩的摘要</td>
+</tr>
+<tr>
+<td>其它</td>
+<td>0</td>
+<td>元数据类 entry</td>
+</tr>
+</tbody>
+</table>
+<p>图片按固定值算：<code>ESTIMATED_IMAGE_CHARS = 4800</code>（<code>compaction.ts:276</code>），
+除以 4 就是 1,200 token。这个数字是拍出来的（各 provider 差异从几百到几千），
+至少<strong>比 0 好</strong>——完全忽略图片会让估算严重偏低。</p>
+<h3 id="sec-17-3-4-chars-4-这条经验法则的两面">3.4 chars/4 这条经验法则的两面</h3>
+<p>源码注释写着：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:294-297</span></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * Estimate token count for a message using chars/4 heuristic.</span></span><span class="ln"><span class="tok-com"> * This is conservative (overestimates tokens).</span></span><span class="ln"><span class="tok-com"> */</span></span></code></pre></div>
+<p>&quot;conservative&quot; 对英文和代码成立：BPE 词表下 4 个字符约 1 个 token，
+实际往往更少，所以 <code>/4</code> 是偏高估。</p>
+<p>但<strong>对中文不成立</strong>。一个汉字通常吃 1 个 token（部分模型 1.5–2 个），
+而 <code>/4</code> 只给它 0.25 个。中文长会话在这一步被低估到 1/4 甚至更低。</p>
+<p>后果不是&quot;多压一次&quot;，而是&quot;该压的时候没压&quot;——
+第二道闸门看估算值没超线，请求发出去，provider 直接 400。</p>
+<p>这是估算式方案的结构性缺陷，Pi 用两道闸门对冲：
+请求前用估算，撞墙后用真实错误码兜底。</p>
+<h3 id="sec-18-3-5-什么时候-usage-作废">3.5 什么时候 usage 作废</h3>
+<p><code>estimateProjectedContextTokens</code>（:227-262）处理一个更隐蔽的情况：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:244-261（节选）</span></span><span class="ln"><span class="tok-kw">const</span> usageEntryIndex = usageEntryId</span><span class="ln">	? branchEntries.<span class="tok-fn">findIndex</span>((entry) =&gt; entry.id === usageEntryId)</span><span class="ln">	: -<span class="tok-num">1</span>;</span><span class="ln"><span class="tok-kw">let</span> latestInvalidatingEntryIndex = -<span class="tok-num">1</span>;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = branchEntries.length - <span class="tok-num">1</span>; i &gt;= <span class="tok-num">0</span>; i--) {</span><span class="ln">	<span class="tok-kw">const</span> entry = branchEntries[i];</span><span class="ln">	<span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"context_edit"</span> || entry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span>) {</span><span class="ln">		latestInvalidatingEntryIndex = i;</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">}</span><span class="ln"><span class="tok-kw">if</span> (usageEntryIndex &gt; latestInvalidatingEntryIndex) <span class="tok-kw">return</span> estimate;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> currentSystem = <span class="tok-fn">getCurrentSystemMessage</span>(projection.messages);</span><span class="ln"><span class="tok-kw">let</span> tokens = currentSystem ? <span class="tok-fn">estimateTokens</span>(currentSystem) : <span class="tok-num">0</span>;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> projection.messages) {</span><span class="ln">	<span class="tok-kw">if</span> (message.role !== <span class="tok-str">"system"</span>) tokens += <span class="tok-fn">estimateTokens</span>(message);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> { tokens, usageTokens: <span class="tok-num">0</span>, trailingTokens: tokens, lastUsageIndex: <span class="tok-kw">null</span> };</span></code></pre></div>
+<p>规则是：<strong>如果 usage 所在的消息，比最近一次 <code>context_edit</code> 或 <code>compaction</code> 还早，
+这条 usage 就不能信</strong>。</p>
+<p><code>context_edit</code> 会改掉某条消息的内容，<code>compaction</code> 整体换掉历史——
+两者都让&quot;上次请求的大小&quot;和&quot;这次的输入&quot;不是同一份东西。
+此时全量重估，且<strong>把系统提示词也估进去</strong>（它的 <code>sections</code> 独立于
+messages，容易漏）。</p>
+<h3 id="sec-19-3-6-判定-一条不等式">3.6 判定：一条不等式</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:267-270</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">shouldCompact</span>(</span><span class="ln">	contextTokens: <span class="tok-kw">number</span>, contextWindow: <span class="tok-kw">number</span>, settings: CompactionSettings,</span><span class="ln">): <span class="tok-kw">boolean</span> {</span><span class="ln">	<span class="tok-kw">if</span> (!settings.enabled) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">return</span> contextTokens &gt; contextWindow - settings.reserveTokens;</span><span class="ln">}</span></code></pre></div>
+<p>默认配置（<code>compaction.ts:126-130</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {</span><span class="ln">	enabled: <span class="tok-kw">true</span>,</span><span class="ln">	reserveTokens: <span class="tok-num">16384</span>,</span><span class="ln">	keepRecentTokens: <span class="tok-num">20000</span>,</span><span class="ln">};</span></code></pre></div>
+<p>代入一个 200,000 窗口的模型：</p>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>contextWindow</code></td>
+<td>200,000</td>
+<td>模型标称窗口</td>
+</tr>
+<tr>
+<td><code>reserveTokens</code></td>
+<td>16,384</td>
+<td>给自己留的余量（给输出、给摘要请求）</td>
+</tr>
+<tr>
+<td>触发线</td>
+<td><strong>183,616</strong></td>
+<td>超过就压</td>
+</tr>
+<tr>
+<td><code>keepRecentTokens</code></td>
+<td>20,000</td>
+<td>压完保留最近约 2 万 token 原文</td>
+</tr>
+</tbody>
+</table>
+<p><code>reserveTokens</code> 留 16,384 不是随手写的：压缩本身要发一次请求，
+输入是待压缩的历史，输出是摘要。上下文已顶到窗口上限时这次请求根本发不出去，
+所以必须提前 16K 动手。</p>
+<p>配置有三层优先级（<code>settings-manager.ts:846-872</code>）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">compaction.modelOverrides["provider/model"].reserveTokens</span><span class="ln">  ↓ 没有就取</span><span class="ln">compaction.reserveTokens</span><span class="ln">  ↓ 没有就取</span><span class="ln">DEFAULT_COMPACTION_TOKEN_SETTINGS</span></code></pre></div>
+<p>第一层很实用：20 万窗口的模型配 16K 余量，1M 窗口的配 64K，互不干扰。</p>
+<hr>
+<h2 id="sec-20-四-切在哪">四、切在哪</h2>
+<p>有了&quot;该压&quot;的判定，下一个问题就是&quot;压到哪&quot;。
+这是整个压缩里最精细的 30 行，四个坑。</p>
+<h3 id="sec-21-4-1-哪些位置可以切">4.1 哪些位置可以切</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:351-386</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">isCutPointMessage</span>(message: AgentMessage): <span class="tok-kw">boolean</span> {</span><span class="ln">	<span class="tok-kw">switch</span> (message.role) {</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"user"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"assistant"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"custom"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"branchSummary"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"compactionSummary"</span>:</span><span class="ln">			<span class="tok-kw">return</span> <span class="tok-kw">true</span>;</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"toolResult"</span>:</span><span class="ln">			<span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">isTurnStartMessage</span>(message: AgentMessage): <span class="tok-kw">boolean</span> {</span><span class="ln">	<span class="tok-kw">switch</span> (message.role) {</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"user"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"custom"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"branchSummary"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"compactionSummary"</span>:</span><span class="ln">			<span class="tok-kw">return</span> <span class="tok-kw">true</span>;</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"assistant"</span>:</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"toolResult"</span>:</span><span class="ln">			<span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">isTurnStartEntry</span>(entry: SessionEntry): <span class="tok-kw">boolean</span> {</span><span class="ln">	<span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span>) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">sessionEntryToContextMessages</span>(entry).<span class="tok-fn">some</span>(isTurnStartMessage);</span><span class="ln">}</span></code></pre></div>
+<p>两张表只差一行，但含义完全不同：</p>
+<ul>
+<li><strong>可切点</strong>：切在这条之前，上下文仍然合法。<code>assistant</code> 可以切——
+它和它的 toolResult 会一起被保留。</li>
+<li><strong>轮次起点</strong>：这条消息标志着&quot;新一轮用户意图&quot;。<code>assistant</code> 不是。</li>
+</ul>
+<p><code>toolResult</code> 两个表都不在——它永远不能作切点，否则就出现
+&quot;有结果没调用&quot;的孤儿消息，provider 会拒。</p>
+<h3 id="sec-22-4-2-从后往前累加">4.2 从后往前累加</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:452-479（节选）</span></span><span class="ln"><span class="tok-kw">const</span> cutPoints = <span class="tok-fn">findValidCutPoints</span>(entries, startIndex, endIndex);</span><span class="ln"><span class="tok-kw">if</span> (cutPoints.length === <span class="tok-num">0</span>) {</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		firstKeptEntryIndex: startIndex, turnStartIndex: -<span class="tok-num">1</span>, isSplitTurn: <span class="tok-kw">false</span>,</span><span class="ln">	};</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">let</span> accumulatedTokens = <span class="tok-num">0</span>;</span><span class="ln"><span class="tok-kw">let</span> cutIndex = cutPoints[<span class="tok-num">0</span>]; <span class="tok-com">// Default: keep from first message (not header)</span></span><span class="ln"></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = endIndex - <span class="tok-num">1</span>; i &gt;= startIndex; i--) {</span><span class="ln">	<span class="tok-kw">const</span> entry = entries[i];</span><span class="ln">	<span class="tok-kw">const</span> messageTokens = <span class="tok-fn">sessionEntryToContextMessages</span>(entry)</span><span class="ln">		.<span class="tok-fn">reduce</span>((sum, message) =&gt; sum + <span class="tok-fn">estimateTokens</span>(message), <span class="tok-num">0</span>);</span><span class="ln">	<span class="tok-kw">if</span> (messageTokens === <span class="tok-num">0</span>) <span class="tok-kw">continue</span>;</span><span class="ln">	accumulatedTokens += messageTokens;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">if</span> (accumulatedTokens &gt;= keepRecentTokens) {</span><span class="ln">		<span class="tok-com">// Prefer the closest valid cut point at or after this entry.</span></span><span class="ln">		cutIndex = cutPoints.<span class="tok-fn">find</span>((candidate) =&gt; candidate &gt;= i)</span><span class="ln">			?? cutPoints[cutPoints.length - <span class="tok-num">1</span>];</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>从最新一条往前累加，攒够 <code>keepRecentTokens</code> 就停。</p>
+<p>为什么是&quot;从后往前&quot;？因为要保住的是<strong>最近</strong>的上下文。
+从头往后数 2 万 token，保住的可能是几小时前那段无关的开场白。</p>
+<p><code>Default: keep from first message</code> 那行是给&quot;历史还不够 2 万 token&quot;用的：
+这种情况本不该压缩（<code>prepareCompaction</code> 会返回 <code>undefined</code>），
+但函数本身要有个合理默认值。</p>
+<h3 id="sec-23-4-3-兜底是最后一个-不是第一个">4.3 兜底是最后一个，不是第一个</h3>
+<p><code>?? cutPoints[cutPoints.length - 1]</code> 这半句是关键修正。</p>
+<p>设想历史末尾是这样一个形状：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[assistant: toolCall(read)]   ← 这是第 900 条</span><span class="ln">[toolResult: 30000 字符]      ← 这是第 901 条，本身超预算</span></code></pre></div>
+<p>倒着累加到 901 条时，<code>accumulatedTokens</code> 一次就超过了 <code>keepRecentTokens</code>。
+此时 <code>i = 901</code>，从 901 往后找可切点——一条也没有（toolResult 不可切），
+<code>find</code> 返回 <code>undefined</code>。</p>
+<p>若兜底成 <code>cutPoints[0]</code>（最早的切点），就会把<strong>整段历史都保留</strong>，
+等于没压缩。兜底成最后一个可切点才对：
+保留区从最后一个可切点开始，也就是那条 <code>assistant: toolCall</code>，
+它带着自己的 toolResult 一起进来，成对且完整。</p>
+<p>代价是保留区可能远超预算。但<strong>正确性优先于预算</strong>——
+少压一点最多多花点 token，切出孤儿 toolResult 会直接报错。</p>
+<h3 id="sec-24-4-4-顺手吞掉不可见的元数据">4.4 顺手吞掉不可见的元数据</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:481-489（节选，条件折行）</span></span><span class="ln"><span class="tok-com">// Scan backwards from cutIndex to include adjacent metadata entries</span></span><span class="ln"><span class="tok-com">// that do not affect context.</span></span><span class="ln"><span class="tok-kw">while</span> (cutIndex &gt; startIndex) {</span><span class="ln">	<span class="tok-kw">const</span> prevEntry = entries[cutIndex - <span class="tok-num">1</span>];</span><span class="ln">	<span class="tok-com">// Stop at compaction boundaries or context-visible entries.</span></span><span class="ln">	<span class="tok-kw">if</span> (</span><span class="ln">		prevEntry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span> ||</span><span class="ln">		<span class="tok-fn">sessionEntryToContextMessages</span>(prevEntry).length &gt; <span class="tok-num">0</span></span><span class="ln">	) {</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">	cutIndex--;</span><span class="ln">}</span></code></pre></div>
+<p>切点往前挪，把&quot;不产生任何上下文消息&quot;的 entry 一起并进保留区。
+这类 entry 是 <code>model_change</code>、<code>thinking_level_change</code>、<code>label</code>、<code>custom</code>…</p>
+<p>为什么吞？因为它们虽不占 token，但<strong>是状态</strong>。
+比如切点前一条正好是 <code>model_change</code>，不吞进来保留区就不知道当前用的哪个模型。
+（严格说 <code>getSessionContextSettings</code> 是沿整条路径扫的，不依赖保留区，
+但把状态一起带上更安全。）</p>
+<h3 id="sec-25-4-5-split-turn-切在轮次中间">4.5 split turn：切在轮次中间</h3>
+<p>判定只有三行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:491-500（节选，三元折行）</span></span><span class="ln"><span class="tok-kw">const</span> cutEntry = entries[cutIndex];</span><span class="ln"><span class="tok-kw">const</span> startsTurn = <span class="tok-fn">isTurnStartEntry</span>(cutEntry);</span><span class="ln"><span class="tok-kw">const</span> turnStartIndex = startsTurn</span><span class="ln">	? -<span class="tok-num">1</span></span><span class="ln">	: <span class="tok-fn">findTurnStartIndex</span>(entries, cutIndex, startIndex);</span><span class="ln"></span><span class="ln"><span class="tok-kw">return</span> {</span><span class="ln">	firstKeptEntryIndex: cutIndex,</span><span class="ln">	turnStartIndex,</span><span class="ln">	isSplitTurn: !startsTurn &amp;&amp; turnStartIndex !== -<span class="tok-num">1</span>,</span><span class="ln">};</span></code></pre></div>
+<p>如果切点落在 <code>assistant</code> 上，说明这一轮还没结束就切了——
+用户问的一句话在摘要里，模型的回答在保留区里。</p>
+<p><code>findTurnStartIndex</code> 从这个切点往前找，找到最近的轮次起点：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:412-419（参数折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">findTurnStartIndex</span>(</span><span class="ln">	entries: SessionEntry[],</span><span class="ln">	entryIndex: <span class="tok-kw">number</span>,</span><span class="ln">	startIndex: <span class="tok-kw">number</span>,</span><span class="ln">): <span class="tok-kw">number</span> {</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = entryIndex; i &gt;= startIndex; i--) {</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-fn">isTurnStartEntry</span>(entries[i])) <span class="tok-kw">return</span> i;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> -<span class="tok-num">1</span>;</span><span class="ln">}</span></code></pre></div>
+<p>于是变成三段：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[……更早的历史……]      ← 主摘要（messagesToSummarize）</span><span class="ln">[用户那句话 + 部分工具] ← turnPrefix 摘要（turnPrefixMessages）</span><span class="ln">[……保留区……]          ← 原文不动（firstKeptEntryId 起）</span></code></pre></div>
+<p>中间那段是&quot;被切开的半轮&quot;。它比保留区早，却不能塞进主摘要——
+主摘要是&quot;很久以前发生过什么&quot;，语气是过去式；
+这半轮是&quot;紧接着正在做的事&quot;，语气是现在时。
+混在一起写，模型会搞不清哪些已经做完。所以单独生成，见 §六。</p>
+<h3 id="sec-26-4-6-生产路径用的是投影版">4.6 生产路径用的是投影版</h3>
+<p><code>findCutPoint</code> 是导出函数，但 <code>prepareCompaction</code> 实际调用的是另一个：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:789-816（节选，参数与条件折行）</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">findProjectedCutPoint</span>(</span><span class="ln">	entries: ProjectedSessionEntry[],</span><span class="ln">	startIndex: <span class="tok-kw">number</span>,</span><span class="ln">	endIndex: <span class="tok-kw">number</span>,</span><span class="ln">	keepRecentTokens: <span class="tok-kw">number</span>,</span><span class="ln">): CutPointResult {</span><span class="ln">	<span class="tok-kw">const</span> cutPoints: <span class="tok-kw">number</span>[] = [];</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = startIndex; i &lt; endIndex; i++) {</span><span class="ln">		<span class="tok-kw">const</span> entry = entries[i];</span><span class="ln">		<span class="tok-kw">const</span> isCut = entry.messages.<span class="tok-fn">some</span>(isCutPointMessage);</span><span class="ln">		<span class="tok-kw">if</span> (entry.sourceEntry.<span class="tok-kw">type</span> !== <span class="tok-str">"compaction"</span> &amp;&amp; isCut) cutPoints.<span class="tok-fn">push</span>(i);</span><span class="ln">	}</span><span class="ln">	<span class="tok-com">// …</span></span><span class="ln">	<span class="tok-kw">let</span> cutIndex = cutPoints[<span class="tok-num">0</span>];</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = endIndex - <span class="tok-num">1</span>; i &gt;= startIndex; i--) {</span><span class="ln">		<span class="tok-kw">const</span> messageTokens = entries[i].messages</span><span class="ln">			.<span class="tok-fn">reduce</span>((sum, message) =&gt; sum + <span class="tok-fn">estimateTokens</span>(message), <span class="tok-num">0</span>);</span><span class="ln">		<span class="tok-kw">if</span> (messageTokens === <span class="tok-num">0</span>) <span class="tok-kw">continue</span>;</span><span class="ln">		accumulatedTokens += messageTokens;</span><span class="ln">		<span class="tok-kw">if</span> (accumulatedTokens &gt;= keepRecentTokens) {</span><span class="ln">			exceededBudget = <span class="tok-kw">true</span>;</span><span class="ln">			cutIndex = cutPoints.<span class="tok-fn">find</span>((candidate) =&gt; candidate &gt;= i)</span><span class="ln">				?? cutPoints[cutPoints.length - <span class="tok-num">1</span>];</span><span class="ln">			<span class="tok-kw">break</span>;</span><span class="ln">		}</span><span class="ln">	}</span></code></pre></div>
+<p>差别是它操作<strong>投影后的 entry</strong>（<code>ProjectedSessionEntry</code>）：
+每条携带着&quot;经过 <code>context_edit</code> 之后真正会发给模型的 messages&quot;。
+用户可以用 <code>context_edit</code> 抹掉某条大消息的内容：按原始 entry 估算是几万 token，
+按投影已经归零，不该影响切点。</p>
+<p>投影版还多一段专门的逻辑，处理&quot;溢出重试被省略&quot;这种特殊后缀：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:818-843（节选，折行）</span></span><span class="ln"><span class="tok-com">// A recovery attempt and its omission edits are context-invisible after the</span></span><span class="ln"><span class="tok-com">// last visible input.</span></span><span class="ln"><span class="tok-kw">const</span> suffix = entries.<span class="tok-fn">slice</span>(cutIndex + <span class="tok-num">1</span>, endIndex);</span><span class="ln"><span class="tok-kw">const</span> omittedSuffixIds = <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(</span><span class="ln">	suffix.<span class="tok-fn">filter</span>(isOmitted).<span class="tok-kw">map</span>((e) =&gt; e.sourceEntry.id),</span><span class="ln">);</span><span class="ln"><span class="tok-kw">const</span> hasExternalReplacement = suffix.<span class="tok-fn">some</span>((entry) =&gt;</span><span class="ln">	entry.sourceEntry.<span class="tok-kw">type</span> === <span class="tok-str">"context_edit"</span> &amp;&amp;</span><span class="ln">	entry.sourceEntry.replacement !== <span class="tok-kw">null</span> &amp;&amp;</span><span class="ln">	!omittedSuffixIds.<span class="tok-fn">has</span>(entry.sourceEntry.targetId));</span><span class="ln"><span class="tok-kw">const</span> isRecoveryOmissionSuffix =</span><span class="ln">	exceededBudget &amp;&amp; !hasExternalReplacement &amp;&amp;</span><span class="ln">	suffix.<span class="tok-fn">some</span>((entry) =&gt; entry.sourceEntry.<span class="tok-kw">type</span> === <span class="tok-str">"message"</span> &amp;&amp;</span><span class="ln">		entry.sourceEntry.message.role === <span class="tok-str">"assistant"</span> &amp;&amp; <span class="tok-fn">isOmitted</span>(entry)) &amp;&amp;</span><span class="ln">	suffix.<span class="tok-fn">every</span>((entry) =&gt; entry.sourceEntry.<span class="tok-kw">type</span> !== <span class="tok-str">"compaction"</span> &amp;&amp;</span><span class="ln">		(!<span class="tok-fn">isIntrinsicallyVisible</span>(entry) || <span class="tok-fn">isOmitted</span>(entry)));</span><span class="ln"><span class="tok-kw">if</span> (isRecoveryOmissionSuffix) cutIndex++;</span></code></pre></div>
+<p>一句话概括：切点后面若是一串&quot;看不见的&quot;省略条目（溢出重试的产物），
+就把切点往前推一格，别让它们被当成保留区内容。
+只在&quot;整段后缀都是省略产物&quot;时推，否则会把用户还没发出去的话切走。</p>
+<p>读它的方法是先问：<strong>切点之后有哪些东西会被投影成消息？</strong>
+一条都没有（全是元数据 + 省略），切点就可以往前挪。</p>
+<h3 id="sec-27-4-7-一次切分的具体样子">4.7 一次切分的具体样子</h3>
+<p>假设会话有 12 条 entry，<code>keepRecentTokens = 20000</code>：</p>
+<table>
+<thead>
+<tr>
+<th>idx</th>
+<th>entry</th>
+<th>估算 token</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>message(user)</td>
+<td>120</td>
+<td>开场</td>
+</tr>
+<tr>
+<td>1</td>
+<td>message(assistant)</td>
+<td>300</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>message(user)</td>
+<td>80</td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>message(assistant, toolCall)</td>
+<td>200</td>
+<td>调 <code>read</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>message(toolResult)</td>
+<td>9,000</td>
+<td>读了一个大文件</td>
+</tr>
+<tr>
+<td>5</td>
+<td>message(assistant)</td>
+<td>400</td>
+<td></td>
+</tr>
+<tr>
+<td>6</td>
+<td>message(user)</td>
+<td>60</td>
+<td>&quot;改一下第 3 行&quot;</td>
+</tr>
+<tr>
+<td>7</td>
+<td>message(assistant, toolCall)</td>
+<td>180</td>
+<td>调 <code>edit</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>message(toolResult)</td>
+<td>150</td>
+<td></td>
+</tr>
+<tr>
+<td>9</td>
+<td>message(assistant)</td>
+<td>500</td>
+<td>报告完成</td>
+</tr>
+<tr>
+<td>10</td>
+<td>message(user)</td>
+<td>70</td>
+<td>&quot;再跑测试&quot;</td>
+</tr>
+<tr>
+<td>11</td>
+<td>message(assistant, toolCall)</td>
+<td>220</td>
+<td>调 <code>bash</code></td>
+</tr>
+</tbody>
+</table>
+<p>从 11 倒着加：220 → 290 → 790 → 940 → 1,120 → 1,180 → 1,580 → 10,580
+→ 10,780 → 10,860 → 11,160 → <strong>11,280</strong>（到 idx 0）。全程没超过 20,000。
+于是 <code>cutIndex</code> 停在 <code>cutPoints[0] = 0</code>，等于&quot;全部保留&quot;。</p>
+<p>回到 <code>prepareCompaction</code>：<code>firstKeptEntryIndex = 0</code> 时
+<code>messagesToSummarize</code> 与 <code>turnPrefixMessages</code> 都是空的，两段皆空 → 返回
+<code>undefined</code> → 不压缩。这就解释了小会话按 <code>/compact</code> 为何说
+&quot;Nothing to compact (session too small)&quot;——不是坏了，是真的没东西可压。</p>
+<hr>
+<h2 id="sec-28-五-写摘要">五、写摘要</h2>
+<p>切点定了，得到两段（或三段）消息。
+接下来要调模型，把它们写成摘要。</p>
+<h3 id="sec-29-5-1-六节模板">5.1 六节模板</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:507-538（提示词原文，按语义折行）</span></span><span class="ln"><span class="tok-kw">const</span> SUMMARIZATION_PROMPT = <span class="tok-str">`The messages above are a conversation to</span></span><span class="ln"><span class="tok-str">summarize. Create a structured context checkpoint summary that another LLM</span></span><span class="ln"><span class="tok-str">will use to continue the work.</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Use this EXACT format:</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Goal</span></span><span class="ln"><span class="tok-str">[What is the user trying to accomplish? …]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Constraints &amp; Preferences</span></span><span class="ln"><span class="tok-str">- [Any constraints, preferences, or requirements mentioned by user]</span></span><span class="ln"><span class="tok-str">- [Or "(none)" if none were mentioned]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Progress</span></span><span class="ln"><span class="tok-str">### Done</span></span><span class="ln"><span class="tok-str">- [x] [Completed tasks/changes]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">### In Progress</span></span><span class="ln"><span class="tok-str">- [ ] [Current work]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">### Blocked</span></span><span class="ln"><span class="tok-str">- [Issues preventing progress, if any]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Key Decisions</span></span><span class="ln"><span class="tok-str">- **[Decision]**: [Brief rationale]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Next Steps</span></span><span class="ln"><span class="tok-str">1. [Ordered list of what should happen next]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Critical Context</span></span><span class="ln"><span class="tok-str">- [Any data, examples, or references needed to continue]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Keep each section concise. Preserve exact file paths, function names,</span></span><span class="ln"><span class="tok-str">and error messages.`</span>;</span></code></pre></div>
+<p>六节，每一节对应接手模型的一个具体问题：</p>
+<table>
+<thead>
+<tr>
+<th>节</th>
+<th>回答的问题</th>
+<th>缺了会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Goal</code></td>
+<td>用户到底要什么</td>
+<td>模型开始自由发挥</td>
+</tr>
+<tr>
+<td><code>Constraints &amp; Preferences</code></td>
+<td>有哪些不许做的事</td>
+<td>重新踩已经踩过的坑</td>
+</tr>
+<tr>
+<td><code>Progress</code>（Done / In Progress / Blocked）</td>
+<td>完成到哪、手上卡在哪</td>
+<td>重复劳动、从零重来、继续撞墙</td>
+</tr>
+<tr>
+<td><code>Key Decisions</code></td>
+<td>为什么这么设计</td>
+<td>推翻已有决策</td>
+</tr>
+<tr>
+<td><code>Next Steps</code></td>
+<td>下一步做什么</td>
+<td>停在原地等指令</td>
+</tr>
+<tr>
+<td><code>Critical Context</code></td>
+<td>有哪些必须带着的数据</td>
+<td>找不到文件、记不住报错</td>
+</tr>
+</tbody>
+</table>
+<p>最后那句 <code>Preserve exact file paths, function names, and error messages</code>
+看似客套，其实是全文最重要的一行：
+摘要模型天然倾向于&quot;概括&quot;，会把 <code>packages/ai/src/compat.ts:88</code> 写成&quot;某个兼容层文件&quot;。
+路径被概括掉，接手模型就得重新搜一遍。</p>
+<h3 id="sec-30-5-2-第二次压缩是-quot-更新-quot-不是-quot-重写-quot">5.2 第二次压缩是&quot;更新&quot;不是&quot;重写&quot;</h3>
+<p>如果这次要压的历史里已经有一条摘要（上一次压缩留下的），
+就不该重写，而该增量更新：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:540-546</span></span><span class="ln"><span class="tok-kw">const</span> UPDATE_SUMMARIZATION_INSTRUCTIONS = <span class="tok-str">`Update the existing structured</span></span><span class="ln"><span class="tok-str">summary with new information. RULES:</span></span><span class="ln"><span class="tok-str">- PRESERVE all existing information from the previous summary</span></span><span class="ln"><span class="tok-str">- ADD new progress, decisions, and context from the new messages</span></span><span class="ln"><span class="tok-str">- UPDATE the Progress section: move items from "In Progress" to "Done"</span></span><span class="ln"><span class="tok-str">- UPDATE "Next Steps" based on what was accomplished</span></span><span class="ln"><span class="tok-str">- PRESERVE exact file paths, function names, and error messages</span></span><span class="ln"><span class="tok-str">- If something is no longer relevant, you may remove it</span></span></code></pre></div>
+<p>选择逻辑只有一行（<code>generateSummaryWithUsage</code>，:713-717）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:713-717（三元折行）</span></span><span class="ln"><span class="tok-kw">let</span> basePrompt = previousSummary</span><span class="ln">	? UPDATE_SUMMARIZATION_PROMPT</span><span class="ln">	: SUMMARIZATION_PROMPT;</span><span class="ln"><span class="tok-kw">if</span> (customInstructions) {</span><span class="ln">	basePrompt = <span class="tok-str">`${basePrompt}\n\nAdditional focus: ${customInstructions}`</span>;</span><span class="ln">}</span></code></pre></div>
+<p>为什么必须分开？因为<strong>摘要的摘要会衰减</strong>。
+每次都重写，第一轮丢 30% 细节，第二轮再丢 30%，第五轮就剩个标题。
+增量更新把上一版当底本，只增改，衰减慢得多。
+代价是摘要会越来越长——所以规则里留了 <code>you may remove it</code> 这个出口。</p>
+<p><code>/compact 后面跟的话</code> 就是 <code>customInstructions</code>，
+会以 <code>Additional focus: …</code> 附在模板后面，不替换模板。</p>
+<h3 id="sec-31-5-3-把对话拍平成文本">5.3 把对话拍平成文本</h3>
+<p>摘要请求不是&quot;把历史原样发过去让模型总结&quot;。
+Pi 先把对话<strong>序列化成一整段纯文本</strong>，再包进标签：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:719-729（节选）</span></span><span class="ln"><span class="tok-com">// Serialize conversation to text so model doesn't try to continue it</span></span><span class="ln"><span class="tok-kw">const</span> llmMessages = <span class="tok-fn">convertToLlm</span>(currentMessages);</span><span class="ln"><span class="tok-kw">const</span> conversationText = <span class="tok-fn">serializeConversation</span>(llmMessages);</span><span class="ln"></span><span class="ln"><span class="tok-kw">let</span> promptText = <span class="tok-str">`&lt;conversation&gt;\n${conversationText}\n&lt;/conversation&gt;\n\n`</span>;</span><span class="ln"><span class="tok-kw">if</span> (previousSummary) {</span><span class="ln">	promptText += <span class="tok-str">`&lt;previous-summary&gt;\n${previousSummary}\n&lt;/previous-summary&gt;\n\n`</span>;</span><span class="ln">}</span><span class="ln">promptText += basePrompt;</span></code></pre></div>
+<p>为什么要拍平？两个原因：</p>
+<ol>
+<li><strong>防止模型接着聊</strong>。标准对话结构下，模型很可能把最后一条当成
+&quot;该我回了&quot;，直接续写而不是写摘要。</li>
+<li><strong>统一格式</strong>。<code>bashExecution</code>、<code>custom</code>、<code>compactionSummary</code> 这些自定义类型
+都要先经 <code>convertToLlm</code> 变成标准 <code>Message</code>，否则序列化函数认不出来。</li>
+</ol>
+<p>系统提示词是另一层保险（<code>utils.ts:161-163</code>，按语义折行）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:161-163（提示词原文，按语义折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> SUMMARIZATION_SYSTEM_PROMPT = <span class="tok-str">`You are a context</span></span><span class="ln"><span class="tok-str">summarization assistant. Your task is to read a conversation between a user</span></span><span class="ln"><span class="tok-str">and an AI assistant, then produce a structured summary following the exact</span></span><span class="ln"><span class="tok-str">format specified.</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Do NOT continue the conversation. Do NOT respond to any questions in the</span></span><span class="ln"><span class="tok-str">conversation. ONLY output the structured summary.`</span>;</span></code></pre></div>
+<p>三重保险：模板说&quot;EXACT format&quot;、系统提示说&quot;ONLY output&quot;、
+输入是拍平的文本。少一层都可能得到一篇&quot;好的，我来总结一下……&quot;。</p>
+<h3 id="sec-32-5-4-序列化时丢掉什么">5.4 序列化时丢掉什么</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:120-155（节选，toolResult 分支拆行）</span></span><span class="ln"><span class="tok-kw">const</span> TOOL_RESULT_MAX_CHARS = <span class="tok-num">2000</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">serializeConversation</span>(messages: Message[]): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">const</span> parts: <span class="tok-kw">string</span>[] = [];</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> msg <span class="tok-kw">of</span> messages) {</span><span class="ln">		<span class="tok-kw">if</span> (msg.role === <span class="tok-str">"user"</span>) {</span><span class="ln">			<span class="tok-kw">const</span> content = <span class="tok-fn">contentText</span>(msg.content, <span class="tok-str">""</span>);</span><span class="ln">			<span class="tok-kw">if</span> (content) parts.<span class="tok-fn">push</span>(<span class="tok-str">`[User]: ${content}`</span>);</span><span class="ln">		} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (msg.role === <span class="tok-str">"assistant"</span>) {</span><span class="ln">			<span class="tok-kw">const</span> toolCalls: <span class="tok-kw">string</span>[] = [];</span><span class="ln">			<span class="tok-kw">for</span> (<span class="tok-kw">const</span> block <span class="tok-kw">of</span> msg.content) {</span><span class="ln">				<span class="tok-kw">if</span> (block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>) {</span><span class="ln">					<span class="tok-kw">const</span> args = block.arguments <span class="tok-kw">as</span> Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;;</span><span class="ln">					<span class="tok-kw">const</span> argsStr = Object.<span class="tok-fn">entries</span>(args)</span><span class="ln">						.<span class="tok-kw">map</span>(([k, v]) =&gt; <span class="tok-str">`${k}=${JSON.stringify(v)}`</span>)</span><span class="ln">						.<span class="tok-fn">join</span>(<span class="tok-str">", "</span>);</span><span class="ln">					toolCalls.<span class="tok-fn">push</span>(<span class="tok-str">`${block.name}(${argsStr})`</span>);</span><span class="ln">				}</span><span class="ln">			}</span><span class="ln">			<span class="tok-kw">if</span> (msg.content.<span class="tok-fn">some</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>)) {</span><span class="ln">				parts.<span class="tok-fn">push</span>(<span class="tok-str">`[Assistant]: ${contentText(msg.content)}`</span>);</span><span class="ln">			}</span><span class="ln">			<span class="tok-kw">if</span> (toolCalls.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">				parts.<span class="tok-fn">push</span>(<span class="tok-str">`[Assistant tool calls]: ${toolCalls.join("; ")}`</span>);</span><span class="ln">			}</span><span class="ln">		} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (msg.role === <span class="tok-str">"toolResult"</span>) {</span><span class="ln">			<span class="tok-kw">const</span> content = <span class="tok-fn">contentText</span>(msg.content, <span class="tok-str">""</span>);</span><span class="ln">			<span class="tok-kw">if</span> (content) {</span><span class="ln">				<span class="tok-kw">const</span> text = <span class="tok-fn">truncateForSummary</span>(content, TOOL_RESULT_MAX_CHARS);</span><span class="ln">				parts.<span class="tok-fn">push</span>(<span class="tok-str">`[Tool result]: ${text}`</span>);</span><span class="ln">			}</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> parts.<span class="tok-fn">join</span>(<span class="tok-str">"\n\n"</span>);</span><span class="ln">}</span></code></pre></div>
+<p>两个&quot;丢弃&quot;：</p>
+<p><strong>thinking 完全不输出。</strong> 源码注释（:114-118）给的理由很硬：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Providers return summaries of the real reasoning, and replayed thinking is</span><span class="ln">often not part of the model's live context: for example, a block that does</span><span class="ln">not match its request is dropped. Including it can make the summarization</span><span class="ln">request larger than the context it summarizes.</span></code></pre></div>
+<p>两句话：① 回放的 thinking 常常不在实时上下文里（不匹配就被丢弃）；
+② 把 thinking 塞进摘要请求，可能让<strong>摘要请求比被摘要的内容还大</strong>。
+第二句是致命的——压缩为了省 token，输入反而膨胀。</p>
+<p><strong>toolResult 截到 2,000 字符。</strong> 截断标记长这样：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:100-104（折行）</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">truncateForSummary</span>(text: <span class="tok-kw">string</span>, maxChars: <span class="tok-kw">number</span>): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">if</span> (text.length &lt;= maxChars) <span class="tok-kw">return</span> text;</span><span class="ln">	<span class="tok-kw">const</span> truncatedChars = text.length - maxChars;</span><span class="ln">	<span class="tok-kw">return</span> (</span><span class="ln">		text.<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, maxChars) +</span><span class="ln">		<span class="tok-str">`\n\n[... ${truncatedChars} more characters truncated]`</span></span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>保留开头 500 行代码 + 一句&quot;还有 87,000 字符被截断&quot;。
+摘要不需要完整文件内容，它需要的是&quot;读过哪个文件、看到了什么结论&quot;。</p>
+<h3 id="sec-33-5-5-三道失败判定">5.5 三道失败判定</h3>
+<p>摘要调用回来后，不是&quot;有文本就算成功&quot;：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:585-593（参数与字符串折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">getSummarizationFailure</span>(</span><span class="ln">	response: AssistantMessage,</span><span class="ln">	label: <span class="tok-kw">string</span>,</span><span class="ln">): <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">if</span> (response.stopReason === <span class="tok-str">"error"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">`${label} failed: ${response.errorMessage || "Unknown error"}`</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (response.stopReason === <span class="tok-str">"length"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> (</span><span class="ln">			<span class="tok-str">`${label} failed: generation hit the token cap `</span> +</span><span class="ln">			<span class="tok-str">`and the summary is incomplete`</span></span><span class="ln">		);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p>调用处还有第三道：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:742-752（节选）</span></span><span class="ln"><span class="tok-kw">const</span> failure = <span class="tok-fn">getSummarizationFailure</span>(response, <span class="tok-str">"Summarization"</span>);</span><span class="ln"><span class="tok-kw">if</span> (failure) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(failure);</span><span class="ln"><span class="tok-kw">if</span> (response.content.<span class="tok-fn">some</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>)) {</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Summarization attempted to call a tool"</span>);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> textContent = <span class="tok-fn">contentText</span>(response.content);</span><span class="ln"><span class="tok-kw">return</span> { text: textContent, usage: response.usage };</span></code></pre></div>
+<p>三条都很重要，尤其是第二条：</p>
+<table>
+<thead>
+<tr>
+<th>判定</th>
+<th>为什么不能放过</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>error</code></td>
+<td>没有内容，写进会话就是空摘要</td>
+</tr>
+<tr>
+<td><code>length</code></td>
+<td><strong>有内容但是半截</strong>——<code>## Next Steps</code> 可能一个字没写</td>
+</tr>
+<tr>
+<td>出现 <code>toolCall</code></td>
+<td>模型想调工具，说明它又在&quot;干活&quot;而不是&quot;总结&quot;</td>
+</tr>
+</tbody>
+</table>
+<p><code>length</code> 那条注释很明确：
+<code>A length stop contains partial text and must not become a session checkpoint.</code>
+半截摘要比没摘要更危险——它看起来像完整的，模型会照着它继续。</p>
+<h3 id="sec-34-5-6-不复用缓存-但要重试">5.6 不复用缓存，但要重试</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:626-637</span></span><span class="ln"><span class="tok-com">// Avoid cache writes for one-off summaries. Reuse caller-supplied routing when</span></span><span class="ln"><span class="tok-com">// available; callers without a session ID, including branch summaries, receive</span></span><span class="ln"><span class="tok-com">// a fresh routing ID.</span></span><span class="ln"><span class="tok-kw">const</span> requestOptions: SimpleStreamOptions = {</span><span class="ln">	...options,</span><span class="ln">	cacheRetention: <span class="tok-str">"none"</span>,</span><span class="ln">	sessionId: options.sessionId ?? <span class="tok-fn">uuidv7</span>(),</span><span class="ln">};</span><span class="ln"><span class="tok-kw">const</span> produce = <span class="tok-kw">async</span> (): Promise&lt;AssistantMessage&gt; =&gt;</span><span class="ln">	streamFn</span><span class="ln">		? (<span class="tok-kw">await</span> <span class="tok-fn">streamFn</span>(model, context, requestOptions)).<span class="tok-fn">result</span>()</span><span class="ln">		: <span class="tok-fn">completeSimple</span>(model, context, requestOptions);</span><span class="ln"><span class="tok-kw">return</span> <span class="tok-fn">retryAssistantCall</span>(produce, retry, requestOptions.signal, callbacks);</span></code></pre></div>
+<p>两个决定：</p>
+<ul>
+<li><strong><code>cacheRetention: &quot;none&quot;</code></strong>。摘要请求是一次性的，写完再也不发，
+让它写缓存是纯浪费（有些 provider 缓存写入比普通输入还贵）。
+<code>sessionId</code> 也从调用方传，没有就现造一个——只是路由标识，不为命中缓存。</li>
+<li><strong>包在 <code>retryAssistantCall</code> 里</strong>。注释（:611-617）：
+流被中途掐断（<code>terminated</code>、socket close）要按重试策略重试，
+而不是让整个压缩因为一次网络抖动失败。确定性错误和主动 abort 则立即返回。</li>
+</ul>
+<h3 id="sec-35-5-7-两个已经废弃的参数">5.7 两个已经废弃的参数</h3>
+<p><code>generateSummary</code> 和 <code>generateSummaryWithUsage</code> 的第三个参数叫 <code>_reserveTokens</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:644-648</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">generateSummary</span>(</span><span class="ln">	currentMessages: AgentMessage[],</span><span class="ln">	model: Model&lt;<span class="tok-kw">any</span>&gt;,</span><span class="ln">	<span class="tok-com">// Unused. Kept for existing callers; summaries use the model's output limit</span></span><span class="ln">	<span class="tok-com">// (#9512).</span></span><span class="ln">	_reserveTokens: <span class="tok-kw">number</span> | <span class="tok-kw">undefined</span>,</span></code></pre></div>
+<p>下划线前缀 + 注释，说明它是历史遗留。
+<strong>旧实现</strong>用 <code>reserveTokens</code> 算摘要的 <code>maxTokens</code>（比如
+<code>min(0.8 × reserveTokens, model.maxTokens)</code>）；<strong>现在</strong>不传了，
+摘要直接用模型的输出上限。</p>
+<p>为什么改？按 <code>reserveTokens</code> 算出的上限经常只有 2,000–4,000，
+摘要写到一半就被 <code>length</code> 掐断，再被 §5.5 判为失败——一次压缩白跑。</p>
+<hr>
+<h2 id="sec-36-六-split-turn-串行的两份摘要">六、split turn：串行的两份摘要</h2>
+<h3 id="sec-37-6-1-为什么必须分开">6.1 为什么必须分开</h3>
+<p>为什么必须分开？回到 §4.5 的三段结构。被切开的半轮有个尴尬的时间位置：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">时间轴 ──────────────────────────────────────────→</span><span class="ln">[主摘要区]        [turnPrefix 区]        [保留区]</span><span class="ln">"很久以前"        "刚才这一轮的前半"     "现在的原文"</span></code></pre></div>
+<p><code>turnPrefix</code> 区里的内容<strong>比保留区还早</strong>，但<strong>比主摘要区晚</strong>。
+如果并进主摘要：</p>
+<ul>
+<li>叙述视角会乱——前面讲&quot;上周做了什么&quot;，突然接&quot;刚才我在改第 3 行&quot;。</li>
+<li>下次再压缩时，这段会被当成&quot;历史&quot;重新概括，正在进行的任务就变成了过去式。</li>
+</ul>
+<p>并进保留区：又违背了&quot;按 token 预算切&quot;的原则——它可能很大，塞进去就超了。
+所以单独一份，用专门的提示词。</p>
+<h3 id="sec-38-6-2-三节模板">6.2 三节模板</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:929-942</span></span><span class="ln"><span class="tok-kw">const</span> TURN_PREFIX_SUMMARIZATION_PROMPT = <span class="tok-str">`The messages above are earlier</span></span><span class="ln"><span class="tok-str">context from an ongoing conversation. Later messages are stored separately and</span></span><span class="ln"><span class="tok-str">do not need to be reconstructed.</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Create a concise checkpoint of the user's request and the progress shown above.</span></span><span class="ln"><span class="tok-str">This checkpoint will be placed before the later messages so the conversation</span></span><span class="ln"><span class="tok-str">can continue with the necessary context.</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Original Request</span></span><span class="ln"><span class="tok-str">[What did the user ask for?]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Progress So Far</span></span><span class="ln"><span class="tok-str">- [Key decisions and work completed in these messages]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Context Needed to Continue</span></span><span class="ln"><span class="tok-str">- [Information from these messages needed to understand the later work]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Only summarize information explicitly present above. Do not infer or recreate</span></span><span class="ln"><span class="tok-str">later messages.`</span>;</span></code></pre></div>
+<p>三节，比主摘要少一半。少了 <code>Goal</code>（有 <code>Original Request</code>）、
+<code>Constraints</code>、<code>Key Decisions</code>、<code>Critical Context</code>。
+因为读者<strong>马上就要拿到后半段的原文</strong>，不需要提前知道最终目标。</p>
+<p>最后一句是防幻觉的关键：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Only summarize information explicitly present above.</span><span class="ln">Do not infer or recreate later messages.</span></code></pre></div>
+<p>模型拿到的只有前半轮，它天然想&quot;补全&quot;后面发生了什么。
+这句话把它按回去：<strong>只写你看见的</strong>。</p>
+<h3 id="sec-39-6-3-串行-不是并行">6.3 串行，不是并行</h3>
+<p>这里要纠正一个很自然的猜测：两份摘要是不是 <code>Promise.all</code> 并行跑？</p>
+<p>不是。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:980-1019（节选）</span></span><span class="ln"><span class="tok-kw">if</span> (isSplitTurn &amp;&amp; turnPrefixMessages.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	<span class="tok-kw">let</span> historyText = previousSummary ?? <span class="tok-str">"No prior history."</span>;</span><span class="ln">	<span class="tok-kw">let</span> historyUsage: Usage | <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">if</span> (messagesToSummarize.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">		<span class="tok-kw">const</span> historyResult = <span class="tok-kw">await</span> <span class="tok-fn">generateSummaryWithUsage</span>(</span><span class="ln">			messagesToSummarize, model, <span class="tok-kw">undefined</span>, apiKey, headers, signal,</span><span class="ln">			customInstructions, previousSummary, thinkingLevel, streamFn, env,</span><span class="ln">			retry, callbacks, sessionId,</span><span class="ln">		);</span><span class="ln">		historyText = historyResult.text;</span><span class="ln">		historyUsage = historyResult.usage;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">const</span> turnPrefixResult = <span class="tok-kw">await</span> <span class="tok-fn">generateTurnPrefixSummary</span>(</span><span class="ln">		turnPrefixMessages, model, apiKey, headers, env, signal, thinkingLevel,</span><span class="ln">		streamFn, retry, callbacks, sessionId, customInstructions,</span><span class="ln">	);</span><span class="ln">	<span class="tok-com">// Merge into single summary</span></span><span class="ln">	summary = <span class="tok-str">`${historyText}\n\n---\n\n**Turn Context (split turn):**\n\n`</span></span><span class="ln">		+ turnPrefixResult.text;</span><span class="ln">	summaryUsage = historyUsage</span><span class="ln">		? <span class="tok-fn">combineUsage</span>(historyUsage, turnPrefixResult.usage)</span><span class="ln">		: turnPrefixResult.usage;</span><span class="ln">}</span></code></pre></div>
+<p>两个 <code>await</code> 一前一后。</p>
+<p>为什么不做并行？三个现实原因：</p>
+<ol>
+<li><strong><code>messagesToSummarize</code> 可能是空的</strong>（直接拿 <code>previousSummary</code>），
+这时只有一份请求，并行结构反而更绕。</li>
+<li><strong>限流</strong>。压缩本身高频，同时发两份会翻倍触发 RPM 限制，还把重试搞复杂。</li>
+<li><strong>顺序即语义</strong>。先&quot;历史讲完了&quot;，再&quot;接着这一轮&quot;，串行写在代码里，
+读的人也顺着这个顺序理解。</li>
+</ol>
+<p>代价是慢一倍。但压缩发生在&quot;对话已经很长&quot;的时刻，用户本来就要等，
+多等 3 秒比多一次 429 划算。</p>
+<h3 id="sec-40-6-4-合并格式">6.4 合并格式</h3>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">${historyText}</span><span class="ln"></span><span class="ln">---</span><span class="ln"></span><span class="ln">**Turn Context (split turn):**</span><span class="ln"></span><span class="ln">${turnPrefixResult.text}</span></code></pre></div>
+<p><code>---</code> 分割 + 一个粗体小标题。这个格式是给下游模型看的：
+它一眼就知道&quot;上面是背景，下面是刚才那一轮&quot;。
+<code>usage</code> 也合并（<code>combineUsage</code>），这个数字要写进 <code>compaction_end</code> 事件和
+<code>details</code>，是计费依据。</p>
+<h3 id="sec-41-6-5-空历史也要占位">6.5 空历史也要占位</h3>
+<p>注意 <code>let historyText = previousSummary ?? &quot;No prior history.&quot;;</code>
+——若 <code>messagesToSummarize</code> 为空且没有上一版摘要，主摘要位置就写这个占位。
+否则合并后开头是 <code>\n\n---</code>，模型可能把它当成&quot;上面被截断了&quot;，
+然后开始道歉或补全。一个 16 字符的占位，省掉一次幻觉。</p>
+<hr>
+<h2 id="sec-42-七-文件清单-摘要里最不该丢的东西">七、文件清单：摘要里最不该丢的东西</h2>
+<h3 id="sec-43-7-1-三个集合">7.1 三个集合</h3>
+<p>摘要是有损压缩。写得再好也会丢细节，
+但有一类丢了会直接导致返工：<strong>动过哪些文件</strong>。
+所以 Pi 单独抽一层，边扫描边记账：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:12-24</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> FileOperations {</span><span class="ln">	read: Set&lt;<span class="tok-kw">string</span>&gt;;</span><span class="ln">	written: Set&lt;<span class="tok-kw">string</span>&gt;;</span><span class="ln">	edited: Set&lt;<span class="tok-kw">string</span>&gt;;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createFileOps</span>(): FileOperations {</span><span class="ln">	<span class="tok-kw">return</span> { read: <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(), written: <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(), edited: <span class="tok-kw">new</span> <span class="tok-fn">Set</span>() };</span><span class="ln">}</span></code></pre></div>
+<p>三个 <code>Set</code>，天然去重。同一文件读十次只记一次。</p>
+<h3 id="sec-44-7-2-只认三个工具-只认-args-path">7.2 只认三个工具，只认 args.path</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:47-61</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">addFileOp</span>(toolName: <span class="tok-kw">string</span>, args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt; | <span class="tok-kw">undefined</span>,</span><span class="ln">	fileOps: FileOperations): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">const</span> path = <span class="tok-kw">typeof</span> args?.path === <span class="tok-str">"string"</span> ? args.path : <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">if</span> (!path) <span class="tok-kw">return</span>;</span><span class="ln">	<span class="tok-kw">switch</span> (toolName) {</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"read"</span>:</span><span class="ln">			fileOps.read.<span class="tok-fn">add</span>(path);</span><span class="ln">			<span class="tok-kw">break</span>;</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"write"</span>:</span><span class="ln">			fileOps.written.<span class="tok-fn">add</span>(path);</span><span class="ln">			<span class="tok-kw">break</span>;</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"edit"</span>:</span><span class="ln">			fileOps.edited.<span class="tok-fn">add</span>(path);</span><span class="ln">			<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>三个刻意的窄口：</p>
+<ul>
+<li><strong>只认 <code>read</code> / <code>write</code> / <code>edit</code></strong>。<code>bash cat file</code> 不算读——
+命令里可能干十几件事，没法可靠解析。</li>
+<li><strong>只认 <code>args.path</code></strong>。<code>grep</code> 的 <code>path</code> 是目录；只匹配字段名不看工具，
+会把目录记成文件。</li>
+<li><strong>没有 path 就默默跳过</strong>。不抛错，不猜测。</li>
+</ul>
+<h3 id="sec-45-7-3-codemode-的嵌套调用也要算">7.3 codemode 的嵌套调用也要算</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:30-45（节选，参数与调用拆行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">extractFileOpsFromMessage</span>(</span><span class="ln">	message: AgentMessage,</span><span class="ln">	fileOps: FileOperations,</span><span class="ln">): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">if</span> (message.role === <span class="tok-str">"toolResult"</span>) {</span><span class="ln">		<span class="tok-com">// Calls made from codemode scripts are recorded on the script's result.</span></span><span class="ln">		<span class="tok-kw">for</span> (<span class="tok-kw">const</span> call <span class="tok-kw">of</span> message.nestedCalls?.calls ?? []) {</span><span class="ln">			<span class="tok-fn">addFileOp</span>(call.name, call.arguments, fileOps);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">return</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (message.role !== <span class="tok-str">"assistant"</span>) <span class="tok-kw">return</span>;</span><span class="ln">	<span class="tok-kw">if</span> (!(<span class="tok-str">"content"</span> <span class="tok-kw">in</span> message) || !Array.<span class="tok-fn">isArray</span>(message.content)) <span class="tok-kw">return</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> block <span class="tok-kw">of</span> message.content) {</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-kw">typeof</span> block !== <span class="tok-str">"object"</span> || block === <span class="tok-kw">null</span>) <span class="tok-kw">continue</span>;</span><span class="ln">		<span class="tok-kw">if</span> (!(<span class="tok-str">"type"</span> <span class="tok-kw">in</span> block) || block.<span class="tok-kw">type</span> !== <span class="tok-str">"toolCall"</span>) <span class="tok-kw">continue</span>;</span><span class="ln">		<span class="tok-kw">if</span> (!(<span class="tok-str">"arguments"</span> <span class="tok-kw">in</span> block) || !(<span class="tok-str">"name"</span> <span class="tok-kw">in</span> block)) <span class="tok-kw">continue</span>;</span><span class="ln">		<span class="tok-kw">const</span> args = block.arguments <span class="tok-kw">as</span> Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt; | <span class="tok-kw">undefined</span>;</span><span class="ln">		<span class="tok-fn">addFileOp</span>(block.name, args, fileOps);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p><code>nestedCalls</code> 是 codemode 的产物（M13 展开）：
+模型写的脚本里调了 <code>edit()</code>，真正执行发生在脚本内部，
+assistant 消息里只有一次 <code>run_script</code> 调用。
+不看 <code>nestedCalls</code>，脚本改过的文件一个都记不上。</p>
+<h3 id="sec-46-7-4-readfiles-是-只读未改">7.4 readFiles 是「只读未改」</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:67-72</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">computeFileLists</span>(fileOps: FileOperations): {</span><span class="ln">	readFiles: <span class="tok-kw">string</span>[];</span><span class="ln">	modifiedFiles: <span class="tok-kw">string</span>[];</span><span class="ln">} {</span><span class="ln">	<span class="tok-kw">const</span> modified = <span class="tok-kw">new</span> <span class="tok-fn">Set</span>([...fileOps.edited, ...fileOps.written]);</span><span class="ln">	<span class="tok-kw">const</span> readOnly = [...fileOps.read].<span class="tok-fn">filter</span>((f) =&gt; !modified.<span class="tok-fn">has</span>(f)).<span class="tok-fn">sort</span>();</span><span class="ln">	<span class="tok-kw">const</span> modifiedFiles = [...modified].<span class="tok-fn">sort</span>();</span><span class="ln">	<span class="tok-kw">return</span> { readFiles: readOnly, modifiedFiles };</span><span class="ln">}</span></code></pre></div>
+<p>关键在 <code>filter((f) =&gt; !modified.has(f))</code>：</p>
+<table>
+<thead>
+<tr>
+<th>操作序列</th>
+<th><code>read</code> 集合</th>
+<th><code>modified</code> 集合</th>
+<th>最终 <code>readFiles</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只读 a.ts</td>
+<td>{a.ts}</td>
+<td>{}</td>
+<td><strong>[a.ts]</strong></td>
+</tr>
+<tr>
+<td>读 b.ts，再改 b.ts</td>
+<td>{b.ts}</td>
+<td>{b.ts}</td>
+<td><strong>[]</strong></td>
+</tr>
+<tr>
+<td>读 c.ts，写 c.ts，再读 c.ts</td>
+<td>{c.ts}</td>
+<td>{c.ts}</td>
+<td><strong>[]</strong></td>
+</tr>
+</tbody>
+</table>
+<p>一个文件既读过又改过，只出现在 <code>modifiedFiles</code> 里，不会两边都写。
+对下游模型来说，&quot;读过&quot;的价值是&quot;我知道它的内容&quot;，
+&quot;改过&quot;的价值是&quot;我要为它负责&quot;——后者覆盖前者。</p>
+<p>两个列表都 <code>.sort()</code>。不是为了好看，是为了<strong>缓存稳定</strong>：
+同一批文件无论处理顺序如何，摘要末尾的 XML 一模一样。</p>
+<h3 id="sec-47-7-5-挂成-xml">7.5 挂成 XML</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// utils.ts:77-87（参数与调用折行）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">formatFileOperations</span>(</span><span class="ln">	readFiles: <span class="tok-kw">string</span>[],</span><span class="ln">	modifiedFiles: <span class="tok-kw">string</span>[],</span><span class="ln">): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">const</span> sections: <span class="tok-kw">string</span>[] = [];</span><span class="ln">	<span class="tok-kw">if</span> (readFiles.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">		sections.<span class="tok-fn">push</span>(<span class="tok-str">`&lt;read-files&gt;\n${readFiles.join("\n")}\n&lt;/read-files&gt;`</span>);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (modifiedFiles.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">		sections.<span class="tok-fn">push</span>(</span><span class="ln">			<span class="tok-str">`&lt;modified-files&gt;\n${modifiedFiles.join("\n")}\n&lt;/modified-files&gt;`</span>,</span><span class="ln">		);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (sections.length === <span class="tok-num">0</span>) <span class="tok-kw">return</span> <span class="tok-str">""</span>;</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-str">`\n\n${sections.join("\n\n")}`</span>;</span><span class="ln">}</span></code></pre></div>
+<p>摘要正文后面接两个 XML 块，形如：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">## Critical Context</span><span class="ln">- 目标是把 m09 从 4,262 字加厚到 8,000 字</span><span class="ln"></span><span class="ln">&lt;read-files&gt;</span><span class="ln">packages/coding-agent/src/core/compaction/compaction.ts</span><span class="ln">packages/coding-agent/src/core/compaction/utils.ts</span><span class="ln">&lt;/read-files&gt;</span><span class="ln"></span><span class="ln">&lt;modified-files&gt;</span><span class="ln">site/content/modules/m09-compaction.md</span></code></pre></div>
+<p>为什么用 XML 而不是 Markdown 列表？
+因为<strong>列表会被摘要模型改写</strong>（它会&quot;顺手整理一下&quot;），XML 标签是结构，
+模型倾向于原样保留。而且这两个块是<strong>代码拼上去的</strong>，不经过模型——
+模型只负责写前面六节。</p>
+<p>这条设计很值得记：<strong>凡是不能丢的信息，就不要交给模型去复述。</strong></p>
+<hr>
+<h2 id="sec-48-八-摘要怎么生效">八、摘要怎么生效</h2>
+<p>写完摘要是上半场。让它在下一次请求里真的出现，是下半场。</p>
+<h3 id="sec-49-8-1-落盘">8.1 落盘</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// session-manager.ts:1280-1296（节选，systemMessage 拆行）</span></span><span class="ln"><span class="tok-kw">const</span> systemMessage = <span class="tok-fn">getCurrentSystemMessage</span>(</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">buildSessionProjection</span>().messages,</span><span class="ln">);</span><span class="ln"><span class="tok-kw">const</span> systemState = systemMessage</span><span class="ln">	? { ...systemMessage, timestamp: <span class="tok-kw">new</span> <span class="tok-fn">Date</span>(timestamp).<span class="tok-fn">getTime</span>() }</span><span class="ln">	: <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">const</span> id = <span class="tok-fn">generateId</span>(<span class="tok-kw">this</span>.byId);</span><span class="ln"><span class="tok-kw">const</span> entry: CompactionEntry&lt;T&gt; = {</span><span class="ln">	<span class="tok-kw">type</span>: <span class="tok-str">"compaction"</span>,</span><span class="ln">	id,</span><span class="ln">	parentId: <span class="tok-kw">this</span>.leafId,</span><span class="ln">	timestamp,</span><span class="ln">	summary,</span><span class="ln">	firstKeptEntryId: firstKeptEntryId ?? id,</span><span class="ln">	tokensBefore,</span><span class="ln">	details,</span><span class="ln">	usage,</span><span class="ln">	fromHook,</span><span class="ln">	...(systemState ? { systemMessage: systemState } : {}),</span><span class="ln">};</span><span class="ln"><span class="tok-kw">this</span>.<span class="tok-fn">_appendEntry</span>(entry);</span></code></pre></div>
+<p>逐字段看：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>来源</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parentId</code></td>
+<td>当前叶子</td>
+<td>挂在分支末端，压缩本身也是一次操作</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td>模型生成的六节正文 + 文件 XML</td>
+<td>模型看到的东西</td>
+</tr>
+<tr>
+<td><code>firstKeptEntryId</code></td>
+<td>切点算出来的</td>
+<td>保留区从哪开始</td>
+</tr>
+<tr>
+<td><code>tokensBefore</code></td>
+<td><code>estimateProjectedContextTokens</code></td>
+<td>统计与展示</td>
+</tr>
+<tr>
+<td><code>details</code></td>
+<td><code>{ readFiles, modifiedFiles }</code></td>
+<td>结构化文件清单</td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td>摘要调用的 usage</td>
+<td>计费</td>
+</tr>
+<tr>
+<td><code>fromHook</code></td>
+<td>扩展是否接管</td>
+<td>区分来源</td>
+</tr>
+<tr>
+<td><code>systemMessage</code></td>
+<td><strong>压缩瞬间</strong>的系统提示词快照</td>
+<td>提示词状态</td>
+</tr>
+</tbody>
+</table>
+<p><code>systemMessage</code> 那一行容易忽略。它把当时的八节提示词整份存进 entry——
+因为 <code>buildContextEntries</code> 会跳过压缩前的全部 system 消息（§1.2 第 2 步），
+不存快照，模型就再也看不到自己的工具列表和规则了。</p>
+<p><code>firstKeptEntryId ?? id</code> 的兜底同样有意思：算不出保留起点时，
+就让保留区从这条 compaction 自己开始，等价于&quot;全部压掉，只留摘要&quot;。</p>
+<h3 id="sec-50-8-2-投影时变成两条消息">8.2 投影时变成两条消息</h3>
+<p><code>sessionEntryToContextMessages</code> 处理 compaction entry：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// session-manager.ts:461-464</span></span><span class="ln"><span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span>) {</span><span class="ln">	<span class="tok-kw">const</span> summary = <span class="tok-fn">createCompactionSummaryMessage</span>(</span><span class="ln">		entry.summary, entry.tokensBefore, entry.timestamp,</span><span class="ln">	);</span><span class="ln">	<span class="tok-kw">return</span> entry.systemMessage ? [entry.systemMessage, summary] : [summary];</span><span class="ln">}</span></code></pre></div>
+<p>一条 entry 投影成两条消息：<code>system</code> + <code>compactionSummary</code>，顺序固定。</p>
+<h3 id="sec-51-8-3-最后一步-变成-user-消息">8.3 最后一步：变成 user 消息</h3>
+<p><code>compactionSummary</code> 不是标准角色。发请求前 <code>convertToLlm</code> 再转一次：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// messages.ts:11-17</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> COMPACTION_SUMMARY_PREFIX = <span class="tok-str">`The conversation history before this</span></span><span class="ln"><span class="tok-str">point was compacted into the following summary:</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">&lt;summary&gt;</span></span><span class="ln"><span class="tok-str">`</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> COMPACTION_SUMMARY_SUFFIX = <span class="tok-str">`</span></span><span class="ln"><span class="tok-str">&lt;/summary&gt;`</span>;</span></code></pre></div>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// messages.ts:176-183</span></span><span class="ln"><span class="tok-kw">case</span> <span class="tok-str">"compactionSummary"</span>:</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		role: <span class="tok-str">"user"</span>,</span><span class="ln">		content: [</span><span class="ln">			{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span> <span class="tok-kw">as</span> <span class="tok-kw">const</span>,</span><span class="ln">			  text: COMPACTION_SUMMARY_PREFIX + m.summary + COMPACTION_SUMMARY_SUFFIX },</span><span class="ln">		],</span><span class="ln">		timestamp: m.timestamp,</span><span class="ln">	};</span></code></pre></div>
+<p><strong>摘要最终是一条 <code>user</code> 消息。</strong></p>
+<p>这个决定有讲究。放在 <code>system</code> 里会和真正的系统提示词打架
+（一个请求只能有一段 system，M08 讲过）；放 <code>assistant</code> 里更糟——
+模型会以为自己说过这些话，进而认为&quot;我已经知道结论了&quot;，跳过验证直接汇报。</p>
+<p>包成 user 消息读起来像是&quot;用户把之前的记录整理给你看&quot;，
+模型会把它当<strong>输入</strong>而不是<strong>自己的记忆</strong>。</p>
+<h3 id="sec-52-8-4-一次压缩的事件序列">8.4 一次压缩的事件序列</h3>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">_runAutoCompaction(reason, willRetry)</span><span class="ln">  ├─ prepareCompaction(branch, settings)      ← 算切点，可能返回 undefined</span><span class="ln">  ├─ emit compaction_start { reason }</span><span class="ln">  ├─ session_before_compact 钩子</span><span class="ln">  │    ├─ { cancel: true }   → throw "Compaction cancelled"</span><span class="ln">  │    └─ { compaction: … }  → 跳过默认摘要生成</span><span class="ln">  ├─ compact(preparation, …)</span><span class="ln">  │    ├─ generateSummaryWithUsage(history)   ← 串行</span><span class="ln">  │    ├─ generateTurnPrefixSummary(prefix)   ← 串行（split turn 时）</span><span class="ln">  │    └─ computeFileLists + formatFileOperations</span><span class="ln">  ├─ appendCompaction(summary, firstKeptEntryId, …)</span><span class="ln">  ├─ _refreshFinalizedContext()               ← 把新投影写回 agent.state</span><span class="ln">  ├─ estimateMessagesTokens(projection.messages) → estimatedTokensAfter</span><span class="ln">  ├─ session_compact 钩子</span><span class="ln">  └─ emit compaction_end { reason, result, willRetry }</span></code></pre></div>
+<p>返回值决定上层怎么走：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:3288-3292</span></span><span class="ln"><span class="tok-kw">if</span> (willRetry) <span class="tok-kw">return</span> <span class="tok-kw">true</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">// Auto-compaction can complete while follow-up/steering/custom messages are</span></span><span class="ln"><span class="tok-com">// waiting.</span></span><span class="ln"><span class="tok-com">// Continue once so queued messages are delivered.</span></span><span class="ln"><span class="tok-kw">return</span> <span class="tok-kw">this</span>.agent.<span class="tok-fn">hasQueuedMessages</span>();</span></code></pre></div>
+<p><code>true</code> 表示&quot;再跑一轮&quot;。两种来源：溢出恢复要重放刚才失败的那轮，
+或者压缩期间用户又排了消息。</p>
+<h3 id="sec-53-8-5-压缩完还是超怎么办">8.5 压缩完还是超怎么办</h3>
+<p>没有任何机制保证&quot;压完一定不超&quot;。可能的结果有三种：</p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>表现</th>
+<th>下一步</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>正常</td>
+<td><code>estimatedTokensAfter</code> 明显下降</td>
+<td>继续对话</td>
+</tr>
+<tr>
+<td>压了但还超</td>
+<td>下一轮请求前闸门又触发</td>
+<td>再压一次（此时走 UPDATE 模板）</td>
+</tr>
+<tr>
+<td>压了还是溢出</td>
+<td>provider 再次 400</td>
+<td><code>_overflowRecoveryAttempted</code> 已置位 → 报错</td>
+</tr>
+</tbody>
+</table>
+<p>第二种是常态。<code>keepRecentTokens = 20000</code> 意味着压完至少剩 2 万，
+如果窗口只有 3.2 万（<code>reserveTokens</code> 16,384），压完立刻又超。
+该做的是<strong>调小 <code>keepRecentTokens</code></strong>，见 §十一 实验 3。</p>
+<hr>
+<h2 id="sec-54-九-分支摘要-另一条完全不同的路">九、分支摘要：另一条完全不同的路</h2>
+<h3 id="sec-55-9-1-场景">9.1 场景</h3>
+<p>用户在 <code>/tree</code> 里退回到三小时前，选了一条岔路。
+原来那条路上的二十次工具调用、四次失败尝试、最终找到的那个 bug——
+全在废弃分支上。但那个 bug 的结论对现在有用。</p>
+<p>所以 Pi 问一句&quot;要不要总结这条被放弃的路&quot;，
+答案是 <code>navigateTree(targetId, { summarize: true })</code>。
+两者分工一句话讲清：<strong>普通压缩</strong>解决&quot;往前跑的路上，路太长&quot;；
+<strong>分支压缩</strong>解决&quot;往回走的时候，走过的路要不要带走&quot;。</p>
+<h3 id="sec-56-9-2-先找公共祖先">9.2 先找公共祖先</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:120-147（节选）</span></span><span class="ln"><span class="tok-com">// Find common ancestor (deepest node that's on both paths)</span></span><span class="ln"><span class="tok-kw">const</span> oldPath = <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(session.<span class="tok-fn">getBranch</span>(oldLeafId).<span class="tok-kw">map</span>((e) =&gt; e.id));</span><span class="ln"><span class="tok-kw">const</span> targetPath = session.<span class="tok-fn">getBranch</span>(targetId);</span><span class="ln"></span><span class="ln"><span class="tok-com">// targetPath is root-first, so iterate backwards to find deepest common ancestor</span></span><span class="ln"><span class="tok-kw">let</span> commonAncestorId: <span class="tok-kw">string</span> | <span class="tok-kw">null</span> = <span class="tok-kw">null</span>;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = targetPath.length - <span class="tok-num">1</span>; i &gt;= <span class="tok-num">0</span>; i--) {</span><span class="ln">	<span class="tok-kw">if</span> (oldPath.<span class="tok-fn">has</span>(targetPath[i].id)) {</span><span class="ln">		commonAncestorId = targetPath[i].id;</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">// Collect entries from old leaf back to common ancestor</span></span><span class="ln"><span class="tok-kw">const</span> entries: SessionEntry[] = [];</span><span class="ln"><span class="tok-kw">let</span> current: <span class="tok-kw">string</span> | <span class="tok-kw">null</span> = oldLeafId;</span><span class="ln"><span class="tok-kw">while</span> (current &amp;&amp; current !== commonAncestorId) {</span><span class="ln">	<span class="tok-kw">const</span> entry = session.<span class="tok-fn">getEntry</span>(current);</span><span class="ln">	<span class="tok-kw">if</span> (!entry) <span class="tok-kw">break</span>;</span><span class="ln">	entries.<span class="tok-fn">push</span>(entry);</span><span class="ln">	current = entry.parentId;</span><span class="ln">}</span><span class="ln">entries.<span class="tok-fn">reverse</span>(); <span class="tok-com">// 转成时间顺序</span></span></code></pre></div>
+<p>三步：旧路径集合 → 沿目标路径<strong>从后往前</strong>找第一个交点（最深的公共祖先）
+→ 从旧叶子沿 <code>parentId</code> 回溯到交点，再反转成时间序。
+O(路径长度)，不递归，不建新结构。</p>
+<p>有个细节：回溯循环<strong>不跳过 compaction</strong>。被放弃的分支里如果有一次压缩，
+那条 entry 也会被收集，转成 <code>compactionSummary</code> 消息参与摘要。
+注释的理由是 <code>those are included and their summaries become context</code>——
+跳过它，废弃分支里&quot;压缩之前发生过什么&quot;就永远丢了。</p>
+<h3 id="sec-57-9-3-塞不进预算时-摘要优先">9.3 塞不进预算时，摘要优先</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:220-246</span></span><span class="ln"><span class="tok-com">// Second pass: walk from newest to oldest, adding messages until token budget</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = entries.length - <span class="tok-num">1</span>; i &gt;= <span class="tok-num">0</span>; i--) {</span><span class="ln">	<span class="tok-kw">const</span> entry = entries[i];</span><span class="ln">	<span class="tok-kw">const</span> message = <span class="tok-fn">getMessageFromEntry</span>(entry);</span><span class="ln">	<span class="tok-kw">if</span> (!message) <span class="tok-kw">continue</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-com">// Extract file ops from assistant messages (tool calls)</span></span><span class="ln">	<span class="tok-fn">extractFileOpsFromMessage</span>(message, fileOps);</span><span class="ln"></span><span class="ln">	<span class="tok-kw">const</span> tokens = <span class="tok-fn">estimateTokens</span>(message);</span><span class="ln"></span><span class="ln">	<span class="tok-com">// Check budget before adding</span></span><span class="ln">	<span class="tok-kw">if</span> (tokenBudget &gt; <span class="tok-num">0</span> &amp;&amp; totalTokens + tokens &gt; tokenBudget) {</span><span class="ln">		<span class="tok-com">// If this is a summary entry, try to fit it anyway as it's important</span></span><span class="ln">		<span class="tok-com">// context</span></span><span class="ln">		<span class="tok-kw">if</span> (entry.<span class="tok-kw">type</span> === <span class="tok-str">"compaction"</span> || entry.<span class="tok-kw">type</span> === <span class="tok-str">"branch_summary"</span>) {</span><span class="ln">			<span class="tok-kw">if</span> (totalTokens &lt; tokenBudget * <span class="tok-num">0.9</span>) {</span><span class="ln">				messages.<span class="tok-fn">unshift</span>(message);</span><span class="ln">				totalTokens += tokens;</span><span class="ln">			}</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln"></span><span class="ln">	messages.<span class="tok-fn">unshift</span>(message);</span><span class="ln">	totalTokens += tokens;</span><span class="ln">}</span></code></pre></div>
+<p>两遍扫描、各管一件事：第一遍（:205-218）扫<strong>全部</strong> entry 收文件操作，
+不管塞不塞得进预算（嵌套的 <code>branch_summary</code> 也带清单，只认
+<code>!entry.fromHook</code> 的）；第二遍从新到旧 <code>unshift</code> 到超预算为止。</p>
+<p>保底的三层条件：① 超预算本应 <code>break</code>；② 这条是 <code>compaction</code> 或
+<code>branch_summary</code>，信息密度最高；③ 已塞的量不到预算 90%。三者同时成立就硬塞。</p>
+<p><code>0.9</code> 是折中：留 10% 余量，避免一条巨型摘要把预算吃光。
+注意这里没有 <code>continue</code>，塞完还是 <code>break</code>——再往前的只会更老。</p>
+<h3 id="sec-58-9-4-跳过工具结果">9.4 跳过工具结果</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:158-166（节选）</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">getMessageFromEntry</span>(entry: SessionEntry): AgentMessage | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">switch</span> (entry.<span class="tok-kw">type</span>) {</span><span class="ln">		<span class="tok-kw">case</span> <span class="tok-str">"message"</span>:</span><span class="ln">			<span class="tok-com">// Skip tool results - context is in assistant's tool call</span></span><span class="ln">			<span class="tok-kw">if</span> (entry.message.role === <span class="tok-str">"toolResult"</span>) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">			<span class="tok-kw">return</span> entry.message;</span></code></pre></div>
+<p>和普通压缩<strong>相反</strong>：普通压缩保留 toolResult（只截断到 2,000 字符），
+分支摘要一条都不要。理由在注释里：<code>context is in assistant's tool call</code>——
+分支摘要要回答&quot;那条路上试过什么、结论是什么&quot;，
+工具输出的原文在这里没有价值。副作用是它们也不计入预算，
+同一个预算能塞进<strong>更多轮次</strong>的对话。</p>
+<h3 id="sec-59-9-5-预算是输入预算-不是输出上限">9.5 预算是输入预算，不是输出上限</h3>
+<p>这是最容易读错的一处：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:314-318</span></span><span class="ln"><span class="tok-com">// Token budget = context window minus reserved space for prompt + response</span></span><span class="ln"><span class="tok-kw">const</span> contextWindow = model.contextWindow || <span class="tok-num">128000</span>;</span><span class="ln"><span class="tok-kw">const</span> tokenBudget = contextWindow - reserveTokens;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> { messages, fileOps } = <span class="tok-fn">prepareBranchEntries</span>(entries, tokenBudget);</span></code></pre></div>
+<p><code>tokenBudget</code> 是<strong>能塞进摘要请求的输入量</strong>，不是&quot;摘要可以写多长&quot;——
+后者用模型自己的输出上限。</p>
+<p><code>reserveTokens</code> 默认 16,384（<code>generateBranchSummary</code> 的默认参数）。
+<code>model.contextWindow || 128000</code> 的兜底是给&quot;模型没声明窗口&quot;用的：
+普通压缩遇到这种模型直接跳过，分支摘要则假设一个 128K 的保守值。
+两个模块不一致不是疏忽：普通压缩是<strong>自动</strong>触发的，猜错会打断用户；
+分支摘要是<strong>用户点出来的</strong>，猜一个保守值比报错好。</p>
+<h3 id="sec-60-9-6-五节模板">9.6 五节模板</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:260-287（节选，开头与结尾）</span></span><span class="ln"><span class="tok-kw">const</span> BRANCH_SUMMARY_PROMPT = <span class="tok-str">`Create a structured summary of this conversation</span></span><span class="ln"><span class="tok-str">branch for context when returning later.</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Use this EXACT format:</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Goal</span></span><span class="ln"><span class="tok-str">[What was the user trying to accomplish in this branch?]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Constraints &amp; Preferences</span></span><span class="ln"><span class="tok-str">…</span></span><span class="ln"><span class="tok-str">## Progress</span></span><span class="ln"><span class="tok-str">### Done / In Progress / Blocked</span></span><span class="ln"><span class="tok-str">…</span></span><span class="ln"><span class="tok-str">## Key Decisions</span></span><span class="ln"><span class="tok-str">- **[Decision]**: [Brief rationale]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">## Next Steps</span></span><span class="ln"><span class="tok-str">1. [What should happen next to continue this work]</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">Keep each section concise. Preserve exact file paths, function names, and error</span></span><span class="ln"><span class="tok-str">messages.`</span>;</span></code></pre></div>
+<p>和六节模板的差别只有一处：<strong>没有 <code>Critical Context</code></strong>。</p>
+<p>因为分支摘要是<strong>附加</strong>的，不是替代：导航回去之后，目标位置的原文全在
+（<code>branchWithSummary</code> 只是换叶子），&quot;继续干活要的数据&quot;不在摘要里也有地方找。
+而普通压缩是<strong>替换</strong>——被压掉的部分除了摘要再无痕迹，
+所以必须有 <code>Critical Context</code> 兜住&quot;文件路径、报错原文、关键数字&quot;。</p>
+<h3 id="sec-61-9-7-给摘要加一句-quot-你去过别处-quot">9.7 给摘要加一句&quot;你去过别处&quot;</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:255-258</span></span><span class="ln"><span class="tok-kw">const</span> BRANCH_SUMMARY_PREAMBLE = <span class="tok-str">`The user explored a different conversation</span></span><span class="ln"><span class="tok-str">branch before returning here.</span></span><span class="ln"><span class="tok-str">Summary of that exploration:</span></span><span class="ln"><span class="tok-str"></span></span><span class="ln"><span class="tok-str">`</span>;</span></code></pre></div>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:371-378</span></span><span class="ln"><span class="tok-kw">let</span> summary = <span class="tok-fn">contentText</span>(response.content);</span><span class="ln"></span><span class="ln"><span class="tok-com">// Prepend preamble to provide context about the branch summary</span></span><span class="ln">summary = BRANCH_SUMMARY_PREAMBLE + summary;</span><span class="ln"></span><span class="ln"><span class="tok-com">// Compute file lists and append to summary</span></span><span class="ln"><span class="tok-kw">const</span> { readFiles, modifiedFiles } = <span class="tok-fn">computeFileLists</span>(fileOps);</span><span class="ln">summary += <span class="tok-fn">formatFileOperations</span>(readFiles, modifiedFiles);</span></code></pre></div>
+<p>前缀回答了一个模型必然会问的问题：<strong>这段东西从哪来的？</strong>
+没有它，模型会把一段结构化的 <code>## Goal / ## Progress</code> 当成当前对话的早期摘要，
+把里面的&quot;待办&quot;当成自己的待办。有它，模型知道这是<strong>支线探索的记录</strong>。</p>
+<h3 id="sec-62-9-8-失败不抛-返回对象">9.8 失败不抛，返回对象</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-summarization.ts:359-369</span></span><span class="ln"><span class="tok-com">// Check if aborted or errored</span></span><span class="ln"><span class="tok-kw">if</span> (response.stopReason === <span class="tok-str">"aborted"</span>) {</span><span class="ln">	<span class="tok-kw">return</span> { aborted: <span class="tok-kw">true</span> };</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> failure = <span class="tok-fn">getSummarizationFailure</span>(response, <span class="tok-str">"Branch summarization"</span>);</span><span class="ln"><span class="tok-kw">if</span> (failure) {</span><span class="ln">	<span class="tok-kw">return</span> { error: failure };</span><span class="ln">}</span><span class="ln"><span class="tok-kw">if</span> (response.content.<span class="tok-fn">some</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>)) {</span><span class="ln">	<span class="tok-kw">return</span> { error: <span class="tok-str">"Branch summarization attempted to call a tool"</span> };</span><span class="ln">}</span></code></pre></div>
+<p>对比普通压缩的 <code>throw new Error(failure)</code>，这里返回 <code>{ aborted }</code> / <code>{ error }</code>。
+差别在调用方的容错策略（<code>agent-session.ts:4151-4156</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (result.aborted) <span class="tok-kw">return</span> { cancelled: <span class="tok-kw">true</span>, aborted: <span class="tok-kw">true</span> };</span><span class="ln"><span class="tok-kw">if</span> (result.error) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(result.error);</span></code></pre></div>
+<p><strong>abort 是正常路径</strong>——用户按 Esc 放弃总结，导航照旧。
+<strong>error 是失败路径</strong>——总结失败就别跳了，抛给上层。
+用返回对象而不是异常，就是为了让调用方能区分这两者。</p>
+<h3 id="sec-63-9-9-摘要挂在目标位置">9.9 摘要挂在<strong>目标</strong>位置</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:4186-4198（节选）</span></span><span class="ln"><span class="tok-com">// Switch leaf (with or without summary)</span></span><span class="ln"><span class="tok-com">// Summary is attached at the navigation target position (newLeafId), not the</span></span><span class="ln"><span class="tok-com">// old branch</span></span><span class="ln"><span class="tok-kw">let</span> summaryEntry: BranchSummaryEntry | <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">if</span> (summaryText) {</span><span class="ln">	<span class="tok-com">// Create summary at target position (can be null for root)</span></span><span class="ln">	<span class="tok-kw">const</span> summaryId = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">branchWithSummary</span>(</span><span class="ln">		newLeafId, summaryText, summaryDetails, fromExtension, summaryUsage,</span><span class="ln">	);</span><span class="ln">	summaryEntry = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">getEntry</span>(summaryId) <span class="tok-kw">as</span> BranchSummaryEntry;</span></code></pre></div>
+<p>这是最反直觉的一步。直觉方案是挂在旧叶子下面，
+但那样挂<strong>它就不在当前路径上了</strong>——沿新叶子往上走根本不经过它。</p>
+<p>正确做法是挂在新位置。于是新路径变成：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">root → … → 公共祖先 → [branch_summary] → 目标节点 → 新的对话…</span></code></pre></div>
+<p>注意摘要挂的是<strong>目标位置</strong>，而 <code>newLeafId</code> 可能不是 <code>targetId</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:4173-4184（节选）</span></span><span class="ln"><span class="tok-kw">if</span> (targetEntry.<span class="tok-kw">type</span> === <span class="tok-str">"message"</span> &amp;&amp; targetEntry.message.role === <span class="tok-str">"user"</span>) {</span><span class="ln">	<span class="tok-com">// User message: leaf = parent (null if root), text goes to editor</span></span><span class="ln">	newLeafId = targetEntry.parentId;</span><span class="ln">	editorText = <span class="tok-fn">contentText</span>(targetEntry.message.content, <span class="tok-str">""</span>);</span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (targetEntry.<span class="tok-kw">type</span> === <span class="tok-str">"custom_message"</span>) {</span><span class="ln">	newLeafId = targetEntry.parentId;</span><span class="ln">	editorText = <span class="tok-fn">contentText</span>(targetEntry.content, <span class="tok-str">""</span>);</span><span class="ln">} <span class="tok-kw">else</span> {</span><span class="ln">	<span class="tok-com">// Non-user message: leaf = selected node</span></span><span class="ln">	newLeafId = targetId;</span><span class="ln">}</span></code></pre></div>
+<p>退回到一条<strong>用户消息</strong>时，叶子上移到它的父节点，
+那条消息的文本回填到输入框——用户可以改一改再发。
+这时候摘要挂在父节点上，正好在&quot;改完要发的那句话&quot;之前。</p>
+<h3 id="sec-64-9-10-两个钩子各管一边">9.10 两个钩子各管一边</h3>
+<table>
+<thead>
+<tr>
+<th>钩子</th>
+<th>时机</th>
+<th>能做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>session_before_compact</code></td>
+<td>压缩前</td>
+<td><code>cancel</code> / 直接给 <code>compaction</code> 结果</td>
+</tr>
+<tr>
+<td><code>session_before_tree</code></td>
+<td>导航前</td>
+<td><code>cancel</code> / 给 <code>summary</code> / 改 <code>customInstructions</code> / 改 <code>label</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>session_before_tree</code> 的 <code>preparation</code> 里带着 <code>entriesToSummarize</code>——
+扩展可以自己看一眼要总结什么，再决定插手还是放行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:4106-4132（节选）</span></span><span class="ln"><span class="tok-kw">if</span> (<span class="tok-kw">this</span>._extensionRunner.<span class="tok-fn">hasHandlers</span>(<span class="tok-str">"session_before_tree"</span>)) {</span><span class="ln">	<span class="tok-kw">const</span> result = (<span class="tok-kw">await</span> <span class="tok-kw">this</span>._extensionRunner.<span class="tok-fn">emit</span>({</span><span class="ln">		<span class="tok-kw">type</span>: <span class="tok-str">"session_before_tree"</span>,</span><span class="ln">		preparation,</span><span class="ln">		signal: <span class="tok-kw">this</span>._branchSummaryAbortController.signal,</span><span class="ln">	})) <span class="tok-kw">as</span> SessionBeforeTreeResult | <span class="tok-kw">undefined</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">if</span> (result?.cancel) <span class="tok-kw">return</span> { cancelled: <span class="tok-kw">true</span> };</span><span class="ln">	<span class="tok-kw">if</span> (result?.summary &amp;&amp; options.summarize) {</span><span class="ln">		extensionSummary = result.summary;</span><span class="ln">		fromExtension = <span class="tok-kw">true</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (result?.customInstructions !== <span class="tok-kw">undefined</span>) {</span><span class="ln">		customInstructions = result.customInstructions;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (result?.replaceInstructions !== <span class="tok-kw">undefined</span>) {</span><span class="ln">		replaceInstructions = result.replaceInstructions;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (result?.label !== <span class="tok-kw">undefined</span>) label = result.label;</span><span class="ln">}</span></code></pre></div>
+<p><code>replaceInstructions</code> 是个精细开关：默认 <code>customInstructions</code> 是<strong>附加</strong>在模板后的
+<code>Additional focus: …</code>；打开它就是<strong>整个替换</strong>模板，让扩展用自己的提示词。</p>
+<h3 id="sec-65-9-11-差异表">9.11 差异表</h3>
+<blockquote>
+<p>本章验收项。两套机制长得像，逐项对一遍才知道哪些能复用、哪些不能。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>普通压缩</th>
+<th>分支压缩</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>触发</td>
+<td>阈值 / 溢出 / <code>/compact</code></td>
+<td><code>/tree</code> 导航时勾选总结</td>
+</tr>
+<tr>
+<td>入口</td>
+<td><code>compact()</code> 或 <code>_runAutoCompaction()</code></td>
+<td><code>navigateTree()</code></td>
+</tr>
+<tr>
+<td>选材范围</td>
+<td>当前分支，按预算从后往前切</td>
+<td>旧叶到公共祖先之间，全部</td>
+</tr>
+<tr>
+<td>切点算法</td>
+<td><code>findProjectedCutPoint</code>（六种可切）</td>
+<td>无切点，新→旧塞满即止</td>
+</tr>
+<tr>
+<td>预算口径</td>
+<td><code>keepRecentTokens</code>：保留多少</td>
+<td><code>window − reserve</code>：能塞多少</td>
+</tr>
+<tr>
+<td>超预算时</td>
+<td>优先保证 toolResult 成对</td>
+<td>摘要类 entry 在 90% 内强行塞入</td>
+</tr>
+<tr>
+<td>toolResult</td>
+<td>计入估算，截 2,000 字符进摘要</td>
+<td><strong>完全跳过</strong></td>
+</tr>
+<tr>
+<td>摘要模板</td>
+<td>六节（含 <code>Critical Context</code>）</td>
+<td>五节（无 <code>Critical Context</code>）</td>
+</tr>
+<tr>
+<td>增量更新</td>
+<td>有上一版时用 UPDATE 模板</td>
+<td>无，每次独立生成</td>
+</tr>
+<tr>
+<td>文案前缀</td>
+<td><code>The conversation history before this point…</code></td>
+<td><code>The user explored a different branch…</code></td>
+</tr>
+<tr>
+<td>失败处理</td>
+<td>手动 throw / 自动发事件</td>
+<td>返回 <code>{ aborted }</code> / <code>{ error }</code></td>
+</tr>
+<tr>
+<td>落盘 entry</td>
+<td><code>compaction</code> + <code>firstKeptEntryId</code></td>
+<td><code>branch_summary</code> + <code>fromId</code></td>
+</tr>
+<tr>
+<td>挂在哪</td>
+<td>当前叶子末端</td>
+<td>导航<strong>目标</strong>位置</td>
+</tr>
+<tr>
+<td>对上下文的作用</td>
+<td><strong>替换</strong>旧历史</td>
+<td><strong>追加</strong>一段支线记录</td>
+</tr>
+<tr>
+<td>钩子</td>
+<td><code>session_before_compact</code> / <code>session_compact</code></td>
+<td><code>session_before_tree</code> / <code>session_tree</code></td>
+</tr>
+<tr>
+<td>可取消</td>
+<td>是（<code>cancel</code>）</td>
+<td>是（<code>cancel</code>）</td>
+</tr>
+</tbody>
+</table>
+<p>最该记住的两行：</p>
+<ul>
+<li><strong>预算口径相反</strong>。一个是&quot;保留多少&quot;，一个是&quot;能塞多少&quot;。
+两个 <code>tokenBudget</code> 混用，会得出完全错误的结论。</li>
+<li><strong>摘要挂载位置反直觉</strong>。普通压缩挂在历史末端，分支摘要挂在导航目标。
+想清楚&quot;哪条路径会被读&quot;，就不会挂错。</li>
+</ul>
+<hr>
+<h2 id="sec-66-十-完整链路">十、完整链路</h2>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">                     ┌──────────── 普通压缩 ────────────┐</span><span class="ln">用户 /compact ───────┤                                  │</span><span class="ln">请求前超阈值 ────────┤→ prepareCompaction               │</span><span class="ln">响应后溢出/截断 ─────┤    ├ findProjectedCutPoint       │</span><span class="ln">                     │    │   ├ 可切点（无 toolResult）│</span><span class="ln">                     │    │   ├ 倒着累加 ≥ keepRecent   │</span><span class="ln">                     │    │   └ 兜底取最后一个可切点   │</span><span class="ln">                     │    ├ historyEnd = 切点 或 轮次头 │</span><span class="ln">                     │    └ 切出 history + turnPrefix   │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  compact()                       │</span><span class="ln">                     │    ├ generateSummaryWithUsage    │</span><span class="ln">                     │    │   ├ serialize 丢 thinking   │</span><span class="ln">                     │    │   ├ toolResult 截 2000      │</span><span class="ln">                     │    │   └ 六节 / UPDATE 模板      │</span><span class="ln">                     │    ├ generateTurnPrefixSummary   │</span><span class="ln">                     │    │   └ 三节模板（split turn）  │</span><span class="ln">                     │    └ formatFileOperations 外挂   │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  appendCompaction(compaction)    │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  buildContextEntries             │</span><span class="ln">                     │    ├ compaction 打头             │</span><span class="ln">                     │    ├ firstKeptEntryId 起保留     │</span><span class="ln">                     │    └ 跳过旧 system 消息          │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  convertToLlm → role:"user"      │</span><span class="ln">                     │    + "&lt;summary&gt;…&lt;/summary&gt;"      │</span><span class="ln">                     └──────────────────────────────────┘</span><span class="ln"></span><span class="ln">                     ┌──────────── 分支压缩 ────────────┐</span><span class="ln">/tree 导航 ──────────┤→ collectEntriesForBranchSummary  │</span><span class="ln">                     │    ├ 旧路径集合 oldPath          │</span><span class="ln">                     │    ├ 目标路径倒查最深公共祖先    │</span><span class="ln">                     │    └ 旧叶 → LCA 回溯，再 reverse │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  session_before_tree 钩子        │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  generateBranchSummary           │</span><span class="ln">                     │    ├ tokenBudget = window-reserve│</span><span class="ln">                     │    ├ 新→旧 unshift，跳过 tool     │</span><span class="ln">                     │    ├ 摘要类 90% 内保底           │</span><span class="ln">                     │    └ 五节模板 + 支线前言         │</span><span class="ln">                     │         ▼                        │</span><span class="ln">                     │  branchWithSummary(newLeafId)    │</span><span class="ln">                     │    └ 挂在导航目标，不是旧分支    │</span><span class="ln">                     └──────────────────────────────────┘</span></code></pre></div>
+<p>两条路的汇合点只有一个：<code>completeSummarization</code>。
+再往下就是普通的 <code>streamSimple</code> 调用，和 M04 讲的一样。</p>
+<hr>
+<h2 id="sec-67-十一-自己动手验证">十一、自己动手验证</h2>
+<p>六个实验，从&quot;看数据&quot;到&quot;改配置&quot;再到&quot;写脚本&quot;，需要本地跑过 pi 并留下会话文件。</p>
+<h3 id="sec-68-实验-1-找到会话文件-抓住一条-compaction">实验 1：找到会话文件，抓住一条 compaction</h3>
+<p>会话文件按 cwd 编码存放（<code>session-manager.ts:589-594</code>）：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"># Linux / macOS</span><span class="ln">ls ~/.pi/agent/sessions/</span><span class="ln"># 形如 --home-you-code-myapp--</span><span class="ln">grep -l '"type":"compaction"' ~/.pi/agent/sessions/*/*.jsonl</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"># Windows PowerShell</span><span class="ln">dir $env:USERPROFILE\.pi\agent\sessions</span><span class="ln">Select-String -Path "$env:USERPROFILE\.pi\agent\sessions\*\*.jsonl" `</span><span class="ln">  -Pattern '"type":"compaction"' -List</span></code></pre></div>
+<p>目录名规则是：去掉开头斜杠，把 <code>/</code> <code>\</code> <code>:</code> 全换成 <code>-</code>，两侧加 <code>--</code>。
+所以 Windows 上的 <code>D:\code\demo</code> 变成 <code>--D--code-demo--</code>。
+找到后用一条命令看字段：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node -e "const fs=require('fs');const f=process.argv[1];</span><span class="ln">const e=fs.readFileSync(f,'utf8').split('\n').filter(Boolean)</span><span class="ln">  .map(JSON.parse).find(x=&gt;x.type==='compaction');</span><span class="ln">console.log({tokensBefore:e.tokensBefore,firstKept:e.firstKeptEntryId,</span><span class="ln">  keys:Object.keys(e.details||{}),usage:e.usage&amp;&amp;e.usage.input});" FILE</span></code></pre></div>
+<p><strong>判据</strong>：<code>tokensBefore</code> 是几万级的数；<code>details.keys</code> 只有
+<code>readFiles</code> / <code>modifiedFiles</code>；<code>usage.input</code> 是摘要请求的输入量。</p>
+<h3 id="sec-69-实验-2-自定义指令能进摘要">实验 2：自定义指令能进摘要</h3>
+<p>在 TUI 里跑 <code>/compact 一定要保留所有被修改的文件路径和报错原文</code>
+（<code>interactive-mode.ts:3370-3374</code> 解析这句话并以 <code>customInstructions</code> 传入）。</p>
+<p><strong>判据</strong>：新 compaction 的 <code>summary</code> 末尾 <code>&lt;modified-files&gt;</code> 块完整，
+且正文里出现了你要求的细节。</p>
+<p>如果此时会话很小，会直接报 <code>Nothing to compact (session too small)</code>——
+这不是 bug，见 §4.7。</p>
+<h3 id="sec-70-实验-3-把保留区调小">实验 3：把保留区调小</h3>
+<p>编辑 <code>~/.pi/agent/settings.json</code>：</p>
+<div class="code-block" data-lang="json">
+<div class="code-head"><span class="lang">json</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{</span><span class="ln">  <span class="tok-str">"compaction"</span>: {</span><span class="ln">    <span class="tok-str">"enabled"</span>: <span class="tok-kw">true</span>,</span><span class="ln">    <span class="tok-str">"reserveTokens"</span>: <span class="tok-num">16384</span>,</span><span class="ln">    <span class="tok-str">"keepRecentTokens"</span>: <span class="tok-num">1000</span></span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p>再跑一次 <code>/compact</code>，然后对比两次 compaction 的
+<code>firstKeptEntryId</code> 指向的 entry 位置。</p>
+<p><strong>判据</strong>：<code>keepRecentTokens</code> 从 20,000 降到 1,000 后，
+保留区条目数明显减少，<code>tokensBefore</code> 不变，但下次请求输入量下降更多。
+副作用也能观察到：保留太少，模型会忘掉刚做的事，开始重复读文件。
+所以真正的结论是——<strong><code>keepRecentTokens</code> 不是越小越好</strong>。</p>
+<h3 id="sec-71-实验-4-给单个模型单独设余量">实验 4：给单个模型单独设余量</h3>
+<div class="code-block" data-lang="json">
+<div class="code-head"><span class="lang">json</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{</span><span class="ln">  <span class="tok-str">"compaction"</span>: {</span><span class="ln">    <span class="tok-str">"reserveTokens"</span>: <span class="tok-num">16384</span>,</span><span class="ln">    <span class="tok-str">"modelOverrides"</span>: {</span><span class="ln">      <span class="tok-str">"anthropic/claude-sonnet-4-5"</span>: { <span class="tok-str">"reserveTokens"</span>: <span class="tok-num">32768</span> }</span><span class="ln">    }</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p>键名格式是 <code>provider/modelId</code>（<code>settings-manager.ts:858</code>）。</p>
+<p><strong>判据</strong>：只改了那一个模型的触发线。其它模型开会话压缩时机不变；
+用这个模型压缩更早发生（阈值 = 窗口 − 32,768）。</p>
+<h3 id="sec-72-实验-5-用-sdk-手动压一次">实验 5：用 SDK 手动压一次</h3>
+<div class="code-block" data-lang="js">
+<div class="code-head"><span class="lang">js</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compact-probe.mjs</span></span><span class="ln"><span class="tok-kw">import</span> {</span><span class="ln">	createAgentSession,</span><span class="ln">	SessionManager,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> sessionManager = SessionManager.<span class="tok-fn">open</span>(process.argv[<span class="tok-num">2</span>]);</span><span class="ln"><span class="tok-kw">const</span> { session } = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSession</span>({</span><span class="ln">	cwd: process.<span class="tok-fn">cwd</span>(),</span><span class="ln">	sessionManager,</span><span class="ln">});</span><span class="ln"></span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">"messages before:"</span>, session.messages.length);</span><span class="ln"><span class="tok-kw">const</span> result = <span class="tok-kw">await</span> session.<span class="tok-fn">compact</span>(<span class="tok-str">"保留所有文件路径"</span>);</span><span class="ln">console.<span class="tok-fn">log</span>({</span><span class="ln">  tokensBefore: result.tokensBefore,</span><span class="ln">  tokensAfter: result.estimatedTokensAfter,</span><span class="ln">  firstKept: result.firstKeptEntryId,</span><span class="ln">  readFiles: result.details?.readFiles?.length,</span><span class="ln">  modifiedFiles: result.details?.modifiedFiles?.length,</span><span class="ln">  summaryChars: result.summary.length,</span><span class="ln">});</span></code></pre></div>
+<p><strong>判据</strong>：<code>tokensAfter</code> 显著小于 <code>tokensBefore</code>（通常降到 1/3 以下）；
+<code>summaryChars</code> 在 2,000–8,000 之间；<code>details.readFiles</code> 与 <code>modifiedFiles</code> 无交集。</p>
+<h3 id="sec-73-实验-6-分支摘要挂在哪">实验 6：分支摘要挂在哪</h3>
+<div class="code-block" data-lang="js">
+<div class="code-head"><span class="lang">js</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// branch-probe.mjs</span></span><span class="ln"><span class="tok-kw">const</span> target = session.messages.<span class="tok-fn">at</span>(-<span class="tok-num">5</span>); <span class="tok-com">// 随便挑一条历史消息的 entry id</span></span><span class="ln"><span class="tok-kw">const</span> entries = sessionManager.<span class="tok-fn">getEntries</span>();</span><span class="ln"><span class="tok-kw">const</span> targetId = entries.<span class="tok-fn">at</span>(<span class="tok-num">3</span>).id;</span><span class="ln"></span><span class="ln"><span class="tok-kw">await</span> session.<span class="tok-fn">navigateTree</span>(targetId, { summarize: <span class="tok-kw">true</span>, label: <span class="tok-str">"实验"</span> });</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">"leaf now:"</span>, sessionManager.<span class="tok-fn">getLeafId</span>());</span><span class="ln">console.<span class="tok-fn">log</span>(entries.<span class="tok-kw">map</span>((e) =&gt; e.<span class="tok-kw">type</span>).<span class="tok-fn">join</span>(<span class="tok-str">" → "</span>));</span></code></pre></div>
+<p><strong>判据</strong>：新增 entry 的类型是 <code>branch_summary</code>，它的 <code>parentId</code> 等于导航目标位置
+（<code>newLeafId</code>），<strong>不是</strong>你原来所在的旧叶子。打印 <code>getBranch()</code> 看，
+摘要应该出现在新路径上、旧路径上找不到。</p>
+<hr>
+<h2 id="sec-74-十二-工程暗坑">十二、工程暗坑</h2>
+<p>这些坑的共同点：<strong>代码不报错，行为悄悄错</strong>。</p>
+<h3 id="sec-75-12-1-chars-4-对中文严重低估">12.1 chars/4 对中文严重低估</h3>
+<p>§3.4 讲过。后果是&quot;该压没压&quot;，撞到 provider 400 才补救。
+中文为主的 agent 应把系数改成 <code>/2</code> 或按 tokenizer 实测。</p>
+<h3 id="sec-76-12-2-图片固定-1-200-token">12.2 图片固定 1,200 token</h3>
+<p><code>ESTIMATED_IMAGE_CHARS = 4800</code> 除以 4。一张 4K 截图和图标算出来一样。
+多模态长会话里误差会累积成&quot;估算说还有 3 万，实际已经爆了&quot;。</p>
+<h3 id="sec-77-12-3-摘要模型会-quot-顺手整理-quot-路径">12.3 摘要模型会&quot;顺手整理&quot;路径</h3>
+<p>模板里写了 <code>Preserve exact file paths</code>，仍然会丢。
+真正保险的是 <code>details</code> 里的结构化清单 + 代码外挂的 <code>&lt;read-files&gt;</code> 块。
+<strong>能外挂的别让模型复述。</strong></p>
+<h3 id="sec-78-12-4-thinking-被丢掉-等于丢掉推理链">12.4 thinking 被丢掉，等于丢掉推理链</h3>
+<p>对推理型模型，<code>thinking</code> 往往是&quot;为什么这么改&quot;的唯一记录。摘要里没它，
+接手模型只能看到&quot;改了什么&quot;。源码的理由（避免摘要请求比被摘要内容还大）
+站得住脚，但需要推理链的场景应该在 <code>customInstructions</code> 里显式要求。</p>
+<h3 id="sec-79-12-5-length-停也要当失败-否则半截摘要进会话">12.5 length 停也要当失败，否则半截摘要进会话</h3>
+<p>放过 <code>stopReason === &quot;length&quot;</code>，会话里就会出现一个写完 <code>## Goal</code>、
+<code>## Progress</code> 就断掉的摘要。它看起来完全正常，模型照着它继续——
+但 <code>Next Steps</code> 根本没生成。</p>
+<h3 id="sec-80-12-6-溢出只赔一次-第二次直接放弃">12.6 溢出只赔一次，第二次直接放弃</h3>
+<p><code>_overflowRecoveryAttempted</code> 是实例字段，不清零。
+一个长会话里已经救过一次，第二次溢出就是硬失败（得换会话或换模型）。</p>
+<h3 id="sec-81-12-7-换模型后旧溢出标记会误触发">12.7 换模型后旧溢出标记会误触发</h3>
+<p><code>_modelForMessage</code> 找不到产出这条消息的模型时，<code>sameModel = false</code>，
+溢出检查整段跳过。这是保护，也是盲区：
+如果模型真的没了（配置删了），溢出永远不会被恢复。</p>
+<h3 id="sec-82-12-8-压缩刚结束-第一轮又触发">12.8 压缩刚结束，第一轮又触发</h3>
+<p>因为保留区里的 <code>usage</code> 是压缩前的，<code>assistantIsFromBeforeCompaction</code>
+用时间戳挡住。自己写类似机制时，<strong>用时间戳比，而不是比&quot;是否在保留区&quot;</strong>——
+保留区里的消息可能比 compaction entry 还新。</p>
+<h3 id="sec-83-12-9-手动压缩会打断正在跑的-turn">12.9 手动压缩会打断正在跑的 turn</h3>
+<p><code>compact()</code> 第一行就是 <code>await this.abort()</code>。
+扩展或脚本在模型输出中途调它，那次输出直接作废。
+要&quot;压完接着跑&quot;，得自己记住上下文再重发。</p>
+<h3 id="sec-84-12-10-扩展接管压缩时-文件清单可能为空">12.10 扩展接管压缩时，文件清单可能为空</h3>
+<p><code>session_before_compact</code> 返回 <code>{ compaction }</code> 时，<code>details</code> 由扩展自己给。
+不给就是 <code>undefined</code>，下游拿到的 <code>readFiles</code> / <code>modifiedFiles</code> 全空。
+<code>fromHook: true</code> 就是这个来源的标记。</p>
+<h3 id="sec-85-12-11-分支摘要的-90-保底可能仍然超预算">12.11 分支摘要的 90% 保底可能仍然超预算</h3>
+<p>那个分支只在 <code>totalTokens &lt; tokenBudget * 0.9</code> 时塞入，
+但塞进去的那条摘要本身可能就有 5 万 token。
+结果总量超预算，请求被 provider 拒绝。极端情况需要扩展在
+<code>session_before_tree</code> 里自己接管。</p>
+<h3 id="sec-86-12-12-分支摘要跳过-toolresult-可能丢掉关键证据">12.12 分支摘要跳过 toolResult，可能丢掉关键证据</h3>
+<p><code>getMessageFromEntry</code> 对 <code>toolResult</code> 返回 <code>undefined</code>。
+如果那条支线的价值恰恰是&quot;某条命令的输出证明了根因&quot;，这段证据不会进摘要。
+需要就在 <code>customInstructions</code> 里明说，或让扩展接管 <code>summary</code>。</p>
+<hr>
+<h2 id="sec-87-十三-三个可以带走的方法">十三、三个可以带走的方法</h2>
+<h3 id="sec-88-13-1-用-追加墓碑-代替-原地删除">13.1 用「追加墓碑」代替「原地删除」</h3>
+<p>只要存储是 append-only 的，任何&quot;删除&quot;都能表达成&quot;追加一条声明&quot;。
+<code>compaction</code> entry 就是这个模式：
+一条 entry 说&quot;从这里往前别看，看我的 <code>summary</code>，从 <code>firstKeptEntryId</code> 起恢复原文&quot;。</p>
+<p>好处不只是可回滚。更关键的是<strong>同一份历史可以有多个视图</strong>——
+不同叶子读同一份 JSONL 得到不同上下文（M10 的分叉靠的就是这个）。</p>
+<h3 id="sec-89-13-2-估算要两级-可信锚点-增量外推">13.2 估算要两级：可信锚点 + 增量外推</h3>
+<p><code>estimateContextTokens</code> 的骨架值得抄：</p>
+<ol>
+<li>找一个<strong>可信锚点</strong>（provider 真实报回来的 usage）。</li>
+<li>只对锚点之后的增量做估算。</li>
+<li>锚点失效时（被 edit / compaction 改过）<strong>整体重估</strong>，别硬用。</li>
+</ol>
+<p>纯估算会累积漂移，纯真实值又拿不到（成本、延迟），两级混合最省事。
+第三点是关键：把&quot;锚点可能已经失效&quot;写进结构（<code>lastUsageIndex: null</code>），
+而不是靠调用方自觉。</p>
+<h3 id="sec-90-13-3-摘要要写成-交接单-不是-读后感">13.3 摘要要写成「交接单」，不是「读后感」</h3>
+<p>三条硬要求：</p>
+<ul>
+<li><strong>结构化</strong>。六节固定标题，缺一节模型就少一个抓手。</li>
+<li><strong>禁止续写</strong>。模板 + 系统提示 + 拍平输入，三重保险。</li>
+<li><strong>可丢弃</strong>。<code>tools do not call</code> / <code>length 即失败</code>，
+宁可整次压缩失败，也不接受一份&quot;看起来完整&quot;的残缺品。</li>
+</ul>
+<p>最后一条最容易被忽略：压缩失败的成本是<strong>一次模型调用</strong>，
+而残次摘要的成本是<strong>接下来几十轮都在错误的前提下工作</strong>。差两个数量级。</p>
+<hr>
+<h2 id="sec-91-下一步">下一步</h2>
+<p>压缩是&quot;改历史&quot;，还剩一个更基础的问题没讲：
+<strong>历史存在哪、怎么恢复、怎么分叉</strong>。</p>
+<p>M10 讲会话：<code>session-manager.ts</code> 的 JSONL 格式、<code>entry</code> 的树结构、
+<code>fork</code> 与 <code>tree</code> 的差别，以及为什么 <code>packages/durable</code> 要把存储单独拎出去。</p>
+<p>本章的 <code>compaction</code> 和 <code>branch_summary</code>，到 M10 会变成两种普通 entry 类型——
+它们和 <code>message</code>、<code>custom</code>、<code>model_change</code> 排在同一个数组里，
+一起被序列化、一起被重放。</p>
+<hr>
+<h2 id="sec-92-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>一句话职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>core/compaction/compaction.ts</code></td>
+<td>1,105</td>
+<td>切点算法、token 估算、摘要模板与主流程</td>
+</tr>
+<tr>
+<td><code>core/compaction/branch-summarization.ts</code></td>
+<td>387</td>
+<td>分支摘要：LCA 收集、预算裁剪、五节模板</td>
+</tr>
+<tr>
+<td><code>core/compaction/utils.ts</code></td>
+<td>164</td>
+<td>文件清单、对话序列化、摘要系统提示词</td>
+</tr>
+<tr>
+<td><code>core/compaction/index.ts</code></td>
+<td>8</td>
+<td>两个子模块的统一导出</td>
+</tr>
+<tr>
+<td><code>core/agent-session.ts</code></td>
+<td>4,480</td>
+<td>两道闸门、手动入口、分支导航与事件编排</td>
+</tr>
+<tr>
+<td><code>core/session-manager.ts</code></td>
+<td>2,029</td>
+<td>compaction entry 的落盘、投影与路径筛选</td>
+</tr>
+<tr>
+<td><code>core/settings-manager.ts</code></td>
+<td>1,457</td>
+<td>压缩配置的三层解析（模型覆盖 &gt; 全局 &gt; 默认）</td>
+</tr>
+<tr>
+<td><code>core/messages.ts</code></td>
+<td>197</td>
+<td><code>compactionSummary</code> / <code>branchSummary</code> 转 LLM 消息</td>
+</tr>
+<tr>
+<td><code>core/slash-commands.ts</code></td>
+<td>45</td>
+<td><code>/compact</code> 的内置命令登记</td>
+</tr>
+<tr>
+<td><code>modes/interactive/interactive-mode.ts</code></td>
+<td>7,212</td>
+<td><code>/compact [指令]</code> 的解析与调用</td>
+</tr>
+<tr>
+<td><code>modes/rpc/rpc-mode.ts</code></td>
+<td>820</td>
+<td>RPC <code>compact</code> 命令</td>
+</tr>
+</tbody>
+</table>
+<p>行号为 v1.4.0 实测。<code>interactive-mode.ts</code> 只引了命令解析与处理两处，
+其余章节不再展开。</p>
+
+<div class="pager">
+      <a class="prev" href="m08-context.html"><span class="lbl">上一篇</span>上下文装配 —— 八节提示词，一条目录链</a>
+      <a class="next" href="m10-session.html"><span class="lbl">下一篇</span>会话 —— 从会话树到持久运行时</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-压缩不是删除" class="">一、压缩不是删除</a><a href="#sec-2-1-1-磁盘上的历史一条都不能少" class="lv3">1.1 磁盘上的历史一条都不能少</a><a href="#sec-3-1-2-一条-entry-代替一段历史" class="lv3">1.2 一条 entry 代替一段历史</a><a href="#sec-4-1-3-三个必须守住的东西" class="lv3">1.3 三个必须守住的东西</a><a href="#sec-5-二-两道闸门" class="">二、两道闸门</a><a href="#sec-6-2-1-第一道-请求之前" class="lv3">2.1 第一道：请求之前</a><a href="#sec-7-2-2-第二道-响应之后" class="lv3">2.2 第二道：响应之后</a><a href="#sec-8-2-3-三种-reason" class="lv3">2.3 三种 reason</a><a href="#sec-9-2-4-溢出只赔一次" class="lv3">2.4 溢出只赔一次</a><a href="#sec-10-2-5-输出被截断也算溢出" class="lv3">2.5 输出被截断也算溢出</a><a href="#sec-11-2-6-手动路径" class="lv3">2.6 手动路径</a><a href="#sec-12-2-7-三条路汇到同一个函数" class="lv3">2.7 三条路汇到同一个函数</a><a href="#sec-13-三-token-从哪来" class="">三、token 从哪来</a><a href="#sec-14-3-1-第一级-provider-报回来的-usage" class="lv3">3.1 第一级：provider 报回来的 usage</a><a href="#sec-15-3-2-第二级-尾部增量估算" class="lv3">3.2 第二级：尾部增量估算</a><a href="#sec-16-3-3-estimatetokens-的九个分支" class="lv3">3.3 estimateTokens 的九个分支</a><a href="#sec-17-3-4-chars-4-这条经验法则的两面" class="lv3">3.4 chars/4 这条经验法则的两面</a><a href="#sec-18-3-5-什么时候-usage-作废" class="lv3">3.5 什么时候 usage 作废</a><a href="#sec-19-3-6-判定-一条不等式" class="lv3">3.6 判定：一条不等式</a><a href="#sec-20-四-切在哪" class="">四、切在哪</a><a href="#sec-21-4-1-哪些位置可以切" class="lv3">4.1 哪些位置可以切</a><a href="#sec-22-4-2-从后往前累加" class="lv3">4.2 从后往前累加</a><a href="#sec-23-4-3-兜底是最后一个-不是第一个" class="lv3">4.3 兜底是最后一个，不是第一个</a><a href="#sec-24-4-4-顺手吞掉不可见的元数据" class="lv3">4.4 顺手吞掉不可见的元数据</a><a href="#sec-25-4-5-split-turn-切在轮次中间" class="lv3">4.5 split turn：切在轮次中间</a><a href="#sec-26-4-6-生产路径用的是投影版" class="lv3">4.6 生产路径用的是投影版</a><a href="#sec-27-4-7-一次切分的具体样子" class="lv3">4.7 一次切分的具体样子</a><a href="#sec-28-五-写摘要" class="">五、写摘要</a><a href="#sec-29-5-1-六节模板" class="lv3">5.1 六节模板</a><a href="#sec-30-5-2-第二次压缩是-quot-更新-quot-不是-quot-重写-quot" class="lv3">5.2 第二次压缩是&amp;quot;更新&amp;quot;不是&amp;quot;重写&amp;quot;</a><a href="#sec-31-5-3-把对话拍平成文本" class="lv3">5.3 把对话拍平成文本</a><a href="#sec-32-5-4-序列化时丢掉什么" class="lv3">5.4 序列化时丢掉什么</a><a href="#sec-33-5-5-三道失败判定" class="lv3">5.5 三道失败判定</a><a href="#sec-34-5-6-不复用缓存-但要重试" class="lv3">5.6 不复用缓存，但要重试</a><a href="#sec-35-5-7-两个已经废弃的参数" class="lv3">5.7 两个已经废弃的参数</a><a href="#sec-36-六-split-turn-串行的两份摘要" class="">六、split turn：串行的两份摘要</a><a href="#sec-37-6-1-为什么必须分开" class="lv3">6.1 为什么必须分开</a><a href="#sec-38-6-2-三节模板" class="lv3">6.2 三节模板</a><a href="#sec-39-6-3-串行-不是并行" class="lv3">6.3 串行，不是并行</a><a href="#sec-40-6-4-合并格式" class="lv3">6.4 合并格式</a><a href="#sec-41-6-5-空历史也要占位" class="lv3">6.5 空历史也要占位</a><a href="#sec-42-七-文件清单-摘要里最不该丢的东西" class="">七、文件清单：摘要里最不该丢的东西</a><a href="#sec-43-7-1-三个集合" class="lv3">7.1 三个集合</a><a href="#sec-44-7-2-只认三个工具-只认-args-path" class="lv3">7.2 只认三个工具，只认 args.path</a><a href="#sec-45-7-3-codemode-的嵌套调用也要算" class="lv3">7.3 codemode 的嵌套调用也要算</a><a href="#sec-46-7-4-readfiles-是-只读未改" class="lv3">7.4 readFiles 是「只读未改」</a><a href="#sec-47-7-5-挂成-xml" class="lv3">7.5 挂成 XML</a><a href="#sec-48-八-摘要怎么生效" class="">八、摘要怎么生效</a><a href="#sec-49-8-1-落盘" class="lv3">8.1 落盘</a><a href="#sec-50-8-2-投影时变成两条消息" class="lv3">8.2 投影时变成两条消息</a><a href="#sec-51-8-3-最后一步-变成-user-消息" class="lv3">8.3 最后一步：变成 user 消息</a><a href="#sec-52-8-4-一次压缩的事件序列" class="lv3">8.4 一次压缩的事件序列</a><a href="#sec-53-8-5-压缩完还是超怎么办" class="lv3">8.5 压缩完还是超怎么办</a><a href="#sec-54-九-分支摘要-另一条完全不同的路" class="">九、分支摘要：另一条完全不同的路</a><a href="#sec-55-9-1-场景" class="lv3">9.1 场景</a><a href="#sec-56-9-2-先找公共祖先" class="lv3">9.2 先找公共祖先</a><a href="#sec-57-9-3-塞不进预算时-摘要优先" class="lv3">9.3 塞不进预算时，摘要优先</a><a href="#sec-58-9-4-跳过工具结果" class="lv3">9.4 跳过工具结果</a><a href="#sec-59-9-5-预算是输入预算-不是输出上限" class="lv3">9.5 预算是输入预算，不是输出上限</a><a href="#sec-60-9-6-五节模板" class="lv3">9.6 五节模板</a><a href="#sec-61-9-7-给摘要加一句-quot-你去过别处-quot" class="lv3">9.7 给摘要加一句&amp;quot;你去过别处&amp;quot;</a><a href="#sec-62-9-8-失败不抛-返回对象" class="lv3">9.8 失败不抛，返回对象</a><a href="#sec-63-9-9-摘要挂在目标位置" class="lv3">9.9 摘要挂在目标位置</a><a href="#sec-64-9-10-两个钩子各管一边" class="lv3">9.10 两个钩子各管一边</a><a href="#sec-65-9-11-差异表" class="lv3">9.11 差异表</a><a href="#sec-66-十-完整链路" class="">十、完整链路</a><a href="#sec-67-十一-自己动手验证" class="">十一、自己动手验证</a><a href="#sec-68-实验-1-找到会话文件-抓住一条-compaction" class="lv3">实验 1：找到会话文件，抓住一条 compaction</a><a href="#sec-69-实验-2-自定义指令能进摘要" class="lv3">实验 2：自定义指令能进摘要</a><a href="#sec-70-实验-3-把保留区调小" class="lv3">实验 3：把保留区调小</a><a href="#sec-71-实验-4-给单个模型单独设余量" class="lv3">实验 4：给单个模型单独设余量</a><a href="#sec-72-实验-5-用-sdk-手动压一次" class="lv3">实验 5：用 SDK 手动压一次</a><a href="#sec-73-实验-6-分支摘要挂在哪" class="lv3">实验 6：分支摘要挂在哪</a><a href="#sec-74-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-75-12-1-chars-4-对中文严重低估" class="lv3">12.1 chars/4 对中文严重低估</a><a href="#sec-76-12-2-图片固定-1-200-token" class="lv3">12.2 图片固定 1,200 token</a><a href="#sec-77-12-3-摘要模型会-quot-顺手整理-quot-路径" class="lv3">12.3 摘要模型会&amp;quot;顺手整理&amp;quot;路径</a><a href="#sec-78-12-4-thinking-被丢掉-等于丢掉推理链" class="lv3">12.4 thinking 被丢掉，等于丢掉推理链</a><a href="#sec-79-12-5-length-停也要当失败-否则半截摘要进会话" class="lv3">12.5 length 停也要当失败，否则半截摘要进会话</a><a href="#sec-80-12-6-溢出只赔一次-第二次直接放弃" class="lv3">12.6 溢出只赔一次，第二次直接放弃</a><a href="#sec-81-12-7-换模型后旧溢出标记会误触发" class="lv3">12.7 换模型后旧溢出标记会误触发</a><a href="#sec-82-12-8-压缩刚结束-第一轮又触发" class="lv3">12.8 压缩刚结束，第一轮又触发</a><a href="#sec-83-12-9-手动压缩会打断正在跑的-turn" class="lv3">12.9 手动压缩会打断正在跑的 turn</a><a href="#sec-84-12-10-扩展接管压缩时-文件清单可能为空" class="lv3">12.10 扩展接管压缩时，文件清单可能为空</a><a href="#sec-85-12-11-分支摘要的-90-保底可能仍然超预算" class="lv3">12.11 分支摘要的 90% 保底可能仍然超预算</a><a href="#sec-86-12-12-分支摘要跳过-toolresult-可能丢掉关键证据" class="lv3">12.12 分支摘要跳过 toolResult，可能丢掉关键证据</a><a href="#sec-87-十三-三个可以带走的方法" class="">十三、三个可以带走的方法</a><a href="#sec-88-13-1-用-追加墓碑-代替-原地删除" class="lv3">13.1 用「追加墓碑」代替「原地删除」</a><a href="#sec-89-13-2-估算要两级-可信锚点-增量外推" class="lv3">13.2 估算要两级：可信锚点 + 增量外推</a><a href="#sec-90-13-3-摘要要写成-交接单-不是-读后感" class="lv3">13.3 摘要要写成「交接单」，不是「读后感」</a><a href="#sec-91-下一步" class="">下一步</a><a href="#sec-92-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

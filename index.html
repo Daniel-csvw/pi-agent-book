@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>目录 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="is-index">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+
+<div class="main">
+<main class="prose">
+<div class="hero">
+        <h1>Pi Agent 源码级教程</h1>
+        <p class="sub">对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent</p>
+      </div>
+      <div class="toc" style="display:none"></div>
+      <div class="part-block"><div class="part-title">Part A · 全景</div><div class="card-grid"><a class="card" href="modules/m01-overview.html">
+            <span class="num">M01</span>
+            <span class="ttl">开篇 —— 为什么 Pi-Agent 值得你花时间</span>
+            <span class="meta">7,100 字 · 含 145 行代码 · 约 34 分钟</span></a><a class="card" href="modules/m02-package-map.html">
+            <span class="num">M02</span>
+            <span class="ttl">三层架构 —— 十二个包各自站在哪一层</span>
+            <span class="meta">5,400 字 · 含 191 行代码 · 约 30 分钟</span></a></div></div><div class="part-block"><div class="part-title">Part B · 内核</div><div class="card-grid"><a class="card" href="modules/m03-agent-loop.html">
+            <span class="num">M03</span>
+            <span class="ttl">Agent Loop —— 两层循环，三条出路</span>
+            <span class="meta">10,100 字 · 含 589 行代码 · 约 46 分钟</span></a><a class="card" href="modules/m04-model-call.html">
+            <span class="num">M04</span>
+            <span class="ttl">模型调用 —— 一行代码背后的十层翻译</span>
+            <span class="meta">8,200 字 · 含 463 行代码 · 约 41 分钟</span></a><a class="card" href="modules/m05-tools.html">
+            <span class="num">M05</span>
+            <span class="ttl">工具系统 —— 八个工具，一道文件锁</span>
+            <span class="meta">6,200 字 · 含 218 行代码 · 约 30 分钟</span></a><a class="card" href="modules/m06-messages.html">
+            <span class="num">M06</span>
+            <span class="ttl">消息系统 —— 四种给模型看，八种给系统记</span>
+            <span class="meta">6,200 字 · 含 166 行代码 · 约 31 分钟</span></a><a class="card" href="modules/m07-event-driven.html">
+            <span class="num">M07</span>
+            <span class="ttl">事件驱动 —— 十颗钉子，四十一个挂钩</span>
+            <span class="meta">6,300 字 · 含 283 行代码 · 约 33 分钟</span></a></div></div><div class="part-block"><div class="part-title">Part C · 上下文工程</div><div class="card-grid"><a class="card" href="modules/m08-context.html">
+            <span class="num">M08</span>
+            <span class="ttl">上下文装配 —— 八节提示词，一条目录链</span>
+            <span class="meta">8,400 字 · 含 533 行代码 · 约 42 分钟</span></a><a class="card" href="modules/m09-compaction.html">
+            <span class="num">M09</span>
+            <span class="ttl">上下文压缩 —— 两道闸门，两种摘要</span>
+            <span class="meta">10,100 字 · 含 1,062 行代码 · 约 55 分钟</span></a><a class="card" href="modules/m10-session.html">
+            <span class="num">M10</span>
+            <span class="ttl">会话 —— 从会话树到持久运行时</span>
+            <span class="meta">10,700 字 · 含 495 行代码 · 约 52 分钟</span></a></div></div><div class="part-block"><div class="part-title">Part D · 运行时与生态</div><div class="card-grid"><a class="card" href="modules/m11-durable.html">
+            <span class="num">M11</span>
+            <span class="ttl">持久运行时 —— 把 Agent Loop 拆成状态机</span>
+            <span class="meta">9,300 字 · 含 364 行代码 · 约 45 分钟</span></a><a class="card" href="modules/m12-chord.html">
+            <span class="num">M12</span>
+            <span class="ttl">对象与热重载 —— 改代码为什么不用重启</span>
+            <span class="meta">9,000 字 · 含 329 行代码 · 约 45 分钟</span></a><a class="card" href="modules/m13-mcp-codemode.html">
+            <span class="num">M13</span>
+            <span class="ttl">扩展入口 —— MCP 连出去，codemode 收进来</span>
+            <span class="meta">10,000 字 · 含 944 行代码 · 约 50 分钟</span></a><a class="card" href="modules/m14-tui.html">
+            <span class="num">M14</span>
+            <span class="ttl">终端渲染 —— 一个 spinner 只该写 99 个字节</span>
+            <span class="meta">8,300 字 · 含 299 行代码 · 约 35 分钟</span></a><a class="card" href="modules/m15-schema-telemetry.html">
+            <span class="num">M15</span>
+            <span class="ttl">契约与遥测 —— 一份声明，五种解释</span>
+            <span class="meta">9,700 字 · 含 518 行代码 · 约 45 分钟</span></a></div></div><div class="part-block"><div class="part-title">附录</div><div class="card-grid"><a class="card" href="modules/appendix-migration.html">
+            <span class="num">APX</span>
+            <span class="ttl">附录 —— v0.80 → v1.4 迁移对照</span>
+            <span class="meta">3,200 字 · 含 73 行代码 · 约 15 分钟</span></a><a class="card" href="modules/appendix-typescript.html">
+            <span class="num">APX</span>
+            <span class="ttl">附录 B —— 读源码用的 TypeScript 速查</span>
+            <span class="meta">1,600 字 · 含 80 行代码 · 约 12 分钟</span></a><a class="card" href="modules/appendix-service.html">
+            <span class="num">APX</span>
+            <span class="ttl">附录 C —— 把 Agent 装进你的服务</span>
+            <span class="meta">2,900 字 · 含 220 行代码 · 约 19 分钟</span></a></div></div>
+
+</main>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模型调用 —— 一行代码背后的十层翻译 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="active">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M04</div>
+      <h1>模型调用 —— 一行代码背后的十层翻译</h1>
+      <div class="module-meta">8,200 字 · 含 463 行代码 · 约 41 分钟</div>
+    </header>
+    <p>M03 里有一行代码被我们跳过了：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> stream = <span class="tok-fn">streamSimple</span>(model, context, options);</span></code></pre></div>
+<p>一行。它背后是 <code>packages/ai</code> 的 28,551 行、204 个文件。</p>
+<p>这一章拆这行。拆完你应该能回答五个问题：</p>
+<ul>
+<li>为什么必须有两层（<code>stream</code> / <code>streamSimple</code>）</li>
+<li>接入一个新模型要改几个文件</li>
+<li>一个&quot;看起来正确&quot;的错误处理写法错在哪</li>
+<li>缓存到底是默认开着还是默认关着</li>
+<li><code>--model</code> 那串字符是怎么变成一个 <code>Model</code> 对象的</li>
+</ul>
+<p>正文里的代码块为贴合 80 列做过折行（原文件多为单行），语义不变。</p>
+<hr>
+<h2 id="sec-1-一-四个维度同时不一致">一、四个维度同时不一致</h2>
+<p>先说清楚要解决什么。</p>
+<p>假设用户说了句&quot;帮我读一下 main.ts&quot;。在 Pi 内部它是一条统一消息：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{ role: <span class="tok-str">"user"</span>, content: <span class="tok-str">"帮我读一下 main.ts"</span>, timestamp: <span class="tok-num">1748697600000</span> }</span></code></pre></div>
+<p>发给不同 provider，得翻译成四种样子：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Anthropic    { role: "user", content: [{ type: "text", text: "..." }] }</span><span class="ln">OpenAI       { role: "user", content: "..." }</span><span class="ln">Google       { role: "user", parts: [{ text: "..." }] }</span><span class="ln">Bedrock      { role: "user", content: [{ text: "..." }] }</span></code></pre></div>
+<p>四种。差异点各不同：Anthropic 要数组加 <code>type</code>，Google 把 <code>content</code> 改名 <code>parts</code>，Bedrock 学 Anthropic 但<strong>不要</strong> <code>type</code>。</p>
+<p>纯文本是最简单的情况。真正的差异有四个维度：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>差在哪</th>
+<th>一个例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>消息格式</td>
+<td>字段名、结构、工具结果挂在哪</td>
+<td>Anthropic 把工具结果塞进 user 消息，OpenAI 用独立 <code>role: &quot;tool&quot;</code></td>
+</tr>
+<tr>
+<td>流式传输</td>
+<td>谁来解析字节流</td>
+<td>Anthropic 返原始 SSE 要自己拆，OpenAI 的 SDK 直接给结构化 chunk</td>
+</tr>
+<tr>
+<td>思考参数</td>
+<td>怎么表达&quot;多想想&quot;</td>
+<td>Anthropic 给 token 预算，OpenAI 给努力程度，Google 给 thinkingConfig</td>
+</tr>
+<tr>
+<td>缓存标记</td>
+<td>怎么标记&quot;这段没变&quot;</td>
+<td>Anthropic 贴 <code>cache_control</code>，Bedrock 插独立 <code>cachePoint</code> 节点</td>
+</tr>
+</tbody>
+</table>
+<p>四个维度乘以十个 API，就是这一层的全部工作量。</p>
+<h3 id="sec-2-1-1-十个-api-不是一个数字">1.1 十个 api，不是一个数字</h3>
+<p><code>KnownApi</code>（<code>types.ts:64-74</code>）正好十个取值。它们和翻译器文件是<strong>一一对应</strong>的：</p>
+<table>
+<thead>
+<tr>
+<th>api</th>
+<th>翻译器</th>
+<th>行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>openai-completions</code></td>
+<td><code>api/openai-completions.ts</code></td>
+<td>1,729</td>
+</tr>
+<tr>
+<td><code>openai-codex-responses</code></td>
+<td><code>api/openai-codex-responses.ts</code></td>
+<td>1,720</td>
+</tr>
+<tr>
+<td><code>anthropic-messages</code></td>
+<td><code>api/anthropic-messages.ts</code></td>
+<td>1,687</td>
+</tr>
+<tr>
+<td><code>bedrock-converse-stream</code></td>
+<td><code>api/bedrock-converse-stream.ts</code></td>
+<td>1,462</td>
+</tr>
+<tr>
+<td><code>mistral-conversations</code></td>
+<td><code>api/mistral-conversations.ts</code></td>
+<td>925</td>
+</tr>
+<tr>
+<td><code>google-vertex</code></td>
+<td><code>api/google-vertex.ts</code></td>
+<td>562</td>
+</tr>
+<tr>
+<td><code>google-generative-ai</code></td>
+<td><code>api/google-generative-ai.ts</code></td>
+<td>467</td>
+</tr>
+<tr>
+<td><code>pi-messages</code></td>
+<td><code>api/pi-messages.ts</code></td>
+<td>466</td>
+</tr>
+<tr>
+<td><code>openai-responses</code></td>
+<td><code>api/openai-responses.ts</code></td>
+<td>454</td>
+</tr>
+<tr>
+<td><code>azure-openai-responses</code></td>
+<td><code>api/azure-openai-responses.ts</code></td>
+<td>256</td>
+</tr>
+</tbody>
+</table>
+<p>十个体量差七倍。看两个极端：</p>
+<ul>
+<li><strong><code>openai-completions</code> 最胖（1,729 行）</strong>，因为它不是&quot;一家&quot;的协议，是一整个兼容圈（DeepSeek、Groq、Together、vLLM、Ollama……）的共同方言。同一份代码要兜住这些厂商各自的怪癖。</li>
+<li><strong><code>azure-openai-responses</code> 最瘦（256 行）</strong>，因为它几乎什么都不做——真正的活在共享层 <code>openai-responses-shared.ts</code>（892 行）里。Azure 只是改了鉴权和 URL。</li>
+</ul>
+<p>所以&quot;十个 api&quot;不等于&quot;十份独立工作量&quot;。真实结构是：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">独立实现    anthropic 1687   bedrock 1462   mistral 925</span><span class="ln">            openai-completions 1729        codex 1720</span><span class="ln">共享骨架    openai-responses 454  +  shared 892</span><span class="ln">            google-generative-ai 467 + shared 575</span><span class="ln">            google-vertex 562</span><span class="ln">薄壳        azure 256 / pi-messages 466</span></code></pre></div>
+<p>十个翻译器合计 9,728 行，加上共享层 1,467 行，约 11,195 行——占整个 <code>ai</code> 包 28,551 行的 39%。<strong>将近四成代码只做一件事：把同一种意思翻译成十种方言。</strong></p>
+<hr>
+<h2 id="sec-3-二-分三层-但真正解耦的只有一条线">二、分三层，但真正解耦的只有一条线</h2>
+<p>Pi 的切法：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">第一层  入口        stream() / streamSimple()      查表 + 派活</span><span class="ln">第二层  事件协议     AssistantMessageEvent（12 种）  约定输出</span><span class="ln">第三层  翻译器        api/*.ts                     一种方言一个文件</span></code></pre></div>
+<p>类比国际翻译公司：前台查通讯录派活，翻译员各懂一门语言，但交付的报告必须用公司统一模板。前台不懂外语，翻译员不懂流程。</p>
+<p>这个类比的要害是：<strong>第一层和第三层之间只靠第二层连接，互不知道对方存在。</strong></p>
+<p>但这里有一个比&quot;三层&quot;更重要的设计，藏在入口函数的第一行。</p>
+<h3 id="sec-4-2-1-入口里藏了一个折叠动作">2.1 入口里藏了一个折叠动作</h3>
+<p><code>stream()</code> 的骨架（<code>compat.ts:252-267</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> stream&lt;TApi <span class="tok-kw">extends</span> Api&gt;(</span><span class="ln">	model: Model&lt;TApi&gt;,</span><span class="ln">	context: Context,</span><span class="ln">	options?: ProviderStreamOptions,</span><span class="ln">): AssistantMessageEventStream {</span><span class="ln">	<span class="tok-kw">const</span> transcript = <span class="tok-fn">normalizeContext</span>(context);            <span class="tok-com">// ← 这一行</span></span><span class="ln">	<span class="tok-kw">const</span> builtinProvider = <span class="tok-fn">getBuiltinProviderForModel</span>(model);</span><span class="ln">	<span class="tok-kw">if</span> (builtinProvider) {</span><span class="ln">		<span class="tok-com">// ... cloudflare 岔路，见 2.3</span></span><span class="ln">		<span class="tok-kw">return</span> builtinProvider.<span class="tok-fn">stream</span>(model, transcript, ...);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">const</span> provider = <span class="tok-fn">resolveApiProvider</span>(model.api);</span><span class="ln">	<span class="tok-kw">return</span> provider.<span class="tok-fn">stream</span>(model, transcript, ...);</span><span class="ln">}</span></code></pre></div>
+<p><code>normalizeContext</code> 在 <code>utils/transcript.ts:30-34</code>，全文只有五行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">normalizeContext</span>(context: Context): TranscriptContext {</span><span class="ln">	<span class="tok-kw">const</span> initialMessage = <span class="tok-fn">createInitialSystemMessage</span>(</span><span class="ln">		context.systemPrompt,</span><span class="ln">		context.tools,</span><span class="ln">	);</span><span class="ln">	<span class="tok-kw">const</span> messages = initialMessage</span><span class="ln">		? [initialMessage, ...context.messages]</span><span class="ln">		: context.messages;</span><span class="ln">	<span class="tok-kw">return</span> { messages } <span class="tok-kw">as</span> TranscriptContext;</span><span class="ln">}</span></code></pre></div>
+<p>它把 <code>Context</code>（三个字段：<code>systemPrompt</code>、<code>tools</code>、<code>messages</code>）压成 <code>TranscriptContext</code>（一个字段：<code>messages</code>）。</p>
+<p><strong>系统提示词和工具定义被折进了首条消息。</strong> 再看 <code>createInitialSystemMessage</code>（<code>transcript.ts:10-23</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createInitialSystemMessage</span>(</span><span class="ln">	systemPrompt: <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span>,</span><span class="ln">	tools: Tool[] | <span class="tok-kw">undefined</span>,</span><span class="ln">): SystemMessage | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">const</span> hasSystemPrompt = systemPrompt !== <span class="tok-kw">undefined</span> &amp;&amp; systemPrompt.length &gt; <span class="tok-num">0</span>;</span><span class="ln">	<span class="tok-kw">const</span> hasTools = tools !== <span class="tok-kw">undefined</span> &amp;&amp; tools.length &gt; <span class="tok-num">0</span>;</span><span class="ln">	<span class="tok-kw">if</span> (!hasSystemPrompt &amp;&amp; !hasTools) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		role: <span class="tok-str">"system"</span>,</span><span class="ln">		content: systemPrompt ?? <span class="tok-str">""</span>,</span><span class="ln">		...(hasTools ? { toolsAdded: tools } : {}),</span><span class="ln">		timestamp: <span class="tok-num">0</span>,</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p>注意 <code>toolsAdded</code> 这个名字。M03 第七节讲&quot;变更即追加&quot;时说过：工具集变化靠 system 消息的 <code>toolsAdded</code> / <code>toolsRemoved</code> 表达。<strong>这里就是那个字段的第一次写入。</strong></p>
+<p>两件事在这里合上了：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Context.tools  ──折进──→  messages[0].toolsAdded</span><span class="ln">                                │</span><span class="ln">                                ↓</span><span class="ln">                        getCurrentTools(messages)  累加得出当前工具集</span></code></pre></div>
+<p>所以&quot;工具集从 transcript 算出来&quot;不是个精巧的算法，是<strong>因为源头就只有这一份数据</strong>。系统提示词同理——它不在别处，就在首条 system 消息的 <code>content</code> 里。</p>
+<p><strong>一个 Context 只有一种表示形式，就是 messages。</strong> 这是整个 <code>ai</code> 层最省事的一个决定：provider 只需要处理&quot;一个消息数组&quot;，不需要知道 system prompt 和 tools 是独立概念。</p>
+<p>顺带一个反直觉的地方：<code>timestamp: 0</code>。为什么不是 <code>Date.now()</code>？因为这条消息是<strong>推导出来的</strong>，不是&quot;发生过的事件&quot;。给它一个假时间戳才能保证同一次请求两次归一化产生<strong>字节完全相同</strong>的结果——2.2 和第七节的缓存都依赖这一点。</p>
+<h3 id="sec-5-2-2-这条折叠有代价">2.2 这条折叠有代价</h3>
+<p>代价是：<strong>首条 system 消息不能随便删。</strong></p>
+<p>压缩（M09）要扔掉老消息时，必须保住首条 system 消息，否则系统提示词和工具定义一起没了。你在 <code>coding-agent</code> 里看到的&quot;压缩时总是保留开头&quot;不是保守，是<strong>结构上的必须</strong>。</p>
+<p>第二个代价是语义变窄：<code>Context</code> 上那个 <code>systemPrompt</code> 一旦折进去，就再也拿不回来了。想在请求途中&quot;改一句系统提示词&quot;，唯一合法的做法是追加一条新的 system 消息（带 <code>sections</code>），而不是改第一条。M03 的&quot;变更即追加&quot;在 <code>ai</code> 层不是风格选择，是<strong>这个折叠逼出来的唯一解</strong>。</p>
+<h3 id="sec-6-2-3-派活有两条路-还有一条岔路">2.3 派活有两条路，还有一条岔路</h3>
+<p><code>stream()</code> 里的 <code>if (builtinProvider)</code> 藏着三档优先级：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">① builtin provider   compatModels.getProvider(provider) 里登记过的</span><span class="ln">② registry           registerApiProvider() 现注册的（扩展、测试、faux）</span><span class="ln">③ cloudflare 岔路     provider 名以 "cloudflare-" 开头且没有 key</span></code></pre></div>
+<p>判断函数 <code>getBuiltinProviderForModel</code>（<code>compat.ts:238-242</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">getBuiltinProviderForModel</span>(model: Model&lt;Api&gt;) {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-fn">getApiProvider</span>(model.api) !==</span><span class="ln">		builtinApiProviderInstances.<span class="tok-kw">get</span>(model.api)) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">const</span> provider = compatModels.<span class="tok-fn">getProvider</span>(model.provider);</span><span class="ln">	<span class="tok-kw">const</span> sameApi = provider?.<span class="tok-fn">getModels</span>()</span><span class="ln">		.<span class="tok-fn">some</span>((candidate) =&gt; candidate.api === model.api);</span><span class="ln">	<span class="tok-kw">return</span> sameApi ? provider : <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p>第一行是<strong>身份比较</strong>，不是值比较。<code>getApiProvider(model.api)</code> 拿的是注册表里的当前实例，<code>builtinApiProviderInstances</code> 存的是内置实现。两者不等，说明有人用 <code>registerApiProvider</code> 覆盖了这个 api——此时必须让位，否则扩展就永远盖不掉内置实现。</p>
+<p>这个设计在测试里很关键：<code>providers/faux.ts</code>（733 行）就是靠注册一个假 api 来让整个 Agent 循环在无网络环境下跑通。<strong>如果内置实现优先级硬编码在前，整套测试就没法做。</strong></p>
+<p>没有 builtin provider 时走 <code>resolveApiProvider</code>（<code>:244-250</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">resolveApiProvider</span>(api: Api) {</span><span class="ln">	<span class="tok-kw">const</span> provider = <span class="tok-fn">getApiProvider</span>(api);</span><span class="ln">	<span class="tok-kw">if</span> (!provider) {</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`No API provider registered for api: ${api}`</span>);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> provider;</span><span class="ln">}</span></code></pre></div>
+<p>这是一个<strong>同步抛出</strong>——记下来，第四节要用。</p>
+<p>第三条岔路是 Cloudflare：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (model.provider.<span class="tok-fn">startsWith</span>(<span class="tok-str">"cloudflare-"</span>) &amp;&amp;</span><span class="ln">	!<span class="tok-fn">hasResolvedCloudflareAuth</span>(options)) {</span><span class="ln">	<span class="tok-kw">return</span> compatModels.<span class="tok-fn">stream</span>(model, transcript, options);</span><span class="ln">}</span></code></pre></div>
+<p>Cloudflare Workers AI 可以走 binding（进程内对象调用，根本没有 API key 的概念），这时不能走普通翻译器那条路。这类&quot;平台特例&quot;在任何多 provider 系统里都会长出来，Pi 的处理是<strong>只加一个 if，不污染抽象</strong>。</p>
+<h3 id="sec-7-2-4-这个入口本身是临时的">2.4 这个入口本身是临时的</h3>
+<p>看 <code>compat.ts</code> 的文件头注释（<code>:1-11</code>）：</p>
+<blockquote>
+<p>Temporary compatibility entrypoint preserving the old global pi-ai API surface... <strong>This module is deleted with the coding-agent ModelManager migration.</strong> New code uses <code>createModels()</code> and the provider factories.</p>
+</blockquote>
+<p>也就是说，我们刚拆的 <code>stream()</code> 是一个<strong>兼容门面</strong>，v1.4.0 之后会被删掉。</p>
+<p>那这一章还值得读吗？值得，因为新入口做的是同一件事。看 <code>ModelsImpl.stream</code>（<code>models.ts:901-919</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">stream&lt;TApi <span class="tok-kw">extends</span> Api&gt;(...): AssistantMessageEventStream {</span><span class="ln">	<span class="tok-kw">const</span> transcript = <span class="tok-fn">normalizeContext</span>(context);          <span class="tok-com">// ← 同一行</span></span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">lazyStream</span>(model, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">		<span class="tok-kw">const</span> provider = <span class="tok-kw">this</span>.<span class="tok-fn">requireChatProvider</span>(model);</span><span class="ln">		<span class="tok-kw">const</span> { requestModel, requestOptions } =</span><span class="ln">			<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">applyAuth</span>(model, options);</span><span class="ln">		<span class="tok-kw">return</span> provider.<span class="tok-fn">stream</span>(requestModel, transcript, requestOptions);</span><span class="ln">	}, <span class="tok-fn">observeModelRequest</span>(model, options, <span class="tok-kw">false</span>));</span><span class="ln">}</span></code></pre></div>
+<p><code>normalizeContext</code> 还在第一行。同一个折叠，写了两遍——这恰恰证明它是<strong>结构不变量</strong>，不是兼容层的偶然。</p>
+<p>区别在两处，都很值得看：</p>
+<ul>
+<li>旧门面<strong>先解析 provider，再返回流</strong>；新入口把解析塞进 <code>async () =&gt; {}</code>，先返回流。这个差异直接影响错误策略（见 5.3）。</li>
+<li>新入口多了一步 <code>applyAuth</code>：鉴权从&quot;读环境变量&quot;升级成了可插拔的凭据存储。</li>
+</ul>
+<p><code>index.ts</code> 开头的四行注释把整套分层写死了：</p>
+<blockquote>
+<p>Core only, side-effect free: no generated catalogs, no provider factories, no api-registry, no OAuth implementations, no compat.</p>
+</blockquote>
+<p><code>@earendil-works/pi-ai</code> 是纯内核，provider 工厂在 <code>/providers/*</code>，api 实现在 <code>/api/*</code>，旧全局 API 在 <code>/compat</code>。<strong>一个包四个入口，靠子路径切开依赖性，而不是靠 tree-shaking 事后补救。</strong></p>
+<hr>
+<h2 id="sec-8-三-第二层-12-种事件">三、第二层：12 种事件</h2>
+<p><code>AssistantMessageEvent</code>（<code>types.ts:823-839</code>）一共 12 个成员。下面这张表可以当查表用：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>type</th>
+<th>额外字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>start</code></td>
+<td>—</td>
+<td>流建立，内容还没到</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>text_start</code></td>
+<td><code>contentIndex</code></td>
+<td>一个文字块开始</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>text_delta</code></td>
+<td><code>contentIndex</code> <code>delta</code></td>
+<td>推了一小段文字</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>text_end</code></td>
+<td><code>contentIndex</code> <code>content</code></td>
+<td>文字块定稿</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>thinking_start</code></td>
+<td><code>contentIndex</code></td>
+<td>思考块开始</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>thinking_delta</code></td>
+<td><code>contentIndex</code> <code>delta</code></td>
+<td>推了一段思考</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>thinking_end</code></td>
+<td><code>contentIndex</code> <code>content</code></td>
+<td>思考块定稿</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>toolcall_start</code></td>
+<td><code>contentIndex</code></td>
+<td>工具调用开始</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>toolcall_delta</code></td>
+<td><code>contentIndex</code> <code>delta</code></td>
+<td>推了一段 JSON</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>toolcall_end</code></td>
+<td><code>contentIndex</code> <code>toolCall</code></td>
+<td>参数已可解析</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>done</code></td>
+<td><code>reason</code> <code>message</code></td>
+<td>正常结束</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>error</code></td>
+<td><code>reason</code> <code>error</code></td>
+<td>失败结束</td>
+</tr>
+</tbody>
+</table>
+<p>除了 <code>contentIndex</code> 和 <code>delta</code> 这类差异字段，<strong>10 个事件还都带 <code>partial</code></strong>（1 到 10 号），只有 <code>done</code> / <code>error</code> 不带——因为这两个不是&quot;过程中的一帧&quot;，是终局。</p>
+<p>不用记 12 个。记模式：<strong>三类内容 × 三步 + 两头</strong>。</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">start</span><span class="ln">  text_start      → text_delta      → text_end</span><span class="ln">  thinking_start  → thinking_delta  → thinking_end</span><span class="ln">  toolcall_start  → toolcall_delta  → toolcall_end</span><span class="ln">done | error</span></code></pre></div>
+<p>为什么每类都是三步？因为流式。先声明&quot;文字要开始了&quot;，然后逐字推，最后说&quot;文字结束了&quot;。</p>
+<p><code>contentIndex</code> 是这块内容在 <code>content[]</code> 数组里的下标。一轮回复可以同时有思考、文字、多个工具调用，靠这个下标区分。</p>
+<h3 id="sec-9-3-1-done-的-reason-是四选一-不是三选一">3.1 <code>done</code> 的 reason 是四选一，不是三选一</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">| { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>; reason: ...; message: AssistantMessage }</span><span class="ln">| { <span class="tok-kw">type</span>: <span class="tok-str">"error"</span>; reason: ...; error: AssistantMessage };</span></code></pre></div>
+<p>那两个 <code>...</code> 展开分别是：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">done   → Extract&lt;StopReason, <span class="tok-str">"stop"</span> | <span class="tok-str">"length"</span> | <span class="tok-str">"toolUse"</span> | <span class="tok-str">"deferred"</span>&gt;</span><span class="ln">error  → Extract&lt;StopReason, <span class="tok-str">"aborted"</span> | <span class="tok-str">"error"</span>&gt;</span></code></pre></div>
+<p>大部分资料只写 <code>stop</code> / <code>length</code> / <code>toolUse</code> 三个。v1.4.0 有第四个：<strong><code>deferred</code></strong>——provider 说&quot;这活儿长，我给你个句柄，你过一会儿再来取&quot;。</p>
+<p>这是 <code>options.deferred</code> 打开的能力（<code>types.ts:381-382</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/** Ask a capable provider to return a durable handle and</span></span><span class="ln"><span class="tok-com"> *  continue the request asynchronously. */</span></span><span class="ln">deferred?: <span class="tok-kw">boolean</span> | { window?: <span class="tok-str">"15m"</span> | <span class="tok-str">"1h"</span> | <span class="tok-str">"24h"</span> };</span></code></pre></div>
+<p><code>deferred</code> 不在 12 种事件里另开一个类型，它只是 <code>done</code> 的一个 reason 值。这个选择很省：Agent 循环不需要认识&quot;延迟&quot;这个概念，它只会看到&quot;这轮结束，但没调用工具&quot;，于是正常收尾。M03 第六节说的&quot;<code>deferred</code> 内核完全不认识，自然收尾&quot;就是这个意思。</p>
+<p><strong>一个能力可以只用一个枚举值换进来。</strong> 这是加扩展时最便宜的位置——不动协议，不动消费方。</p>
+<h3 id="sec-10-3-2-partial-不是快照">3.2 <code>partial</code> 不是快照</h3>
+<p><code>types.ts</code> 在事件定义上方写了 16 行注释，其中最要命的一句：</p>
+<blockquote>
+<p><code>partial</code> is the shared live response-so-far helper, not an event-time snapshot.</p>
+</blockquote>
+<p><strong>它是&quot;到目前为止的活响应&quot;，不是某一刻的快照。</strong> 也就是说，如果你把 <code>event.partial</code> 存进数组，之后所有元素都会变成最后一次的状态——因为它们是同一个对象。</p>
+<p>M03 第八节讲过循环那边怎么处理（每次 <code>{ ...partialMessage }</code> 浅拷一份）。这里补充另一半：<strong>为什么 provider 不直接给增量？</strong></p>
+<p>因为增量要求消费者维护状态机：&quot;这是第几个 block、拼到第几个字符、thinking 和 text 交错怎么办&quot;。全量快照把这些全免了——消费者只需要&quot;覆盖&quot;。</p>
+<p>代价是每次事件都传一份完整消息，带宽略大。这是典型的<strong>用带宽换状态</strong>。</p>
+<h3 id="sec-11-3-3-contentindex-和-quot-活引用-quot-合起来会咬人">3.3 <code>contentIndex</code> 和&quot;活引用&quot;合起来会咬人</h3>
+<p>单看两条都没问题，合起来有个坑：<strong>你不可能只记下 <code>partial</code> 的一个片段。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> textSoFar = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">number</span>, <span class="tok-kw">string</span>&gt;();</span><span class="ln">session.<span class="tok-fn">subscribe</span>((e) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (e.<span class="tok-kw">type</span> === <span class="tok-str">"text_delta"</span>) {</span><span class="ln">		<span class="tok-com">// 想"只存当前这块文字"——做不到，因为 partial 是整条消息</span></span><span class="ln">		textSoFar.<span class="tok-kw">set</span>(e.contentIndex, e.partial.content[e.contentIndex].text);</span><span class="ln">	}</span><span class="ln">});</span></code></pre></div>
+<p>这行看着对，其实读的是<strong>整条消息的第 N 个 block</strong>，不是&quot;第 N 个 delta&quot;。如果 <code>partial</code> 恰好在这一帧把后面的 block 也填了（某些 provider 会提前把工具调用参数塞进来），你读到的就不是你以为的那块。</p>
+<p>正确姿势只有两个：要么整体浅拷贝（<code>{ ...e.partial }</code>），要么只用 <code>e.delta</code> 自己拼。<strong>不要混用</strong>——<code>delta</code> 是增量，<code>partial</code> 是全量，混着读会出现&quot;文字重复一遍&quot;这种经典 bug。</p>
+<h3 id="sec-12-3-4-流对象自己也有终局">3.4 流对象自己也有终局</h3>
+<p>前 12 种事件都是&quot;给 <code>for await</code> 看的&quot;。但流对象还有另一个出口，不走迭代器：<code>result()</code>。</p>
+<p>实现在 <code>utils/event-stream.ts</code>，一共 135 行。核心是 <code>EventStream&lt;T, R&gt;</code> 里的两个队列和一段 <code>push</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">push</span>(event: T): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.done) <span class="tok-kw">return</span>;                        <span class="tok-com">// ① 终局之后直接丢</span></span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.<span class="tok-fn">isComplete</span>(event)) {</span><span class="ln">		<span class="tok-kw">this</span>.done = <span class="tok-kw">true</span>;</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">resolveFinalResult</span>(<span class="tok-kw">this</span>.<span class="tok-fn">extractResult</span>(event));</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">const</span> waiter = <span class="tok-kw">this</span>.waiting.<span class="tok-fn">dequeue</span>();        <span class="tok-com">// ② 有人在等就直接给</span></span><span class="ln">	<span class="tok-kw">if</span> (waiter) <span class="tok-fn">waiter</span>({ value: event, done: <span class="tok-kw">false</span> });</span><span class="ln">	<span class="tok-kw">else</span> <span class="tok-kw">this</span>.queue.<span class="tok-fn">enqueue</span>(event);               <span class="tok-com">// ③ 没人等就排队</span></span><span class="ln">}</span></code></pre></div>
+<p>三个决定：终局之后 <code>push</code> 一律丢弃（provider 多发一个 <code>done</code> 不会炸）；有消费者挂起时<strong>零延迟</strong>直送；没有就入队，等下次迭代来取。</p>
+<p>迭代器那边正好是三种情况：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">while</span> (<span class="tok-kw">true</span>) {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.queue.length &gt; <span class="tok-num">0</span>) <span class="tok-kw">yield</span> <span class="tok-kw">this</span>.queue.<span class="tok-fn">dequeue</span>()!;</span><span class="ln">	<span class="tok-kw">else</span> <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.done) <span class="tok-kw">return</span>;</span><span class="ln">	<span class="tok-kw">else</span> <span class="tok-kw">yield</span> <span class="tok-kw">await</span> <span class="tok-kw">new</span> <span class="tok-fn">Promise</span>((r) =&gt; <span class="tok-kw">this</span>.waiting.<span class="tok-fn">enqueue</span>(r));</span><span class="ln">}</span></code></pre></div>
+<p><code>AssistantMessageEventStream</code>（<code>:97-130</code>）只是在这个骨架上加了计时：创建时记下 <code>Date.now()</code> 和 <code>performance.now()</code>，在 <code>done</code> / <code>error</code> / <code>end</code> 时给消息补一个 <code>durationMs</code>。跳过条件写得很细，其中一条值得注意——<code>message.timestamp &lt; this.#startedAt</code> 时不计时，因为这条消息是别处产生的（比如 <code>deferred</code> 之后取回来的），不该算这个流的耗时。<strong>这一行是给延迟结果准备的。</strong></p>
+<p>最要紧的一点在构造函数里（<code>:101-113</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">super</span>(</span><span class="ln">	(event) =&gt; event.<span class="tok-kw">type</span> === <span class="tok-str">"done"</span> || event.<span class="tok-kw">type</span> === <span class="tok-str">"error"</span>,</span><span class="ln">	(event) =&gt; event.<span class="tok-kw">type</span> === <span class="tok-str">"done"</span> ? event.message : event.error,</span><span class="ln">);</span></code></pre></div>
+<p><code>extractResult</code> 对 <code>error</code> 事件返回的是 <code>event.error</code>，<strong>不是抛异常</strong>。而 <code>complete()</code> 就是 <code>stream(...).result()</code>（<code>compat.ts:269-276</code>）。于是：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> msg = <span class="tok-kw">await</span> <span class="tok-fn">complete</span>(model, context);   <span class="tok-com">// 失败也不抛</span></span><span class="ln"><span class="tok-kw">if</span> (msg.stopReason === <span class="tok-str">"error"</span>) { <span class="tok-com">/* 只有这里能知道 */</span> }</span></code></pre></div>
+<p><strong><code>await complete()</code> 在鉴权失败、网络断开时不会 reject，它返回一条 <code>stopReason: &quot;error&quot;</code> 的消息。</strong> 这是&quot;失败也是消息&quot;的最后一块拼图——不只是协议层这么约定，连&quot;等最终结果&quot;这个 API 都照着它实现。</p>
+<p>想用异常流只有两条路：自己检查 <code>stopReason</code>，或者拿 <code>streamSimple()</code> 手动迭代。</p>
+<hr>
+<h2 id="sec-13-四-第三层-四条契约">四、第三层：四条契约</h2>
+<p><code>StreamFunction</code> 的定义（<code>types.ts:398-402</code>）就三行，但上面有 8 行注释，是这套抽象真正的宪法：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Contract:</span></span><span class="ln"><span class="tok-com">// - Receives a normalized transcript: the system prompt and tools live in</span></span><span class="ln"><span class="tok-com">//   the leading system message, never on the context itself.</span></span><span class="ln"><span class="tok-com">// - Must return an AssistantMessageEventStream.</span></span><span class="ln"><span class="tok-com">// - Direct streamSimple() calls may throw synchronously when request auth is</span></span><span class="ln"><span class="tok-com">//   missing. Once a stream is returned, request/model/runtime failures should</span></span><span class="ln"><span class="tok-com">//   be encoded in that stream.</span></span><span class="ln"><span class="tok-com">// - Error termination must produce an AssistantMessage with stopReason</span></span><span class="ln"><span class="tok-com">//   "error" or "aborted" and errorMessage, emitted via the stream protocol.</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> StreamFunction&lt;</span><span class="ln">	TApi <span class="tok-kw">extends</span> Api = Api,</span><span class="ln">	TOptions <span class="tok-kw">extends</span> StreamOptions = StreamOptions,</span><span class="ln">&gt; = (</span><span class="ln">	model: Model&lt;TApi&gt;,</span><span class="ln">	context: TranscriptContext,</span><span class="ln">	options?: TOptions,</span><span class="ln">) =&gt; AssistantMessageEventStream;</span></code></pre></div>
+<p>四条，逐条看。</p>
+<p><strong>第一条：收的是 <code>TranscriptContext</code>，不是 <code>Context</code>。</strong> 参数名叫 <code>context</code> 但类型是 <code>TranscriptContext</code>——只有 <code>messages</code> 一个字段。配合 2.1 的折叠，这意味着翻译器永远不会看到&quot;独立的 systemPrompt&quot;。</p>
+<p><strong>第二条：必须返回流。</strong> 不是 Promise，不是字符串，是 <code>AssistantMessageEventStream</code>。</p>
+<p><strong>第三条最容易被读错：</strong></p>
+<blockquote>
+<p>Direct <code>streamSimple()</code> calls <strong>may throw synchronously</strong> when request auth is missing. <strong>Once a stream is returned</strong>, request/model/runtime failures should be encoded in that stream.</p>
+</blockquote>
+<p>它说的是分界线，不是&quot;永不抛出&quot;：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">同步阶段（return 之前）        可以 throw    ← 鉴权缺失这类"根本无法开始"</span><span class="ln">异步阶段（return 之后）        必须编码进流  ← 网络断、限流、模型崩</span></code></pre></div>
+<p>为什么这么分？因为同步抛出的错误调用方<strong>还没拿到流</strong>，只能 catch；而流已经返回之后，调用方已经在 <code>for await</code> 里了，再抛就没人接。<strong>分界线不是&quot;错误类型&quot;，是&quot;调用方手里有没有流&quot;。</strong></p>
+<p>实证在 <code>anthropic-messages.ts:959-961</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-fn">getAnthropicFederation</span>(model, options?.apiKey, options?.headers,</span><span class="ln">	options?.env)) {</span><span class="ln">	<span class="tok-fn">assertRequestAuth</span>(model.provider, options?.apiKey, options?.headers);</span><span class="ln">}</span></code></pre></div>
+<p>这四行在函数体最前面，任何流对象创建之前。<code>assertRequestAuth</code> 抛了，调用方还能 catch。</p>
+<p>M03 讲&quot;永不抛出&quot;时说的是 Agent 循环那一层——它对 <code>streamSimple</code> 的调用被包在 try 里，所以同步抛出也能被接住。到了流内部，就只剩编码一条路。</p>
+<p><strong>第四条：错误必须是一个完整的 <code>AssistantMessage</code>。</strong> 不是 <code>{ error: &quot;网络超时&quot; }</code>，是一个 <code>stopReason: &quot;error&quot;</code> 或 <code>&quot;aborted&quot;</code>、带 <code>errorMessage</code> 的助手消息，通过 <code>{ type: &quot;error&quot;, reason, error }</code> 事件发出。</p>
+<p>这条是&quot;失败也是消息&quot;在协议层的落地：<strong>错误不是一个信号，是一条消息。</strong></p>
+<p>为什么值得这么费劲？因为 transcript 是唯一事实源。如果错误只是抛了个异常，就会被记成&quot;这一轮没发生&quot;；而失败的一轮在语义上<strong>发生过</strong>——模型被调用了、花了钱、返回了东西（哪怕是空的）。把它记成消息，后续的压缩、成本统计、重放才有依据。</p>
+<hr>
+<h2 id="sec-14-五-为什么要有-stream-和-streamsimple-两个">五、为什么要有 <code>stream</code> 和 <code>streamSimple</code> 两个</h2>
+<p>两个函数体几乎一样（<code>compat.ts:252</code> 和 <code>:278</code>），差别只在 options 类型：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>stream()</code></th>
+<th><code>streamSimple()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>options 类型</td>
+<td><code>ProviderStreamOptions</code></td>
+<td><code>SimpleStreamOptions</code></td>
+</tr>
+<tr>
+<td>思考等级</td>
+<td>原样透传，翻译器自己解释</td>
+<td>先 <code>clampThinkingLevel</code> 再翻译</td>
+</tr>
+<tr>
+<td>采样参数</td>
+<td>原样透传</td>
+<td>按等级查 <code>samplingParamsByThinkingLevel</code></td>
+</tr>
+<tr>
+<td>maxTokens</td>
+<td>原样透传</td>
+<td>按当前上下文长度夹紧</td>
+</tr>
+<tr>
+<td>谁在用</td>
+<td>需要精确控制的调用方</td>
+<td>Agent 循环</td>
+</tr>
+</tbody>
+</table>
+<p><code>stream()</code> 是机制，<code>streamSimple()</code> 是策略。Agent 循环选策略版，因为它不关心&quot;模型到底支不支持 xhigh&quot;。</p>
+<h3 id="sec-15-5-1-buildbaseoptions-才是真正的适配器">5.1 <code>buildBaseOptions</code> 才是真正的适配器</h3>
+<p><code>streamSimple</code> 多做的事集中在 <code>api/simple-options.ts</code> 的 <code>buildBaseOptions</code>（<code>:36-66</code>）。它把 6 个&quot;简单选项&quot;展开成 21 个字段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">buildBaseOptions</span>(</span><span class="ln">	model: Model&lt;Api&gt;,</span><span class="ln">	context: TranscriptContext,</span><span class="ln">	options?: SimpleStreamOptions,</span><span class="ln">	apiKey?: <span class="tok-kw">string</span>,</span><span class="ln">): StreamOptions {</span><span class="ln">	<span class="tok-kw">const</span> samplingParams = <span class="tok-fn">resolveSamplingParams</span>(</span><span class="ln">		model,</span><span class="ln">		options?.reasoning ?? <span class="tok-str">"off"</span>,</span><span class="ln">		options?.samplingParams,</span><span class="ln">	);</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		temperature: options?.temperature,</span><span class="ln">		samplingParams,</span><span class="ln">		maxTokens: <span class="tok-fn">clampMaxTokensToContext</span>(</span><span class="ln">			model, context, options?.maxTokens ?? model.maxTokens),</span><span class="ln">		signal: options?.signal,</span><span class="ln">		<span class="tok-com">// ... 还有 16 个字段：telemetry / apiKey / fetch / transport /</span></span><span class="ln">		<span class="tok-com">// cacheRetention / sessionId / headers / identity / onPayload /</span></span><span class="ln">		<span class="tok-com">// onResponse / timeoutMs / maxRetries / metadata / env ...</span></span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p>两个细节值得停一下。</p>
+<p><strong><code>options?.reasoning ?? &quot;off&quot;</code></strong>：思考等级在这个字段里，不叫 <code>thinkingLevel</code>。名字的差异有实际后果——你写 <code>thinkingLevel: &quot;high&quot;</code> 会被无视，因为根本没人读这个字段。</p>
+<p><strong>21 个字段里有 6 个是回调</strong>（<code>onPayload</code> / <code>onResponse</code> / <code>onProviderStreamEvent</code> / <code>fetch</code> / <code>transport</code> / <code>signal</code>）。这说明这一层不只做&quot;参数翻译&quot;，还留了<strong>观测和替换的插口</strong>：想看真实发出的请求体用 <code>onPayload</code>，想自己接管网络用 <code>fetch</code>，想中途取消用 <code>signal</code>。M15 讲 telemetry 时会回到这里。</p>
+<h3 id="sec-16-5-2-maxtokens-会被夹两次">5.2 <code>maxTokens</code> 会被夹两次</h3>
+<p><code>clampMaxTokensToContext</code>（<code>simple-options.ts:18-22</code>）:</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">clampMaxTokensToContext</span>(</span><span class="ln">	model: Model&lt;Api&gt;,</span><span class="ln">	context: TranscriptContext,</span><span class="ln">	maxTokens: <span class="tok-kw">number</span>,</span><span class="ln">): <span class="tok-kw">number</span> {</span><span class="ln">	<span class="tok-kw">if</span> (model.contextWindow &lt;= <span class="tok-num">0</span>) <span class="tok-kw">return</span> Math.<span class="tok-fn">max</span>(MIN_MAX_TOKENS, maxTokens);</span><span class="ln">	<span class="tok-kw">const</span> available = model.contextWindow</span><span class="ln">		- <span class="tok-fn">estimateContextTokens</span>(context).tokens</span><span class="ln">		- CONTEXT_SAFETY_TOKENS;</span><span class="ln">	<span class="tok-kw">return</span> Math.<span class="tok-fn">min</span>(maxTokens, Math.<span class="tok-fn">max</span>(MIN_MAX_TOKENS, available));</span><span class="ln">}</span></code></pre></div>
+<p><code>CONTEXT_SAFETY_TOKENS = 4096</code>，<code>MIN_MAX_TOKENS = 1</code>。</p>
+<p>也就是说：<strong>输出上限不只受模型限制，还受&quot;这段对话已经占了多长&quot;限制。</strong> 上下文窗口 20 万，已经用了 19.8 万，你的 <code>maxTokens</code> 就被压到 <code>200000 - 198000 - 4096</code>，负数，最后取 1。</p>
+<p>这还不是全部。Anthropic 那条路径会<strong>再夹一次</strong>（<code>anthropic-messages.ts:987-1000</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> adjusted = <span class="tok-fn">adjustMaxTokensForThinking</span>(</span><span class="ln">	base.maxTokens, model.maxTokens, options.reasoning,</span><span class="ln">	options.thinkingBudgets,</span><span class="ln">);</span><span class="ln"><span class="tok-kw">const</span> maxTokens = <span class="tok-fn">clampMaxTokensToContext</span>(model, context, adjusted.maxTokens);</span><span class="ln"><span class="tok-com">// ...</span></span><span class="ln">thinkingBudgetTokens: Math.<span class="tok-fn">min</span>(</span><span class="ln">	adjusted.thinkingBudget,</span><span class="ln">	Math.<span class="tok-fn">max</span>(<span class="tok-num">0</span>, maxTokens - <span class="tok-num">1024</span>),</span><span class="ln">),</span></code></pre></div>
+<p>顺序是：先按上下文夹 → 再加思考预算 → 再按上下文夹 → 最后给答案留 1024。</p>
+<p>结果是一种<strong>优雅降级</strong>：上下文快满时，先被砍的不是请求，而是思考预算——<code>maxTokens - 1024</code> 变成 0，思考关掉，请求照发。</p>
+<p>这解释了一个真实困惑：<strong>长会话到后面几轮，Agent 会明显&quot;变笨&quot;</strong>。不是模型退化，是思考预算被挤没了。你在 M09 里看到的&quot;压缩要早做&quot;，根子在这里。</p>
+<h3 id="sec-17-5-3-同一个契约-两种合规写法">5.3 同一个契约，两种合规写法</h3>
+<p>回到 2.4 的差异：旧门面先 <code>resolveApiProvider</code> 再返回流，新入口先返回流再在 <code>async</code> 里解析 provider。</p>
+<p>按第四节第三条契约，两者都合规：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>旧门面 <code>compat.stream</code></th>
+<th>新入口 <code>ModelsImpl.stream</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>provider 找不到</td>
+<td>同步抛 <code>No API provider...</code></td>
+<td>进流，变成 <code>error</code> 事件</td>
+</tr>
+<tr>
+<td>鉴权缺失</td>
+<td>翻译器内 <code>assertRequestAuth</code> 同步抛</td>
+<td><code>applyAuth</code> 在 <code>async</code> 内，进流</td>
+</tr>
+<tr>
+<td>调用方要写的代码</td>
+<td><code>try</code> 包住调用 + 包住循环</td>
+<td>只需包住循环</td>
+</tr>
+</tbody>
+</table>
+<p>新写法的调用方更省事，代价是<strong>错误发生的时刻不可预测</strong>——你拿到流不代表请求已经开始。这是一个典型取舍：<strong>把麻烦从调用方挪到实现方。</strong></p>
+<p>判断依据很简单：这个 API 会被多少不认识实现细节的人调用？越多，越应该&quot;先返回流，错误进流&quot;。</p>
+<hr>
+<h2 id="sec-18-六-思考等级是七级-不是五级">六、思考等级是七级，不是五级</h2>
+<p>大多数资料写五级或六级。实际定义在 <code>providers/model-schema.ts:16-17</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> THINKING_LEVELS = [</span><span class="ln">	<span class="tok-str">"minimal"</span>, <span class="tok-str">"low"</span>, <span class="tok-str">"medium"</span>, <span class="tok-str">"high"</span>, <span class="tok-str">"xhigh"</span>, <span class="tok-str">"max"</span>,</span><span class="ln">] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> MODEL_THINKING_LEVELS = [<span class="tok-str">"off"</span>, ...THINKING_LEVELS] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p><strong>七个</strong>：<code>off</code> / <code>minimal</code> / <code>low</code> / <code>medium</code> / <code>high</code> / <code>xhigh</code> / <code>max</code>。</p>
+<p>注意 <code>ThinkingLevel</code> 和 <code>ModelThinkingLevel</code> 是两个类型：前者不含 <code>off</code>（&quot;要思考&quot;的六档），后者含（&quot;要不要思考&quot;的七档）。这个区分很实用——<code>thinkingBudgetForLevel(reasoningLevel: ThinkingLevel)</code> 就不可能被传入 <code>off</code>。</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">off  minimal  low  medium  high  xhigh  max</span><span class="ln"> │      │      │     │       │      │      │</span><span class="ln">不思考  └──────── 六档，由模型自己声明支持哪几档 ────────┘</span></code></pre></div>
+<p>多出来的 <code>max</code> 和 <code>xhigh</code> 是给&quot;愿意为一次思考付更多 token&quot;的模型用的。而&quot;哪几档真的可用&quot;由模型自己声明。</p>
+<h3 id="sec-19-6-1-thinkinglevelmap-的值可以是-null">6.1 <code>thinkingLevelMap</code> 的值可以是 <code>null</code></h3>
+<p>定义在 <code>model-schema.ts:27</code>：<code>union([str(), nul()])</code>——<strong>每个级别的映射值要么是字符串，要么是 <code>null</code></strong>。</p>
+<p><code>null</code> 不是&quot;没配置&quot;，是**&quot;这个级别明确不支持&quot;**。schema 的 description 里写得很清楚（<code>:40</code>）：</p>
+<blockquote>
+<p>null marks a level unsupported. Levels the model does not map use the provider's default value through high; <strong>xhigh and max are unsupported</strong>.</p>
+</blockquote>
+<p>判断逻辑在 <code>models.ts:1261-1270</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> getSupportedThinkingLevels&lt;TApi <span class="tok-kw">extends</span> Api&gt;(</span><span class="ln">	model: Model&lt;TApi&gt;,</span><span class="ln">): ModelThinkingLevel[] {</span><span class="ln">	<span class="tok-kw">if</span> (!model.reasoning) <span class="tok-kw">return</span> [<span class="tok-str">"off"</span>];</span><span class="ln"></span><span class="ln">	<span class="tok-kw">return</span> EXTENDED_THINKING_LEVELS.<span class="tok-fn">filter</span>((level) =&gt; {</span><span class="ln">		<span class="tok-kw">const</span> mapped = model.thinkingLevelMap?.[level];</span><span class="ln">		<span class="tok-kw">if</span> (mapped === <span class="tok-kw">null</span>) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;                    <span class="tok-com">// 显式拒绝</span></span><span class="ln">		<span class="tok-kw">if</span> (level === <span class="tok-str">"xhigh"</span> || level === <span class="tok-str">"max"</span>) <span class="tok-kw">return</span> mapped !== <span class="tok-kw">undefined</span>;</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">true</span>;                                          <span class="tok-com">// 其余默认支持</span></span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p>三态语义：</p>
+<table>
+<thead>
+<tr>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>undefined</code></td>
+<td>没特别说，默认支持（<code>xhigh</code> / <code>max</code> 除外）</td>
+</tr>
+<tr>
+<td><code>null</code></td>
+<td>明确不支持</td>
+</tr>
+<tr>
+<td><code>&quot;high&quot;</code> 之类</td>
+<td>映射到 provider 自己的档位名</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>undefined</code> 和 <code>null</code> 在别的地方也这么用</strong>——M03 讲 <code>mergeClientIdentity</code> 时，<code>attribution</code> 字段的 <code>undefined</code> 是&quot;我没意见&quot;、<code>null</code> 是&quot;明确不要&quot;。同一个约定，两处独立使用。</p>
+<p><code>xhigh</code> / <code>max</code> 特殊对待的理由：这两档会显著增加成本，默认不开，必须模型显式声明。</p>
+<h3 id="sec-20-6-2-clamp-的两个方向">6.2 clamp 的两个方向</h3>
+<p><code>clampThinkingLevel</code>（<code>models.ts:1272-1291</code>）先向上找，再向下找：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> availableLevels = <span class="tok-fn">getSupportedThinkingLevels</span>(model);</span><span class="ln"><span class="tok-kw">if</span> (availableLevels.<span class="tok-fn">includes</span>(level)) <span class="tok-kw">return</span> level;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> requestedIndex = EXTENDED_THINKING_LEVELS.<span class="tok-fn">indexOf</span>(level);</span><span class="ln"><span class="tok-kw">if</span> (requestedIndex === -<span class="tok-num">1</span>) <span class="tok-kw">return</span> availableLevels[<span class="tok-num">0</span>] ?? <span class="tok-str">"off"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = requestedIndex; i &lt; EXTENDED_THINKING_LEVELS.length; i++) {</span><span class="ln">	<span class="tok-kw">const</span> candidate = EXTENDED_THINKING_LEVELS[i];</span><span class="ln">	<span class="tok-kw">if</span> (availableLevels.<span class="tok-fn">includes</span>(candidate)) <span class="tok-kw">return</span> candidate;   <span class="tok-com">// 向上</span></span><span class="ln">}</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = requestedIndex - <span class="tok-num">1</span>; i &gt;= <span class="tok-num">0</span>; i--) {</span><span class="ln">	<span class="tok-kw">const</span> candidate = EXTENDED_THINKING_LEVELS[i];</span><span class="ln">	<span class="tok-kw">if</span> (availableLevels.<span class="tok-fn">includes</span>(candidate)) <span class="tok-kw">return</span> candidate;   <span class="tok-com">// 向下</span></span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> availableLevels[<span class="tok-num">0</span>] ?? <span class="tok-str">"off"</span>;</span></code></pre></div>
+<p>为什么先向上？因为<strong>思考更多通常比更少安全</strong>。请求 <code>xhigh</code> 但模型只到 <code>high</code>，降到 <code>high</code> 比降到 <code>off</code> 好——用户想要的是&quot;想得深&quot;，不是&quot;想得久&quot;。</p>
+<p><code>requestedIndex === -1</code> 那行是给&quot;运行时传了个不认识的字符串&quot;兜底——<code>ModelThinkingLevel</code> 只是类型，JSON 配置里的值不归它管。</p>
+<h3 id="sec-21-6-3-从等级到-token-预算">6.3 从等级到 token 预算</h3>
+<p>七级只是<strong>语义</strong>。落到 provider 上还有第二层翻译，而且不止一种：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">自适应思考   forceAdaptiveThinking = true  → effort: "high"     （努力程度）</span><span class="ln">预算思考     老模型                        → budget_tokens: 16384（token 数）</span><span class="ln">推理模型     OpenAI o 系列                 → reasoning_effort     （努力程度）</span><span class="ln">无思考       reasoning 为空                → thinkingEnabled: false</span></code></pre></div>
+<p><code>anthropic-messages.ts:974-983</code> 里两种做法共存：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// For models with adaptive thinking: use an effort level.</span></span><span class="ln"><span class="tok-com">// For older models: use budget-based thinking.</span></span><span class="ln"><span class="tok-kw">if</span> (model.compat?.forceAdaptiveThinking === <span class="tok-kw">true</span>) {</span><span class="ln">	<span class="tok-kw">const</span> effort = <span class="tok-fn">mapThinkingLevelToEffort</span>(model, options.reasoning);</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">stream</span>(model, context, { ...base, thinkingEnabled: <span class="tok-kw">true</span>, effort });</span><span class="ln">}</span></code></pre></div>
+<p>预算那张表在 <code>simple-options.ts:71-76</code>：</p>
+<table>
+<thead>
+<tr>
+<th>等级</th>
+<th>默认预算（tokens）</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minimal</code></td>
+<td>1,024</td>
+<td></td>
+</tr>
+<tr>
+<td><code>low</code></td>
+<td>2,048</td>
+<td></td>
+</tr>
+<tr>
+<td><code>medium</code></td>
+<td>8,192</td>
+<td></td>
+</tr>
+<tr>
+<td><code>high</code></td>
+<td>16,384</td>
+<td></td>
+</tr>
+<tr>
+<td><code>xhigh</code></td>
+<td>16,384</td>
+<td><code>clampReasoning</code> 折到 <code>high</code></td>
+</tr>
+<tr>
+<td><code>max</code></td>
+<td>16,384</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<p><code>xhigh</code> / <code>max</code> 在 token 制里被 <code>clampReasoning</code>（<code>:78-80</code>）折成 <code>high</code>——因为预算制没有&quot;更努力&quot;这个维度，只有&quot;更多 token&quot;。<strong>同一个语义，在不同厂商那里能表达的粒度不同</strong>，这是 provider 抽象永远漏不掉的一层。</p>
+<p>再加一条约束：<code>MIN_ANSWER_TOKENS = 1024</code>（<code>:69</code>）。当 <code>maxTokens &lt;= thinkingBudget</code> 时，预算被压到 <code>maxTokens - 1024</code>，保证答案还有地方写。否则会出现&quot;模型思考完，没配额输出&quot;这种空回复。</p>
+<hr>
+<h2 id="sec-22-七-缓存-三种语义-四种实现">七、缓存：三种语义，四种实现</h2>
+<p>Agent 对话是有状态的：第 50 轮会把前 49 轮全发一遍。缓存就是告诉服务端&quot;这段没变，别重算&quot;。</p>
+<p>抽象只有三个值（<code>model-schema.ts:19</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> CACHE_RETENTIONS = [<span class="tok-str">"none"</span>, <span class="tok-str">"short"</span>, <span class="tok-str">"long"</span>] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p>但四家的&quot;怎么标记&quot;完全不同：</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th><code>short</code></th>
+<th><code>long</code></th>
+<th>打在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic</td>
+<td><code>cache_control: { type: &quot;ephemeral&quot; }</code></td>
+<td>加 <code>ttl: &quot;1h&quot;</code></td>
+<td>system 块 + 最后一个 tool + 最后一条 user</td>
+</tr>
+<tr>
+<td>Bedrock</td>
+<td>插独立对象 <code>{ cachePoint: { type: DEFAULT } }</code></td>
+<td>加 <code>ttl: ONE_HOUR</code></td>
+<td>system 块后 + 最后一条消息后</td>
+</tr>
+<tr>
+<td>OpenAI Responses</td>
+<td>发 <code>prompt_cache_key</code></td>
+<td>加 <code>prompt_cache_retention: &quot;24h&quot;</code></td>
+<td>不打点，按 key 自动匹配前缀</td>
+</tr>
+<tr>
+<td>OpenAI 兼容</td>
+<td>照抄 Anthropic 的 <code>cache_control</code></td>
+<td>同上</td>
+<td>同 Anthropic</td>
+</tr>
+</tbody>
+</table>
+<p>四种思路，用一句话概括区别：</p>
+<ul>
+<li><strong>Anthropic 像贴便签</strong>：内容还是那些内容，附加一个&quot;这段不变&quot;的字段</li>
+<li><strong>Bedrock 像插路标</strong>：在消息流里插一个不含业务数据的独立对象</li>
+<li><strong>OpenAI 像报会员卡号</strong>：一个标记都不打，每次带个 key，后端自己算前缀重合</li>
+<li><strong>OpenAI 兼容厂商</strong>：直接抄便签协议</li>
+</ul>
+<p>Anthropic 那条&quot;三个位置&quot;不是随便选的。实测代码（<code>anthropic-messages.ts</code>）：system 块在 <code>:1225</code> / <code>:1232</code> / <code>:1241</code>（三条 system 消息各打一个），最后一条 user/system 在 <code>:1526-1547</code>（注释就写着 <code>Add cache_control to the last user or system message to cache conversation history</code>），最后一个 tool 在 <code>:1655</code>——而且是<strong>只给最后一个</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">...(cacheControl &amp;&amp; index === tools.length - <span class="tok-num">1</span></span><span class="ln">	? { cache_control: cacheControl }</span><span class="ln">	: {}),</span></code></pre></div>
+<p>为什么只给最后一个 tool？因为缓存按前缀匹配：把标记放在第 N 个 tool 上，等于声明&quot;前 N 个 tool 都不变&quot;。标在中间是浪费——请求最多 4 个断点，要用在覆盖范围最大的位置。</p>
+<h3 id="sec-23-7-1-默认是-quot-short-quot-不是-quot-none-quo">7.1 默认是 <code>&quot;short&quot;</code>，不是 <code>&quot;none&quot;</code></h3>
+<p>这是最容易搞错的一条。<code>anthropic-messages.ts:75-83</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">resolveCacheRetention</span>(</span><span class="ln">	cacheRetention?: CacheRetention,</span><span class="ln">	env?: ProviderEnv,</span><span class="ln">): CacheRetention {</span><span class="ln">	<span class="tok-kw">if</span> (cacheRetention) <span class="tok-kw">return</span> cacheRetention;</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-fn">getProviderEnvValue</span>(<span class="tok-str">"PI_CACHE_RETENTION"</span>, env) === <span class="tok-str">"long"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"long"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-str">"short"</span>;</span><span class="ln">}</span></code></pre></div>
+<p>调用方<strong>什么都不传</strong>时，结果是 <code>&quot;short&quot;</code>。也就是说 Anthropic 那条路上<strong>缓存默认是开的</strong>。</p>
+<p>为什么会这样？因为不缓存纯亏：同一条系统提示词每轮重算一次，钱和延迟都翻倍。默认开是&quot;防呆&quot;，<code>none</code> 是给调试和对比实验留的开关。</p>
+<p>顺带一个成本细节（<code>models.ts:1247-1253</code>）：1h 缓存写入按输入价的 <strong>2 倍</strong>计费。所以 <code>long</code> 不是无脑更省——短会话用 <code>long</code> 反而更贵。这是 <code>CACHE_RETENTIONS</code> 分三档而不是两档的原因。</p>
+<h3 id="sec-24-7-2-这解释了-m03-的一个疑问">7.2 这解释了 M03 的一个疑问</h3>
+<p>M03 说过：&quot;每轮都重建 llmContext，为什么不会破坏缓存？&quot;</p>
+<p>答案在这一节：<strong>缓存命中靠内容字节前缀匹配，跟你是第几轮调用无关。</strong> 只要 system 和 tools 的字节没变、标记位置没变，后端就能命中。重建数组不是问题，改内容才是。</p>
+<p>而 2.1 的 <code>timestamp: 0</code> 正是为了让&quot;每轮重建&quot;产生字节完全一致的 system 消息。如果那里写成 <code>Date.now()</code>，缓存命中率会归零——<strong>一个看起来无关紧要的假值，是整条缓存链的地基。</strong></p>
+<hr>
+<h2 id="sec-25-八-模型是哪来的-装配层">八、模型是哪来的：装配层</h2>
+<p>前七节都在 <code>packages/ai</code> 里。但 <code>stream(model, context, options)</code> 的第一个参数是
+<code>Model</code> 对象——谁把它造出来的？</p>
+<p>在 <code>ai</code> 包里搜 <code>apiKey</code>，只能搜到&quot;从 options 里读&quot;。它不读环境变量、不看
+<code>auth.json</code>、更不认识命令行。<code>ai</code> 是<strong>无状态的翻译库</strong>：给一个 model 和一个
+context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从哪来，它一概不管。</p>
+<p>这一层在 <code>packages/coding-agent/src/core/</code>，三个文件，2,475 行：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>回答的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>model-resolver.ts</code></td>
+<td>689</td>
+<td><code>--model</code> 那串字符 → 哪一个 <code>Model</code></td>
+</tr>
+<tr>
+<td><code>model-runtime.ts</code></td>
+<td>1,049</td>
+<td>provider 集合从哪来、凭据怎么找</td>
+</tr>
+<tr>
+<td><code>provider-composer.ts</code></td>
+<td>737</td>
+<td>builtin / <code>models.json</code> / 扩展怎么叠成一个 <code>Provider</code></td>
+</tr>
+</tbody>
+</table>
+<p>三个文件对应三个动作：<strong>解析 → 装配 → 派活</strong>。一个一个看。</p>
+<h3 id="sec-26-8-1-那串字符不是-id-是一条查询">8.1 那串字符不是 id，是一条查询</h3>
+<p><code>--model</code> 认三种写法：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">claude-sonnet-4-5</span><span class="ln">anthropic/claude-sonnet-4-5</span><span class="ln">anthropic/claude-sonnet-4-5:high</span></code></pre></div>
+<p>第三种末尾的 <code>:high</code> 是第六节那七级思考里的一档。</p>
+<p>要是按 <code>:</code> 一刀切就错了——网关的真模型 id 长这样：<code>qwen/qwen3-coder:exacto</code>、
+<code>zai/glm-5</code>。切掉后半截，模型名就废了。所以请求参数里带了个开关
+（<code>model-resolver.ts:81-88</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * A trailing `:&lt;suffix&gt;` is only considered when the full text matches</span></span><span class="ln"><span class="tok-com"> * no model, since ids such as OpenRouter's `qwen/qwen3-coder:exacto`</span></span><span class="ln"><span class="tok-com"> * contain colons.</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln">thinkingSuffix: <span class="tok-str">"none"</span> | <span class="tok-str">"strict"</span> | <span class="tok-str">"lenient"</span>;</span></code></pre></div>
+<p>顺序是：<strong>先拿整串去查表，查不到才剥后缀</strong>。剥下来的还得是合法思考等级
+（<code>splitThinkingSuffix</code>，<code>:120-125</code>），否则后缀整个当 id 的一部分。</p>
+<p><code>resolveCliModel</code>（<code>:450</code>）第一件事很反直觉（<code>:464-466</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Important: use *all* models here, not just models with pre-configured auth.</span></span><span class="ln"><span class="tok-com">// This allows "--api-key" to be used for first-time setup.</span></span><span class="ln"><span class="tok-kw">const</span> models = [...modelRuntime.<span class="tok-fn">getModels</span>()];</span></code></pre></div>
+<p>取的是<strong>全部</strong>模型，不是&quot;有凭据的那些&quot;。原因在下一节。</p>
+<h3 id="sec-27-8-2-五次判断-一条降级梯子">8.2 五次判断，一条降级梯子</h3>
+<p>真正的算法在 <code>selectReference</code>（<code>:235-265</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> others = raw.<span class="tok-fn">filter</span>((model) =&gt; model !== named);</span><span class="ln"><span class="tok-kw">const</span> candidates = named ? [named, ...others] : others;</span><span class="ln"><span class="tok-kw">if</span> (candidates.length === <span class="tok-num">0</span>) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">if</span> (<span class="tok-kw">new</span> <span class="tok-fn">Set</span>(candidates.<span class="tok-kw">map</span>((model) =&gt; model.provider)).size === <span class="tok-num">1</span>)</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: candidates[<span class="tok-num">0</span>] };</span><span class="ln"><span class="tok-kw">if</span> (named &amp;&amp; <span class="tok-fn">usable</span>(named.provider))</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: named };</span><span class="ln"><span class="tok-kw">const</span> usableOthers = others.<span class="tok-fn">filter</span>((model) =&gt; <span class="tok-fn">usable</span>(model.provider));</span><span class="ln"><span class="tok-kw">if</span> (usableOthers.length === <span class="tok-num">1</span>)</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: usableOthers[<span class="tok-num">0</span>] };</span><span class="ln"><span class="tok-kw">if</span> (usableOthers.length === <span class="tok-num">0</span> &amp;&amp; named)</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"resolved"</span>, model: named };</span><span class="ln"><span class="tok-kw">return</span> { status: <span class="tok-str">"ambiguous"</span>, candidates, usableCount: usableOthers.length };</span></code></pre></div>
+<p>六行判断，五档结果：</p>
+<table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>条件</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>候选全来自同一个 provider</td>
+<td>取第一个，<strong>不看凭据</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>命名了 provider，且它可用</td>
+<td>命名者胜</td>
+</tr>
+<tr>
+<td>3</td>
+<td>其余候选中恰好一个可用</td>
+<td>它胜</td>
+</tr>
+<tr>
+<td>4</td>
+<td>一个可用的都没有，但命名了 provider</td>
+<td>命名者胜</td>
+</tr>
+<tr>
+<td>5</td>
+<td>以上都不成立</td>
+<td><code>ambiguous</code> + 候选列表</td>
+</tr>
+</tbody>
+</table>
+<p><code>usable</code> 只用来<strong>打破平局</strong>，不参与&quot;能不能用&quot;的判决。注释就写在函数头上
+（<code>:145-148</code>）：&quot;<code>usable</code> only breaks ties between providers, so a unique match
+resolves even without credentials.&quot;</p>
+<p>第 4 档正好回答了开篇那个问题：<strong>没配 key 为什么也能解析成功？</strong> 因为解析和
+鉴权是两件事。解析只回答&quot;你指的是哪一个&quot;，鉴权要到 <code>prepareRequest</code> 才发生
+（8.6）。第一次配 key 的人正是靠这个顺序：先用 <code>--model</code> 加 <code>--api-key</code> 跑起来，
+key 才被存进去。</p>
+<p>还有一个反向的细节（<code>resolveCliModel</code>，<code>:490</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">inlineApiKey</span><span class="ln">	? () =&gt; <span class="tok-kw">false</span></span><span class="ln">	: (providerId) =&gt; modelRuntime.<span class="tok-fn">hasConfiguredAuth</span>(providerId),</span></code></pre></div>
+<p>带了 <code>--api-key</code> 时，<code>usable</code> <strong>恒为 false</strong>。因为这次 key 是打给用户选的那个
+provider 的，已有凭据不该替用户做决定——三个 provider 都登录过时，静默选一个
+和用户想指定的那个很可能不是同一个。</p>
+<h3 id="sec-28-8-3-provider-只是提示-不是命名空间">8.3 <code>provider/</code> 只是提示，不是命名空间</h3>
+<p><code>anthropic/claude-opus-4-8</code> 里的斜杠很容易被当成&quot;路径&quot;。但网关的模型 id
+本身就带斜杠：<code>zai/glm-5</code>、<code>moonshotai/kimi-k2.6</code>、<code>xiaomi/mimo-v2.6-pro</code>。</p>
+<p>所以那个前缀只是一条<strong>提示</strong>（<code>:228-234</code>，节选）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">`provider/rest` is only a hint: the whole text may also be a model id on</span><span class="ln">another provider. The named provider wins when usable...</span><span class="ln">An unusable named match is still preferred over unusable raw matches.</span></code></pre></div>
+<p><code>splitProviderPrefix</code>（<code>:127-143</code>）还要处理一个更细的问题：<strong>provider id 自己
+也带斜杠</strong>（URL 派生的 id 会这样）。它的解法是从长到短试：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (!prefix || (best &amp;&amp; best.provider.length &gt;= provider.length)) <span class="tok-kw">continue</span>;</span></code></pre></div>
+<p>长的优先，短的才轮到。这和 8.2 是同一个思路：<strong>先试更具体的解释，再退到更宽的。</strong></p>
+<h3 id="sec-29-8-4-modelruntime-不是包装-是装配车间">8.4 <code>ModelRuntime</code> 不是包装，是装配车间</h3>
+<p><code>class ModelRuntime implements Models</code>（<code>model-runtime.ts:174</code>）。<code>Models</code> 是
+<code>ai</code> 包的接口（<code>ai/src/models.ts:258</code>），<code>ai</code> 自己也有一份实现（<code>ModelsImpl</code>，
+<code>:400</code>）。两个实现，一个接口。</p>
+<p><code>ModelRuntime</code> 内部<strong>持有</strong>一个 <code>ModelsImpl</code>（<code>:214</code>），但它不是转发器——它的活
+是把装配好的 provider 一个个塞进去。塞的动作在 <code>recomposeProvider</code>（<code>:299-306</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> provider = <span class="tok-kw">this</span>.<span class="tok-fn">composeProvider</span>(providerId);</span><span class="ln"><span class="tok-kw">const</span> entries = <span class="tok-kw">this</span>.virtualModels.<span class="tok-kw">get</span>(providerId)?.<span class="tok-fn">values</span>() ?? [];</span><span class="ln"><span class="tok-kw">const</span> virtualModels = [...entries].<span class="tok-kw">map</span>((entry) =&gt; entry.model);</span><span class="ln"><span class="tok-kw">if</span> (virtualModels.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	<span class="tok-kw">this</span>.models.<span class="tok-fn">setProvider</span>(</span><span class="ln">		<span class="tok-fn">withVirtualModels</span>(providerId, provider, virtualModels),</span><span class="ln">	);</span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (provider) {</span><span class="ln">	<span class="tok-kw">this</span>.models.<span class="tok-fn">setProvider</span>(provider);</span><span class="ln">} <span class="tok-kw">else</span> {</span><span class="ln">	<span class="tok-kw">this</span>.models.<span class="tok-fn">deleteProvider</span>(providerId);</span><span class="ln">}</span></code></pre></div>
+<p>provider 从哪来？<code>providerIds()</code>（<code>:288-296</code>）把五个来源并成一个集合：
+builtin、原生扩展、<code>models.json</code>、扩展注册、虚拟模型。</p>
+<p>单个 provider 怎么装？<code>composeProvider</code>（<code>:309-325</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> base = <span class="tok-kw">this</span>.nativeExtensionProviders.<span class="tok-kw">get</span>(providerId)</span><span class="ln">	?? <span class="tok-kw">this</span>.builtins.<span class="tok-kw">get</span>(providerId);</span><span class="ln"><span class="tok-kw">const</span> extension = <span class="tok-kw">this</span>.extensionProviders.<span class="tok-kw">get</span>(providerId);</span><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-kw">this</span>.config.<span class="tok-fn">getProvider</span>(providerId) &amp;&amp; !extension) {</span><span class="ln">	<span class="tok-com">// No overlays: use the builtin untouched so its auth/login/stream</span></span><span class="ln">	<span class="tok-com">// behavior is exact.</span></span><span class="ln">	<span class="tok-kw">this</span>.compositionErrors.<span class="tok-kw">delete</span>(providerId);</span><span class="ln">	<span class="tok-kw">return</span> base;</span><span class="ln">}</span><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">	<span class="tok-kw">const</span> provider = <span class="tok-fn">composeModelProvider</span>(</span><span class="ln">		providerId,</span><span class="ln">		base,</span><span class="ln">		<span class="tok-kw">this</span>.config,</span><span class="ln">		extension,</span><span class="ln">	);</span><span class="ln">	<span class="tok-kw">this</span>.compositionErrors.<span class="tok-kw">delete</span>(providerId);</span><span class="ln">	<span class="tok-kw">return</span> provider;</span><span class="ln">} <span class="tok-kw">catch</span> (error) {</span><span class="ln">	<span class="tok-kw">this</span>.compositionErrors.<span class="tok-kw">set</span>(providerId, <span class="tok-fn">String</span>(error));</span><span class="ln">	<span class="tok-kw">return</span> base;</span><span class="ln">}</span></code></pre></div>
+<p>三条路，第三条最值得记住：</p>
+<ul>
+<li>没有 overlay → 原样返回 builtin，<strong>连对象都不新建</strong></li>
+<li>有 overlay → 走 <code>composeModelProvider</code></li>
+<li>装配抛错 → 记进 <code>compositionErrors</code>，<strong>退回 builtin</strong></li>
+</ul>
+<p>第一句的注释值得逐字读：<code>use the builtin untouched so its auth/login/stream behavior is exact</code>。合成得一个个手动搬方法（<code>fetchDeferred</code>、<code>cancelDeferred</code>、
+<code>generateImages</code>、<code>classify</code> 都是单独补上去的，<code>:651-685</code>），漏一个就少一个能力；
+没改配置的人不该承担这个风险。</p>
+<p>第三条是整层的性格：<strong>装配失败不崩，退化成内置 provider 并留一条诊断。</strong> 用户在
+UI 里看到的是&quot;这个 provider 有点问题&quot;，而不是白屏。</p>
+<h3 id="sec-30-8-5-三层叠加-一次空校验-三重分派">8.5 三层叠加、一次空校验、三重分派</h3>
+<p><code>composeModelProvider</code>（<code>provider-composer.ts:547</code>）先把模型列表叠出来
+（<code>:560-580</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> getAllModels = (): AnyModel[] =&gt; {</span><span class="ln">	<span class="tok-kw">let</span> models = <span class="tok-fn">applyExtension</span>(</span><span class="ln">		providerId,</span><span class="ln">		<span class="tok-fn">applyModelsJson</span>(providerId, <span class="tok-fn">getAllProviderModels</span>(base), config),</span><span class="ln">		<span class="tok-fn">currentExtension</span>(),</span><span class="ln">	);</span><span class="ln">	<span class="tok-com">// …OAuth 投影，只作用于 chat 模型</span></span><span class="ln">	<span class="tok-kw">return</span> models.<span class="tok-kw">map</span>((model) =&gt; {</span><span class="ln">		<span class="tok-kw">const</span> <span class="tok-kw">override</span> = config?.modelOverrides?.[model.id];</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">override</span> &amp;&amp; <span class="tok-fn">isModelType</span>(model, <span class="tok-str">"chat"</span>)</span><span class="ln">			? <span class="tok-fn">applyModelOverride</span>(model, <span class="tok-kw">override</span>)</span><span class="ln">			: model;</span><span class="ln">	});</span><span class="ln">};</span></code></pre></div>
+<p>由内到外：builtin → <code>models.json</code> → 扩展，最后 <code>modelOverrides</code>。注释
+（<code>:558-559</code>）说它是&quot;最顶层的用户配置&quot;，而且<strong>只应用一次</strong>——所以它能在扩展
+改写之后再压回去。</p>
+<p>紧接着一行看起来像失误的代码（<code>:582</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Validate eagerly so registration/reload reports structural errors</span></span><span class="ln"><span class="tok-com">// immediately.</span></span><span class="ln"><span class="tok-fn">getAllModels</span>();</span></code></pre></div>
+<p>调一次，扔掉结果。唯一作用是让叠加期的结构错误（比如扩展声明了 <code>streamSimple</code>
+却没给 <code>api</code>，<code>:540-542</code>）<strong>在注册时立刻抛出</strong>，而不是等第一次请求。空调用当
+校验，是&quot;早失败&quot;最便宜的写法。</p>
+<p>然后是最硬的一条（<code>:583-585</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> apiKey = <span class="tok-fn">composeApiKeyAuth</span>(providerId, base, config, extension);</span><span class="ln"><span class="tok-kw">const</span> oauth = <span class="tok-fn">composeOAuthAuth</span>(providerId, base, config, extension);</span><span class="ln"><span class="tok-kw">if</span> (!apiKey &amp;&amp; !oauth) {</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(</span><span class="ln">		<span class="tok-str">`Provider ${providerId}: no authentication method configured.`</span>,</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>装配层只关心&quot;有没有一种鉴权方式&quot;，不关心 key 是否有效。有效性留给请求那一刻。</p>
+<p>最后是派活，<code>streamWith</code>（<code>:588-608</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> streamWith = (</span><span class="ln">	model: Model&lt;Api&gt;,</span><span class="ln">	context: TranscriptContext,</span><span class="ln">	options: StreamOptions | <span class="tok-kw">undefined</span>,</span><span class="ln">	simple: <span class="tok-kw">boolean</span>,</span><span class="ln">): AssistantMessageEventStream =&gt;</span><span class="ln">	<span class="tok-fn">lazyStream</span>(model, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">		<span class="tok-kw">if</span> (extension?.streamSimple &amp;&amp; model.api === extension.api) {</span><span class="ln">			<span class="tok-kw">return</span> extension.<span class="tok-fn">streamSimple</span>(</span><span class="ln">				model,</span><span class="ln">				context,</span><span class="ln">				options <span class="tok-kw">as</span> SimpleStreamOptions,</span><span class="ln">			);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">if</span> (base &amp;&amp; <span class="tok-fn">supportsBaseApi</span>(model)) {</span><span class="ln">			<span class="tok-kw">return</span> simple</span><span class="ln">				? base.<span class="tok-fn">streamSimple</span>(model, context, options <span class="tok-kw">as</span> SimpleStreamOptions)</span><span class="ln">				: base.<span class="tok-fn">stream</span>(model, context, options);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">const</span> api = <span class="tok-fn">getApiProvider</span>(model.api);</span><span class="ln">		<span class="tok-kw">if</span> (!api) {</span><span class="ln">			<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`No API provider registered for api: ${model.api}`</span>);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">return</span> simple</span><span class="ln">			? api.<span class="tok-fn">streamSimple</span>(model, context, options <span class="tok-kw">as</span> SimpleStreamOptions)</span><span class="ln">			: api.<span class="tok-fn">stream</span>(model, context, options);</span><span class="ln">	});</span></code></pre></div>
+<p>三档优先级：<strong>扩展自带 &gt; builtin 认识这个 api &gt; 全局 api 注册表</strong>。第三档拿到的
+就是第二节那个翻译器。</p>
+<p><code>stream</code> 和 <code>streamSimple</code> 在同一个函数里分流（<code>:647-648</code>），只差一个布尔。这就是
+第五节&quot;为什么要有两个入口&quot;的落地方式：<strong>两条路，一套派活。</strong></p>
+<h3 id="sec-31-8-6-凭据不在装配时定死">8.6 凭据不在装配时定死</h3>
+<p>每次调用前都过一遍 <code>prepareRequest</code>（<code>model-runtime.ts:659-705</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> provider = <span class="tok-kw">this</span>.models.<span class="tok-fn">getProvider</span>(model.provider);</span><span class="ln"><span class="tok-kw">if</span> (!provider) {</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">ModelsError</span>(<span class="tok-str">"provider"</span>, <span class="tok-str">`Unknown provider: ${model.provider}`</span>);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> resolution = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">getAuth</span>(model, {</span><span class="ln">	apiKey: options?.apiKey,</span><span class="ln">	env: options?.env,</span><span class="ln">	signal: options?.signal,</span><span class="ln">});</span><span class="ln"><span class="tok-kw">if</span> (!resolution) {</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">ModelsError</span>(</span><span class="ln">		<span class="tok-str">"auth"</span>,</span><span class="ln">		<span class="tok-str">`Provider is not configured: ${model.provider}`</span>,</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>三件事：找到 provider、拿到凭据、合出 header。</p>
+<p>header 是三层（<code>:686-690</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> headers = <span class="tok-fn">mergeHeaders</span>(</span><span class="ln">	<span class="tok-fn">mergeHeaders</span>(</span><span class="ln">		<span class="tok-fn">getOpenCodeSessionHeaders</span>(requestModel, sessionId),</span><span class="ln">		resolution.auth.headers,</span><span class="ln">	),</span><span class="ln">	providerOptions.headers,</span><span class="ln">);</span><span class="ln"><span class="tok-kw">if</span> (transformHeaders) headers = <span class="tok-kw">await</span> <span class="tok-fn">transformHeaders</span>(headers ?? {});</span></code></pre></div>
+<p>外层覆盖内层。<code>mergeHeaders</code>（<code>:157-171</code>）还专门做了大小写不敏感的去重——不然
+<code>X-Api-Key</code> 和 <code>x-api-key</code> 会一起发出去，服务端取哪个看脾气。</p>
+<p>为什么不在装配时把 key 定死？因为 <strong>OAuth token 会过期</strong>。<code>getAuth</code> 每次都检查
+剩余有效期（<code>minOAuthValidityMs</code> 默认五分钟，<code>:131-132</code>），必要时先刷新再发请求。
+装配回答&quot;谁能来&quot;，鉴权回答&quot;这次带什么证件&quot;。</p>
+<p>顺带一处容易读错的地方：<code>streamSimple</code>（<code>:731</code>）里还有一层<strong>虚拟模型</strong>的重路由
+（<code>:733-751</code>）。虚拟模型（比如 <code>radius</code>）自己不是 provider，它要先选一次真模型
+再递归回来，并且把预算夹到真模型的上限（<code>:742-743</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> maxTokens =</span><span class="ln">	options?.maxTokens &amp;&amp; limit &gt; <span class="tok-num">0</span></span><span class="ln">		? Math.<span class="tok-fn">min</span>(options.maxTokens, limit)</span><span class="ln">		: options?.maxTokens;</span></code></pre></div>
+<p>调用方是按虚拟模型算的预算，路由到真模型时必须重新夹一次。</p>
+<h3 id="sec-32-8-7-从命令行到翻译器">8.7 从命令行到翻译器</h3>
+<p>一条链，五个层：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">--model "openrouter/zai/glm-5:high"</span><span class="ln">   |</span><span class="ln">   +- main.ts:476               resolveCliModel</span><span class="ln">   |    +- model-resolver.ts:149  resolveModelReference</span><span class="ln">   |         +- :235  selectReference       整串先试</span><span class="ln">   |         +- :127  splitProviderPrefix   "openrouter"</span><span class="ln">   |         +- :120  splitThinkingSuffix   "high"</span><span class="ln">   |</span><span class="ln">   +- model-runtime.ts:450      getModels()  全部模型</span><span class="ln">   |    +- :309  composeProvider</span><span class="ln">   |         +- provider-composer.ts:547  composeModelProvider</span><span class="ln">   |              +- applyExtension</span><span class="ln">   |              +- applyModelsJson</span><span class="ln">   |              +- modelOverrides</span><span class="ln">   |</span><span class="ln">   +- model-runtime.ts:731      streamSimple()</span><span class="ln">   |    +- :659  prepareRequest</span><span class="ln">   |         +- :446  getProvider</span><span class="ln">   |         +- :558  getAuth          &lt;- 凭据在这一步才取</span><span class="ln">   |         +- :157  mergeHeaders</span><span class="ln">   |</span><span class="ln">   +- provider-composer.ts:648   provider.streamSimple</span><span class="ln">        +- :588  streamWith   三重分派</span><span class="ln">             +- (1) extension.streamSimple</span><span class="ln">             +- (2) base.streamSimple</span><span class="ln">             +- (3) api.streamSimple      &lt;- 第二节的翻译器</span></code></pre></div>
+<p>对照第二节那张三层图，现在多了两层：<strong>解析</strong>在最上面，<strong>装配</strong>在中间。<code>ai</code> 包的
+三层是&quot;翻译内部的分工&quot;，这五层是&quot;一次调用从命令行到 HTTP 的全过程&quot;。</p>
+<h3 id="sec-33-8-8-为什么这一层不放进-ai">8.8 为什么这一层不放进 <code>ai</code></h3>
+<p>一句话：<strong><code>ai</code> 是函数，这层是对象。</strong></p>
+<p><code>ai</code> 的 <code>stream()</code> 是纯函数式的：输入 model + context，输出事件流，中间不记任何
+东西。装配层要记的东西很多：你登录过哪几个 provider、<code>models.json</code> 什么时候改的、
+OAuth token 还剩几分钟、扩展注册了哪些实现。这些是状态，状态需要容器。</p>
+<p><code>snapshot</code>（<code>model-runtime.ts:187-193</code>）就是这个容器的只读投影：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">private</span> snapshot: ModelRuntimeSnapshot = {</span><span class="ln">	all: [],</span><span class="ln">	available: [],</span><span class="ln">	configuredProviders: <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(),</span><span class="ln">	storedProviders: <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(),</span><span class="ln">	auth: <span class="tok-kw">new</span> <span class="tok-fn">Map</span>(),</span><span class="ln">};</span></code></pre></div>
+<p><code>all</code> 和 <code>available</code> 的区别就是&quot;有模型&quot;和&quot;能用&quot;的区别——<strong>解析看前者，选择看
+后者</strong>。<code>resolveCliModel</code> 取 <code>getModels()</code>（全部），<code>findInitialModel</code> 的第三
+步取 <code>getAvailableSnapshot()</code>（<code>:596-597</code>）——两个函数用的是不同的池子，这不是
+笔误，是两个不同的问题。</p>
+<hr>
+<h2 id="sec-34-九-自己动手验证">九、自己动手验证</h2>
+<p>Windows 用户没有 <code>sed</code> / <code>grep</code> 也没关系：把命令里的行号段拿去编辑器里跳转，结论一样。</p>
+<p><strong>实验 1：数一数 API 到底有几个。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-main/pi-main/packages/ai/src</span><span class="ln">sed -n '64,76p' types.ts</span></code></pre></div>
+<p><code>KnownApi</code> 十个 + <code>Api = KnownApi | (string &amp; {})</code>。最后那个 <code>(string &amp; {})</code> 很关键：<strong>允许任意字符串</strong>，所以扩展可以注册自己的 api id 而不改这个类型。这是 TypeScript 里&quot;开放联合&quot;的标准写法。</p>
+<p>顺带看下面还有 <code>KnownImageApi</code>（1 个）和 <code>KnownClassifierApi</code>（4 个）——<code>ai</code> 包不只做对话，还做图像和分类。</p>
+<p><strong>实验 2：验证 12 个事件。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">sed -n '823,839p' types.ts</span></code></pre></div>
+<p>数 <code>| { type:</code> 开头的行，12 个。再数带 <code>partial</code> 的，10 个。</p>
+<p><strong>实验 3：看折叠发生在哪。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">sed -n '10,34p' utils/transcript.ts</span></code></pre></div>
+<p>二十四行，两个函数。<code>createInitialSystemMessage</code> 把 tools 折进 <code>toolsAdded</code>，<code>normalizeContext</code> 把它插到消息数组最前面。</p>
+<p><strong>实验 4：确认新入口做了同一件事。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -n "normalizeContext" models.ts</span></code></pre></div>
+<p>三处：<code>:70</code> 导入，<code>:906</code> 和 <code>:930</code> 各调用一次（<code>stream</code> 和 <code>streamSimple</code>）。旧门面 <code>compat.ts</code> 里另有两处（<code>:257</code> / <code>:283</code>）。</p>
+<p><strong>实验 5：找一个模型的 thinkingLevelMap。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -c "thinkingLevelMap" providers/anthropic.models.ts</span><span class="ln">grep -n "thinkingLevelMap" providers/anthropic.models.ts | head -3</span></code></pre></div>
+<p>更省事的办法：在 <code>models.generated.ts</code> 里搜 <code>thinkingLevelMap</code>，能直接看到几百个模型的声明，注意区分 <code>null</code> 和 <code>&quot;high&quot;</code>。</p>
+<p><strong>实验 6：确认错误的分界线。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -n "assertRequestAuth\|throw new Error" \</span><span class="ln">  api/anthropic-messages.ts | head -8</span></code></pre></div>
+<p><code>throw</code> 都在流返回之前（建客户端、读配置、<code>assertRequestAuth</code>），异步失败则走 <code>{ type: &quot;error&quot; }</code>。这就是契约第三条的实证。</p>
+<p><strong>实验 7：看默认缓存策略。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">sed -n '71,99p' api/anthropic-messages.ts</span></code></pre></div>
+<p>三行注释把优先级写完了：显式选项 &gt; <code>PI_CACHE_RETENTION</code> 环境变量 &gt; <code>&quot;short&quot;</code>。</p>
+<p><strong>实验 8：走一遍装配层。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../coding-agent/src</span><span class="ln">sed -n '235,265p' core/model-resolver.ts</span></code></pre></div>
+<p>三十一行里，<code>return { status:</code> 出现五次：四次 <code>resolved</code>，一次 <code>ambiguous</code>。再
+<code>grep -n &quot;usable(named.provider)&quot; core/model-resolver.ts</code>，命中 <code>:260</code>——命名
+provider 胜出的那一档。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -n "setProvider\|deleteProvider" core/model-runtime.ts</span></code></pre></div>
+<p>装配结果落地只有这两个方法（<code>:302-304</code>）。再往前一行，<code>composeProvider</code> 的
+<code>catch</code> 分支（<code>:321-324</code>）会把错误塞进 <code>compositionErrors</code> 并 <code>return base</code>——
+这就是&quot;装配失败静默降级&quot;的出处。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -n "supportsBaseApi\|getApiProvider" core/provider-composer.ts</span></code></pre></div>
+<p>两处都在 <code>streamWith</code> 里（<code>:588-608</code>），三档分派的分界线。</p>
+<p><strong>实验 9：改一处试试——把输出的天花板压到 1 个 token。</strong></p>
+<ul>
+<li><strong>改哪里</strong>　<code>packages/ai/src/api/simple-options.ts:15</code>，把安全边距改成天文数字：</li>
+</ul>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> CONTEXT_SAFETY_TOKENS = <span class="tok-num">4096</span>;   <span class="tok-com">// 改成 9999999</span></span></code></pre></div>
+<ul>
+<li>
+<p><strong>预期</strong>　<code>clampMaxTokensToContext</code>（<code>:18-22</code>）算出
+<code>available = contextWindow - used - 9999999</code>，永远是负数，
+<code>Math.max(MIN_MAX_TOKENS, available)</code> 取到 <code>1</code>。任何 <code>maxTokens</code> 都被压成 1。</p>
+</li>
+<li>
+<p><strong>实测</strong>　基线（问「用一句话介绍你自己，不少于 30 个字」）：</p>
+</li>
+</ul>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">events      = end:system/-/0 | end:user/-/1 |</span><span class="ln">              end:assistant/stop/1 | agent_end | agent_settled</span><span class="ln">roles       = system,user,assistant</span><span class="ln">usage.output= 46</span></code></pre></div>
+<p>改完同一个脚本（<code>end:角色/stopReason/content块数</code>）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">events      = end:system/-/0 | end:user/-/1 |</span><span class="ln">              end:assistant/length/1 | agent_end | agent_settled</span><span class="ln">roles       = system,user</span><span class="ln">entries     = model_change,thinking_level_change,</span><span class="ln">              message,message,message,context_edit</span></code></pre></div>
+<ul>
+<li>
+<p><strong>连带</strong>　这是全书最安静的一次失败：<strong>没有任何 error 事件，
+<code>errorMessage</code> 是空的</strong>。三个现象叠在一起：</p>
+<ol>
+<li><code>stopReason</code> 从 <code>stop</code> 变成 <code>length</code>。</li>
+<li><code>subscribe</code> 看得见那条 <code>message_end</code>，但 <code>session.state.messages</code>
+里没有它——只剩 <code>system,user</code>。</li>
+<li><code>entries</code> 里多了一条 <code>context_edit</code>。</li>
+</ol>
+<p>第 2、3 条是同一件事的两面。<code>length</code> 被 <code>isRecoverableLength</code> 判成
+「可恢复的截断」（<code>agent-session.ts:3089-3090</code>），于是走溢出恢复。
+注释写得很清楚（<code>:3016-3017</code>）：</p>
+<blockquote>
+<p>Overflow with retry: a context-overflow error or recoverable length
+stop; remove the failed assistant message, compact, and retry the
+turn once.</p>
+</blockquote>
+<p><strong>Pi 自己把那条消息删了。</strong> 删的方式不是物理删除，是追加一条
+<code>context_edit</code>；投影时 <code>replacement === null</code> 就返回空数组
+（<code>session-manager.ts:519-523</code>）。<strong>落盘的 entries 一条没少，
+上下文里少了一条。</strong></p>
+</li>
+<li>
+<p><strong>回滚</strong>　改回 <code>4096</code>，<code>usage.output</code> 回到 46。</p>
+</li>
+</ul>
+<p>这条实验真正想说的是：§5.2 的「夹两次」不是理论。一个常量调错，
+模型的输出上限就是 1，而系统从头到尾不报错——<strong>它把这当成上下文溢出，
+删掉证据，继续往下走。</strong></p>
+<hr>
+<h2 id="sec-35-十-工程暗坑">十、工程暗坑</h2>
+<p><strong>1. <code>partial</code> 存数组会全部变成最后一次的状态。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> frames = [];</span><span class="ln">session.<span class="tok-fn">subscribe</span>((e) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (e.partial) frames.<span class="tok-fn">push</span>(e.partial);   <span class="tok-com">// ← 灾难</span></span><span class="ln">});</span></code></pre></div>
+<p>所有元素指向同一个对象，最后全是终态。要存就存 <code>{ ...e.partial }</code>，或者只存 <code>e.type</code> 和 <code>e.delta</code>。</p>
+<p><strong>2. <code>done</code> 有四个 reason，不是三个。</strong></p>
+<p><code>stop</code> / <code>length</code> / <code>toolUse</code> / <code>deferred</code>。只处理前三个，遇到 <code>deferred</code> 会走进 <code>default</code> 分支。如果 <code>default</code> 里是 <code>throw</code>，那你就在&quot;模型要求延迟&quot;时崩了。</p>
+<p><strong>3. 同步抛出的错误不在流里。</strong></p>
+<p><code>streamSimple()</code> 可能在 <code>return</code> 之前抛（鉴权缺失）。如果你只 <code>for await</code> 不 <code>try</code>，这个错误会直接冒到顶层。<strong>必须用 try 包住调用本身，而不只是包住循环。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">	<span class="tok-kw">const</span> stream = <span class="tok-fn">streamSimple</span>(model, context, opts);   <span class="tok-com">// 这里可能抛</span></span><span class="ln">	<span class="tok-kw">for</span> <span class="tok-kw">await</span> (<span class="tok-kw">const</span> event <span class="tok-kw">of</span> stream) { <span class="tok-com">/* ... */</span> }</span><span class="ln">} <span class="tok-kw">catch</span> (err) {</span><span class="ln">	<span class="tok-com">// 两处都能接住</span></span><span class="ln">}</span></code></pre></div>
+<p><strong>4. <code>thinkingLevelMap</code> 的 <code>null</code> 不等于&quot;没配&quot;。</strong></p>
+<p><code>if (model.thinkingLevelMap?.[level])</code> 这种写法会把 <code>null</code> 和 <code>undefined</code> 一起判掉。看起来没差，但你在做&quot;这个级别支持吗&quot;的判断时，两者含义相反。</p>
+<p><strong>5. 缓存标记位置不是越多越好。</strong></p>
+<p>Anthropic 每请求最多 4 个 <code>cache_control</code>。超了会报错。<code>coding-agent</code> 只打三处是有原因的——留一个余量给调用方。</p>
+<p><strong>6. 长会话的 <code>maxTokens</code> 会被压到 1。</strong></p>
+<p><code>clampMaxTokensToContext</code> 的下限是 <code>MIN_MAX_TOKENS = 1</code>，不是&quot;至少给几百&quot;。所以别把返回 1 个 token 当成 bug 报，它是&quot;上下文满了&quot;的信号。真正的修法是压缩（M09），不是调大 <code>maxTokens</code>。</p>
+<p><strong>7. <code>await complete()</code> 不抛错。</strong></p>
+<p><code>complete()</code> = <code>stream().result()</code>，而 <code>result()</code> 在 <code>error</code> 事件上 resolve 的是那条错误消息。所以 <code>try/catch</code> 包 <code>await complete()</code> 只能接住同步抛出（provider 未注册、鉴权缺失），接不住网络错误。想统一处理，就得看 <code>stopReason</code>。</p>
+<p><strong>8. <code>(string &amp; {})</code> 不是笔误。</strong></p>
+<p><code>Api = KnownApi | (string &amp; {})</code> 如果写成 <code>KnownApi | string</code>，那 <code>KnownApi</code> 就被 <code>string</code> 吃掉了，类型补全全失效。<code>string &amp; {}</code> 的写法保留了字面量补全，同时允许任意字符串。</p>
+<hr>
+<h2 id="sec-36-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
+<p><strong>方法一：用&quot;折叠点&quot;找设计的重心。</strong></p>
+<p><code>Context → TranscriptContext</code> 的折叠只用一个二十四行的文件完成，但整个包的设计都围绕它：provider 只看 messages、工具集从 messages 算、压缩必须保住首条 system 消息、<code>timestamp: 0</code> 为了让字节可复现。</p>
+<p>一个架构里真正重要的往往不是最大的文件，是<strong>数据类型转换发生的那几行</strong>。找到它，上下游就都通了。</p>
+<p><strong>方法二：契约里&quot;能不能抛&quot;要写清楚分界线。</strong></p>
+<p><code>StreamFunction</code> 的注释不说&quot;不抛异常&quot;，而说&quot;返回流之前可以抛、之后必须编码&quot;。<strong>这句话的价值在于它明确了一个边界条件，而不是给了一个口号。</strong></p>
+<p>写任何 API 的注释时，问自己一句：这个&quot;可以/不可以&quot;是从哪个时刻开始算的？</p>
+<p><strong>方法三：把&quot;支持程度&quot;编码成三种状态，不要两种。</strong></p>
+<p><code>thinkingLevelMap</code> 用 <code>undefined</code> / <code>null</code> / <code>&quot;high&quot;</code> 表示&quot;默认支持 / 明确不支持 / 映射到某档&quot;。如果用布尔值，你就表达不了&quot;没表态&quot;和&quot;明确反对&quot;的区别。</p>
+<p>这条在配置系统里通用：<strong>默认值、显式覆盖、显式禁用是三种状态，不是两种。</strong></p>
+<hr>
+<h2 id="sec-37-下一步">下一步</h2>
+<p>模型这层封好了：不管底下是谁，上面只看到 12 种事件。</p>
+<p>但模型返回的是 <code>toolCall</code>——一个名字加一段 JSON。谁去执行？模型可能传错类型、可能要求删库、可能一次调八个。这些都在循环之外，但都在内核包里。</p>
+<p>下一章打开工具系统。</p>
+<hr>
+<h2 id="sec-38-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/ai/src/compat.ts</code></td>
+<td>303</td>
+<td><code>stream()</code> <code>:252-267</code>、<code>streamSimple()</code> <code>:278-293</code>、派活 <code>:238-250</code>、env key <code>:224-232</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/models.ts</code></td>
+<td>1,301</td>
+<td><code>ModelsImpl.stream</code> <code>:901-919</code>、七级思考 <code>:1259-1291</code>、成本 <code>:1247-1253</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/types.ts</code></td>
+<td>918</td>
+<td><code>KnownApi</code> <code>:64-76</code>、<code>StreamFunction</code> <code>:398-402</code>、12 事件 <code>:823-839</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/utils/transcript.ts</code></td>
+<td>264</td>
+<td>折叠 <code>:10-34</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/utils/event-stream.ts</code></td>
+<td>135</td>
+<td><code>EventStream.push</code> <code>:40-56</code>、计时 <code>:97-130</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/providers/model-schema.ts</code></td>
+<td>116</td>
+<td>七级 <code>:16-17</code>、缓存三值 <code>:19</code>、<code>null</code> 语义 <code>:27-42</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/api/simple-options.ts</code></td>
+<td>110</td>
+<td>夹上下文 <code>:18-22</code>、<code>buildBaseOptions</code> <code>:36-66</code>、预算 <code>:69-109</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/api/anthropic-messages.ts</code></td>
+<td>1,687</td>
+<td>缓存策略 <code>:75-99</code>、思考预算 <code>:985-1000</code>、缓存打点 <code>:1225</code> <code>:1526-1547</code> <code>:1655</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/index.ts</code></td>
+<td>48</td>
+<td>入口分层注释 <code>:1-5</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/model-resolver.ts</code></td>
+<td>689</td>
+<td>五档梯子 <code>:235-265</code>、后缀开关 <code>:81-88</code>、<code>resolveCliModel</code> <code>:450-534</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/model-runtime.ts</code></td>
+<td>1,049</td>
+<td><code>ModelRuntime</code> <code>:174</code>、<code>composeProvider</code> <code>:309-325</code>、<code>prepareRequest</code> <code>:659-705</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/provider-composer.ts</code></td>
+<td>737</td>
+<td>三层叠加 <code>:560-580</code>、三重分派 <code>:588-608</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m03-agent-loop.html"><span class="lbl">上一篇</span>Agent Loop —— 两层循环，三条出路</a>
+      <a class="next" href="m05-tools.html"><span class="lbl">下一篇</span>工具系统 —— 八个工具，一道文件锁</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四个维度同时不一致" class="">一、四个维度同时不一致</a><a href="#sec-2-1-1-十个-api-不是一个数字" class="lv3">1.1 十个 api，不是一个数字</a><a href="#sec-3-二-分三层-但真正解耦的只有一条线" class="">二、分三层，但真正解耦的只有一条线</a><a href="#sec-4-2-1-入口里藏了一个折叠动作" class="lv3">2.1 入口里藏了一个折叠动作</a><a href="#sec-5-2-2-这条折叠有代价" class="lv3">2.2 这条折叠有代价</a><a href="#sec-6-2-3-派活有两条路-还有一条岔路" class="lv3">2.3 派活有两条路，还有一条岔路</a><a href="#sec-7-2-4-这个入口本身是临时的" class="lv3">2.4 这个入口本身是临时的</a><a href="#sec-8-三-第二层-12-种事件" class="">三、第二层：12 种事件</a><a href="#sec-9-3-1-done-的-reason-是四选一-不是三选一" class="lv3">3.1 done 的 reason 是四选一，不是三选一</a><a href="#sec-10-3-2-partial-不是快照" class="lv3">3.2 partial 不是快照</a><a href="#sec-11-3-3-contentindex-和-quot-活引用-quot-合起来会咬人" class="lv3">3.3 contentIndex 和&amp;quot;活引用&amp;quot;合起来会咬人</a><a href="#sec-12-3-4-流对象自己也有终局" class="lv3">3.4 流对象自己也有终局</a><a href="#sec-13-四-第三层-四条契约" class="">四、第三层：四条契约</a><a href="#sec-14-五-为什么要有-stream-和-streamsimple-两个" class="">五、为什么要有 stream 和 streamSimple 两个</a><a href="#sec-15-5-1-buildbaseoptions-才是真正的适配器" class="lv3">5.1 buildBaseOptions 才是真正的适配器</a><a href="#sec-16-5-2-maxtokens-会被夹两次" class="lv3">5.2 maxTokens 会被夹两次</a><a href="#sec-17-5-3-同一个契约-两种合规写法" class="lv3">5.3 同一个契约，两种合规写法</a><a href="#sec-18-六-思考等级是七级-不是五级" class="">六、思考等级是七级，不是五级</a><a href="#sec-19-6-1-thinkinglevelmap-的值可以是-null" class="lv3">6.1 thinkingLevelMap 的值可以是 null</a><a href="#sec-20-6-2-clamp-的两个方向" class="lv3">6.2 clamp 的两个方向</a><a href="#sec-21-6-3-从等级到-token-预算" class="lv3">6.3 从等级到 token 预算</a><a href="#sec-22-七-缓存-三种语义-四种实现" class="">七、缓存：三种语义，四种实现</a><a href="#sec-23-7-1-默认是-quot-short-quot-不是-quot-none-quo" class="lv3">7.1 默认是 &amp;quot;short&amp;quot;，不是 &amp;quot;none&amp;quot;</a><a href="#sec-24-7-2-这解释了-m03-的一个疑问" class="lv3">7.2 这解释了 M03 的一个疑问</a><a href="#sec-25-八-模型是哪来的-装配层" class="">八、模型是哪来的：装配层</a><a href="#sec-26-8-1-那串字符不是-id-是一条查询" class="lv3">8.1 那串字符不是 id，是一条查询</a><a href="#sec-27-8-2-五次判断-一条降级梯子" class="lv3">8.2 五次判断，一条降级梯子</a><a href="#sec-28-8-3-provider-只是提示-不是命名空间" class="lv3">8.3 provider/ 只是提示，不是命名空间</a><a href="#sec-29-8-4-modelruntime-不是包装-是装配车间" class="lv3">8.4 ModelRuntime 不是包装，是装配车间</a><a href="#sec-30-8-5-三层叠加-一次空校验-三重分派" class="lv3">8.5 三层叠加、一次空校验、三重分派</a><a href="#sec-31-8-6-凭据不在装配时定死" class="lv3">8.6 凭据不在装配时定死</a><a href="#sec-32-8-7-从命令行到翻译器" class="lv3">8.7 从命令行到翻译器</a><a href="#sec-33-8-8-为什么这一层不放进-ai" class="lv3">8.8 为什么这一层不放进 ai</a><a href="#sec-34-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-35-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-36-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-37-下一步" class="">下一步</a><a href="#sec-38-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

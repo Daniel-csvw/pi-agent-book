@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>附录 —— v0.80 → v1.4 迁移对照 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="active">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">APX</div>
+      <h1>附录 —— v0.80 → v1.4 迁移对照</h1>
+      <div class="module-meta">3,200 字 · 含 73 行代码 · 约 15 分钟</div>
+    </header>
+    <p>这本章节为三类人写：</p>
+<ul>
+<li>读过旧版教程（对应 <code>^0.80.2</code>），现在要看 v1.4.0</li>
+<li>读过别的分析文章，里面引的是老路径</li>
+<li>手上有一份自己写的扩展，升级后跑不起来</li>
+</ul>
+<p>五分钟能读完的纠偏清单放在第一节，后面是逐条证据。</p>
+<hr>
+<h2 id="sec-1-一-五分钟纠偏清单">一、五分钟纠偏清单</h2>
+<p>如果你记得的是左边，现在应该是右边。<strong>八条，按踩坑概率排序。</strong></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>你可能记得</th>
+<th>v1.4.0 的事实</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>五个包</td>
+<td><strong>十二个包</strong>（README 只公示 7 个）</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>packages/agent/src/harness/</code> 是运行时</td>
+<td>整个搬到了 <strong><code>packages/durable/src/harness/</code></strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>有 <code>packages/orchestrator/</code></td>
+<td><strong>整包删除</strong>，仓库里没有这个名字</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>agent/src/index.ts</code> 导出 harness / session / compaction</td>
+<td>只有 <strong>5 行</strong>，导出 agent / agent-loop / proxy / stream-fn / types</td>
+</tr>
+<tr>
+<td>5</td>
+<td>7 个内置工具</td>
+<td><strong>8 个</strong>（漏了 <code>powershell</code>）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>依赖 <code>^0.80.2</code></td>
+<td>全部 <code>1.4.0</code>，且<strong>不用 <code>^</code></strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>循环靠 <code>stopReason</code> 判断要不要继续</td>
+<td>靠 <code>content.filter(c =&gt; c.type === &quot;toolCall&quot;)</code>；<code>stopReason</code> 只留 error / aborted / length</td>
+</tr>
+<tr>
+<td>8</td>
+<td>会话存在 <code>agent/src/harness/session/</code></td>
+<td>存在 <code>durable/src/storage/</code>，同时 <code>coding-agent</code> 有另一套自己的</td>
+</tr>
+</tbody>
+</table>
+<p>八条里前四条是&quot;路径变了&quot;，后四条是&quot;结论变了&quot;。<strong>路径变了只需要改 grep，结论变了要重写认知</strong>——所以第八条最贵，它牵扯到 M03 第六节整章的论证。</p>
+<hr>
+<h2 id="sec-2-二-路径对照-11-条搬迁记录">二、路径对照：11 条搬迁记录</h2>
+<p>旧教程里所有 <code>packages/agent/src/harness/**</code> 下的引用，现在都要改。实测结果：</p>
+<table>
+<thead>
+<tr>
+<th>旧路径（v0.80）</th>
+<th>新路径（v1.4.0）</th>
+<th style="text-align:right">行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent/src/harness/compaction/compaction.ts</code></td>
+<td><code>coding-agent/src/core/compaction/compaction.ts</code></td>
+<td style="text-align:right">1,105</td>
+</tr>
+<tr>
+<td><code>agent/src/harness/compaction/branch-summarization.ts</code></td>
+<td><code>coding-agent/src/core/compaction/branch-summarization.ts</code></td>
+<td style="text-align:right">387</td>
+</tr>
+<tr>
+<td><code>agent/src/harness/session/jsonl-storage.ts</code></td>
+<td><code>durable/src/storage/jsonl/storage.ts</code></td>
+<td style="text-align:right">908</td>
+</tr>
+<tr>
+<td><code>agent/src/harness/session/memory-storage.ts</code></td>
+<td><code>durable/src/storage/memory.ts</code></td>
+<td style="text-align:right">893</td>
+</tr>
+<tr>
+<td><code>agent/src/harness/types.ts</code></td>
+<td><code>durable/src/harness/types.ts</code></td>
+<td style="text-align:right">1,080</td>
+</tr>
+<tr>
+<td><code>agent/src/harness/</code> 整个目录</td>
+<td><code>durable/src/harness/</code>（24 文件 / 11,332 行）</td>
+<td style="text-align:right">—</td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/config.ts</code></td>
+<td><code>coding-agent/src/config.ts</code></td>
+<td style="text-align:right">682</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意第一、二行的去向和第三、四行完全不同。</strong></p>
+<p>压缩相关的两个文件去了 <code>coding-agent</code>，存储相关的两个去了 <code>durable</code>。它们都是从同一个 <code>harness/</code> 目录出发的，但搬去了两个地方。</p>
+<p>这不是搬错了，是<strong>按&quot;谁能用&quot;重新切了一刀</strong>：</p>
+<ul>
+<li>压缩是&quot;这个会话的上下文管理&quot;，只有 CLI 需要 → <code>coding-agent</code></li>
+<li>存储是&quot;持久化的底层能力&quot;，任何运行时都需要 → <code>durable</code></li>
+</ul>
+<p>同时 <code>durable/src/harness/compaction.ts</code>（501 行）也存在，它是<strong>另一套压缩</strong>——给 durable 自己的会话用的。两个 <code>compaction.ts</code> 不是同一个东西，这是迁移时最容易搞混的一处。</p>
+<h3 id="sec-3-2-1-为什么会有两个-harness">2.1 为什么会有两个 <code>harness/</code></h3>
+<p><code>packages/agent/src/harness/</code> 不存在了，但 <code>packages/durable/src/harness/</code> 存在，而且只有 24 个文件 11,332 行——比旧版小了很多。</p>
+<p>旧版的 <code>harness/</code> 同时管三件事：会话、压缩、运行时。v1.4.0 把这三件事拆开了：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">运行时   → durable/src/harness/    (24 文件 11,332 行)</span><span class="ln">压缩     → coding-agent/src/core/compaction/  (4 文件 1,664 行)</span><span class="ln">         + durable/src/harness/compaction.ts  (501 行)</span><span class="ln">会话     → durable/src/session/    (7 文件)</span><span class="ln">         + coding-agent/src/core/session-manager.ts (2,029 行)</span></code></pre></div>
+<p><strong>一个目录变成四个。</strong> 这是全书最重要的一次架构变动，M10 和 M11 分两章才能讲完。</p>
+<hr>
+<h2 id="sec-4-三-行号对照-文件还在-内容已重写">三、行号对照：文件还在，内容已重写</h2>
+<p>这一类比路径失效更难发现。文件存在，grep 得到，工具不报错——但行号指向的内容已经不一样了。</p>
+<p>实际校验出来的两条：</p>
+<table>
+<thead>
+<tr>
+<th>旧引用</th>
+<th style="text-align:right">文件现在多少行</th>
+<th>旧行号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent/src/core/tools/read.ts:275</code></td>
+<td style="text-align:right">224</td>
+<td>越界</td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/tools/edit.ts:330</code></td>
+<td style="text-align:right">218</td>
+<td>越界</td>
+</tr>
+</tbody>
+</table>
+<p>两个工具都被重写过，行数比旧版少了。<code>read.ts</code> 从 275+ 降到 224，<code>edit.ts</code> 从 330+ 降到 218——<strong>行数变少意味着逻辑被压缩或搬到别处</strong>，旧行号全部作废。</p>
+<p>还有一批是&quot;文件在，行数变了但没越界&quot;的，它们不会报错，只会静默指错地方：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align:right">旧教程记的</th>
+<th style="text-align:right">实际</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent/src/core/compaction/compaction.ts</code></td>
+<td style="text-align:right">984</td>
+<td style="text-align:right">1,105</td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/compaction/branch-summarization.ts</code></td>
+<td style="text-align:right">330</td>
+<td style="text-align:right">387</td>
+</tr>
+<tr>
+<td><code>durable/src/storage/jsonl/storage.ts</code></td>
+<td style="text-align:right">838</td>
+<td style="text-align:right">908</td>
+</tr>
+<tr>
+<td><code>durable/src/storage/memory.ts</code></td>
+<td style="text-align:right">837</td>
+<td style="text-align:right">893</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/types.ts</code></td>
+<td style="text-align:right">1,012</td>
+<td style="text-align:right">1,080</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/scheduler.ts</code></td>
+<td style="text-align:right">2,999</td>
+<td style="text-align:right">3,159</td>
+</tr>
+</tbody>
+</table>
+<p>六条全部偏小。规律很清楚：<strong>上游一直在加代码，行号只会往后漂</strong>。所以任何&quot;三天前看到的行号&quot;都值得重新确认。</p>
+<h3 id="sec-5-3-1-校验脚本只查得到两类错">3.1 校验脚本只查得到两类错</h3>
+<p>本书的 <code>scripts/fact-check.mjs</code> 查三件事：</p>
+<ol>
+<li>文件存不存在</li>
+<li>行号越不越界</li>
+<li>是否命中已知的废弃路径（如 <code>packages/agent/src/harness/</code>）</li>
+</ol>
+<p>它<strong>查不出</strong>&quot;行号没越界但指错了&quot;。这是所有行号校验的固有局限——除非把每行内容也存下来做 diff，否则无法判断&quot;第 412 行还是不是那个 <code>if</code>&quot;。</p>
+<p>所以本书的做法是：所有行号都对着 v1.4.0 快照重新读一遍，不抄任何二手资料。你如果发现某条引用对不上，大概率是你手上的快照不是 v1.4.0。</p>
+<hr>
+<h2 id="sec-6-四-论断作废清单">四、论断作废清单</h2>
+<p>比路径更麻烦的是&quot;句子还在，但已经错了&quot;。下面八条是旧教程里明确作废的论断。</p>
+<h3 id="sec-7-4-1-quot-pi-由五个包组成-quot">4.1 &quot;Pi 由五个包组成&quot;</h3>
+<p>作废。现在十二个：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">agent  ai  chord  codemode  coding-agent  durable</span><span class="ln">env  evals  mcp  schema  telemetry  tui</span></code></pre></div>
+<p>新增的七个是 <code>chord</code> <code>codemode</code> <code>env</code> <code>evals</code> <code>mcp</code> <code>schema</code> <code>telemetry</code>。删掉的是一个：<code>orchestrator</code>。</p>
+<h3 id="sec-8-4-2-quot-运行时在-packages-agent-里-quot">4.2 &quot;运行时在 <code>packages/agent</code> 里&quot;</h3>
+<p>作废。<code>packages/agent</code> 现在只有 6 个文件 2,559 行，是<strong>无状态内核</strong>。有状态的运行时在 <code>packages/durable</code>（96 文件 / 33,722 行）。</p>
+<p>一句话分清：</p>
+<blockquote>
+<p><code>agent</code> 管&quot;这一轮怎么跑完&quot;，<code>durable</code> 管&quot;跑到一半崩了之后怎么接着跑&quot;。</p>
+</blockquote>
+<h3 id="sec-9-4-3-quot-agent-src-index-ts-导出-harness-q">4.3 &quot;<code>agent/src/index.ts</code> 导出 harness&quot;</h3>
+<p>作废。整个文件 5 行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./agent.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./agent-loop.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./proxy.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> { setDefaultStreamFn } <span class="tok-kw">from</span> <span class="tok-str">"./stream-fn.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span></code></pre></div>
+<p>如果你写过 <code>import { SessionManager } from &quot;@earendil-works/pi-agent-core&quot;</code>，现在这行会失败。</p>
+<h3 id="sec-10-4-4-quot-循环靠-stopreason-决定要不要继续-quot">4.4 &quot;循环靠 stopReason 决定要不要继续&quot;</h3>
+<p>作废，而且这是最深的一条。</p>
+<p>旧模型是：模型返回 <code>stopReason: &quot;toolUse&quot;</code> → 执行工具 → 再请求；<code>stopReason: &quot;stop&quot;</code> → 结束。循环本质上是<strong>读信号灯</strong>。</p>
+<p>v1.4.0 的模型是：<strong>直接数 toolCall</strong>。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-loop.ts 内层循环的续命条件</span></span><span class="ln"><span class="tok-kw">const</span> toolCalls = message.content.<span class="tok-fn">filter</span>((c) =&gt; c.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span></code></pre></div>
+<p><code>stopReason</code> 的七个取值里，循环只关心三个：<code>error</code> / <code>aborted</code>（硬退出）、<code>length</code>（整批工具失败）。<code>toolUse</code> 仍然被四个 provider 发出来，但<strong>循环不看它</strong>——纯兼容性残留。</p>
+<p>为什么改？因为&quot;信号灯由谁点亮&quot;不可靠。七家 provider 对&quot;这轮有没有工具调用&quot;的表达不一致，有的在 <code>stopReason</code> 里说，有的只在 <code>content</code> 里放。数 <code>content</code> 是唯一不需要 trust 任何 provider 的做法。</p>
+<p>M03 第六节有完整的七值归属表。</p>
+<h3 id="sec-11-4-5-quot-工具集在请求前算出来就固定了-quot">4.5 &quot;工具集在请求前算出来就固定了&quot;</h3>
+<p>作废。工具集现在是<strong>从 transcript 动态算出来的</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">getCurrentTools</span>([...context.messages, ...baseline])</span></code></pre></div>
+<p>它接受的是<strong>消息数组</strong>，不是工具列表。工具集由历史上的 system 消息加减得出——某个扩展在某轮追加了一条&quot;新增工具 X&quot;，从那以后 X 就一直在。</p>
+<p>这个设计的后果是：<strong>工具集变化必须写成消息</strong>。不能只改内存里的数组，否则分叉、回放、持久化之后就不一致了。</p>
+<h3 id="sec-12-4-6-quot-有-7-个内置工具-quot">4.6 &quot;有 7 个内置工具&quot;</h3>
+<p>作废，8 个：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">bash  powershell  read  write  edit  find  grep  ls</span></code></pre></div>
+<p>漏的是 <code>powershell</code>。它不是 <code>bash</code> 的别名——<code>coding-agent/src/core/tools/powershell.ts</code> 独立实现，走 <code>powershell -Command</code> 而不是 <code>bash -c</code>。</p>
+<h3 id="sec-13-4-7-quot-依赖版本-0-80-2-quot">4.7 &quot;依赖版本 ^0.80.2&quot;</h3>
+<p>作废，两个层面都变了：</p>
+<ul>
+<li>版本号：全部 <code>1.4.0</code></li>
+<li>写法：<strong>没有 <code>^</code></strong>，全部写死</li>
+</ul>
+<p>写死的好处是 monorepo 内部永远一致；代价是任何包升版都得全体一起升（<code>npm version --workspaces</code>）。</p>
+<h3 id="sec-14-4-8-quot-有一个-orchestrator-负责多-agent-编排-q">4.8 &quot;有一个 orchestrator 负责多 agent 编排&quot;</h3>
+<p>作废。<code>packages/orchestrator</code> 和 <code>@earendil-works/pi-orchestrator</code> 都不存在了。</p>
+<p>多 agent 编排现在没有内建支持——你要么自己写（用 SDK 起多个 session），要么用 <code>env</code> 把 agent 部署到远端各自跑。</p>
+<hr>
+<h2 id="sec-15-五-旧版根本没有的东西">五、旧版根本没有的东西</h2>
+<p>有八个概念在 v0.80 里不存在，现在是一等公民。<strong>如果你在读旧教程时觉得&quot;这里少了点什么&quot;，多半少的就是下面某一条。</strong></p>
+<table>
+<thead>
+<tr>
+<th>新东西</th>
+<th>在哪</th>
+<th>解决什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>steering</code></td>
+<td><code>agent-loop.ts</code></td>
+<td>运行中插话，不必等这一轮跑完</td>
+</tr>
+<tr>
+<td><code>follow-up</code></td>
+<td><code>agent-loop.ts</code></td>
+<td>跑完后自动追补一次，不用人再敲</td>
+</tr>
+<tr>
+<td><code>finishTurn</code> 返回 <code>continue</code></td>
+<td><code>agent-loop.ts</code></td>
+<td>扩展可以让一轮&quot;不结束&quot;，兑现成 context-only turn</td>
+</tr>
+<tr>
+<td><code>AgentRequestUpdate</code>（<code>Omit</code> 掉 <code>messages</code>）</td>
+<td><code>types.ts</code></td>
+<td>类型层面禁止 <code>prepareRequest</code> 注入消息</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td>独立包</td>
+<td>插件热重载 + 复制状态 + JSON link RPC</td>
+</tr>
+<tr>
+<td><code>codemode</code></td>
+<td>独立包</td>
+<td>沙箱执行模型写的脚本</td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td>独立包</td>
+<td>把 <code>durable</code> 部署到远端机器</td>
+</tr>
+<tr>
+<td><code>telemetry</code></td>
+<td>独立包</td>
+<td>厂商中立遥测</td>
+</tr>
+</tbody>
+</table>
+<p>前四个是<strong>循环语义的变化</strong>，后四个是<strong>能力的扩张</strong>。</p>
+<p>前四个里最值得注意是第三个：<code>finishTurn</code> 返回 <code>{ action: &quot;continue&quot; }</code>。它意味着&quot;这一轮结束了，但别把这次 run 结束&quot;——循环会再跑一次 context-only turn，拿模型的下一句话。</p>
+<p>这一个返回值，就是&quot;三条出路&quot;里的第三条。旧版只有一条出路：没有工具调用了就结束。</p>
+<h3 id="sec-16-5-1-十二个包-各自从哪来">5.1 十二个包，各自从哪来</h3>
+<p>迁移时最容易搞错的是&quot;这个包到底是不是新的&quot;。逐个交代，只写能验证的部分：</p>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th>旧教程提过吗</th>
+<th>本章能确认的事实</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent</code></td>
+<td>提过</td>
+<td>从&quot;含运行时&quot;缩成无状态内核，只剩 6 文件 2,559 行</td>
+</tr>
+<tr>
+<td><code>ai</code></td>
+<td>提过</td>
+<td>仍然只依赖 <code>schema</code> + <code>telemetry</code></td>
+</tr>
+<tr>
+<td><code>coding-agent</code></td>
+<td>提过</td>
+<td>77,614 行，接下了压缩与会话</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td>未提</td>
+<td>50,101 行，全仓库第二大</td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td>未提</td>
+<td>33,722 行，旧 <code>harness/</code> 的主要落点</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td>未提</td>
+<td>43 文件 4,608 行，被 4 个包依赖</td>
+</tr>
+<tr>
+<td><code>telemetry</code></td>
+<td>未提</td>
+<td>8 文件 1,580 行，被 3 个包依赖</td>
+</tr>
+<tr>
+<td><code>tui</code></td>
+<td>未提</td>
+<td>46 文件 19,971 行</td>
+</tr>
+<tr>
+<td><code>mcp</code></td>
+<td>未提</td>
+<td>18 文件 3,305 行</td>
+</tr>
+<tr>
+<td><code>codemode</code></td>
+<td>未提</td>
+<td>16 文件 3,034 行</td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td>未提</td>
+<td>8 文件 2,398 行，依赖 <code>chord</code> + <code>durable</code></td>
+</tr>
+<tr>
+<td><code>evals</code></td>
+<td>未提</td>
+<td>5 文件 1,452 行，不进 build</td>
+</tr>
+<tr>
+<td><s><code>orchestrator</code></s></td>
+<td>提过</td>
+<td><strong>已删除</strong></td>
+</tr>
+</tbody>
+</table>
+<p>一句话概括：<strong>旧教程 <code>ch02</code> 里出现过的包路径只有四个——<code>ai</code>、<code>agent</code>、<code>coding-agent</code>、<code>orchestrator</code>。</strong> 前三个还在，第四个删了，另外九个从头到尾没提过。</p>
+<p>那九个包合起来占 76% 的代码。这就是本书 Part D 存在的理由。</p>
+<p><code>schema</code> 和 <code>telemetry</code> 这两个包可以多看一眼，因为它们的&quot;被依赖数&quot;异常高：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">被 4 个包依赖：schema      (chord, ai, durable, agent)</span><span class="ln">被 3 个包依赖：telemetry   (chord, ai, durable)</span><span class="ln">被 2 个包依赖：chord       (durable, env)</span><span class="ln">被 2 个包依赖：ai          (durable, agent)</span></code></pre></div>
+<p>两个包自己只有 4,608 和 1,580 行，却是全图的分叉点。<strong>一个东西被多个包同时需要时，它就必须成为独立包</strong> —— 否则要么复制多份（会漂），要么让包之间直接依赖（违反分层）。</p>
+<p>这也是判断&quot;下一个应该抽什么出来&quot;的现成标准：看谁被反复依赖。</p>
+<hr>
+<h2 id="sec-17-六-没变的东西">六、没变的东西</h2>
+<p>纠偏不是把一切都推翻。下面这些在 v0.80 和 v1.4.0 里<strong>逻辑一致</strong>，读到旧教程的相应段落可以直接用。</p>
+<table>
+<thead>
+<tr>
+<th>不变的部分</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>双层循环的骨架</td>
+<td>内层转&quot;模型↔工具&quot;，外层管续命。骨架没动</td>
+</tr>
+<tr>
+<td><code>Message</code> / <code>AssistantMessage</code> / <code>ToolResultMessage</code> 的字段</td>
+<td><code>ai/src/types.ts</code> 里的形状基本一致</td>
+</tr>
+<tr>
+<td>13 种流式事件</td>
+<td><code>start</code> / <code>text_delta</code> / <code>toolcall_end</code> / <code>done</code>… 类型名没改</td>
+</tr>
+<tr>
+<td>provider 归一化的思路</td>
+<td>一个 <code>stream()</code>，抹平各家差异</td>
+</tr>
+<tr>
+<td><code>terminate</code> 语义</td>
+<td>工具可以要求&quot;这批之后别再调模型&quot;</td>
+</tr>
+<tr>
+<td>上下文压缩的触发条件</td>
+<td>超阈值 → 摘要 → 替换老消息</td>
+</tr>
+<tr>
+<td>JSONL 会话格式</td>
+<td>一条 entry 一行，parent 指向上一条</td>
+</tr>
+<tr>
+<td>扩展的注册方式</td>
+<td>工厂函数里注册 tools / commands / handlers</td>
+</tr>
+</tbody>
+</table>
+<p><strong>这八条&quot;不变&quot;比&quot;变了&quot;更重要</strong>：它们说明 v0.80 → v1.4 不是重写，是<strong>重新分配</strong>——把原来挤在 <code>agent</code> 里的东西分给 <code>durable</code>、<code>coding-agent</code> 和四个新包。</p>
+<p>读懂一次架构重分配，比读十次 API 变更有用。</p>
+<h3 id="sec-18-6-1-四段最容易被照抄错的代码">6.1 四段最容易被照抄错的代码</h3>
+<p>网上旧文章里这四段很常见。每一段都能&quot;看起来对&quot;，但跑不起来或者没效果。</p>
+<p><strong>第一段：从内核包里找会话。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 旧写法</span></span><span class="ln"><span class="tok-kw">import</span> { SessionManager } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-agent-core"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">// 现在的两个选择</span></span><span class="ln"><span class="tok-kw">import</span> { createAgentSession } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"><span class="tok-kw">import</span> { SessionManager } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-durable"</span>;</span></code></pre></div>
+<p>两个选择不是等价物。前者是产品级会话（JSONL、能回滚、人能看懂）；后者是运行时级会话（事务、可续跑）。选错不报错，但要到崩溃恢复时才发现。</p>
+<p><strong>第二段：用 <code>stopReason</code> 判工具。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 旧写法（能跑，但已经不准确）</span></span><span class="ln"><span class="tok-kw">if</span> (message.stopReason === <span class="tok-str">"toolUse"</span>) {</span><span class="ln">	<span class="tok-com">// 执行工具</span></span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">// 现在的写法</span></span><span class="ln"><span class="tok-kw">const</span> toolCalls = message.content.<span class="tok-fn">filter</span>((c) =&gt; c.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span><span class="ln"><span class="tok-kw">if</span> (toolCalls.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	<span class="tok-com">// 执行工具</span></span><span class="ln">}</span></code></pre></div>
+<p>旧写法不是&quot;错误&quot;，是&quot;不可靠&quot;。<code>toolUse</code> 仍被四个 provider 发出，但并非所有 provider 都发。用它判断的后果是：<strong>某些 provider 下工具永远不执行</strong>，而这很难复现——换一家就正常了。</p>
+<p><strong>第三段：引 <code>harness</code> 下的文件。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 旧路径（0 命中）</span></span><span class="ln"><span class="tok-kw">import</span> { x } <span class="tok-kw">from</span> <span class="tok-str">"../agent/src/harness/session/jsonl-storage.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">// 新路径</span></span><span class="ln"><span class="tok-kw">import</span> { x } <span class="tok-kw">from</span> <span class="tok-str">"../durable/src/storage/jsonl/storage.ts"</span>;</span></code></pre></div>
+<p>注意文件名从 <code>jsonl-storage.ts</code> 改成了 <code>storage.ts</code>。<code>grep jsonl-storage</code> 会返回 0，<code>grep jsonl/storage</code> 才对。</p>
+<p><strong>第四段：找 <code>orchestrator</code> 做多 agent。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 这个包已经不存在了</span></span><span class="ln"><span class="tok-kw">import</span> { Orchestrator } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-orchestrator"</span>;</span></code></pre></div>
+<p>多 agent 现在只能在应用层做：用 SDK 起多个 session，自己管调度。这也是 <code>durable</code> 的 <code>scheduler.ts</code> 为什么有 3,159 行的原因——<strong>调度能力被下放到了运行时，而不是编排包</strong>。</p>
+<hr>
+<h2 id="sec-19-七-自查-一条命令验证你的记忆">七、自查：一条命令验证你的记忆</h2>
+<p>不想信我，自己跑：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-main/pi-main</span><span class="ln"></span><span class="ln"># 1. 包数量（应该 12，不是 5）</span><span class="ln">ls packages | wc -l</span><span class="ln"></span><span class="ln"># 2. orchestrator 不存在（应该 0）</span><span class="ln">ls packages | grep -c orchestrator</span><span class="ln"></span><span class="ln"># 3. 版本号（应该只有一行 1.4.0）</span><span class="ln">for p in packages/*/package.json; do</span><span class="ln">  node -p "require('./$p').version"</span><span class="ln">done | sort -u</span><span class="ln"></span><span class="ln"># 4. 旧的 harness 路径不存在（应该 0）</span><span class="ln">ls packages/agent/src/ | grep -c harness</span><span class="ln"></span><span class="ln"># 5. 新的 harness 在 durable（应该 24）</span><span class="ln">ls packages/durable/src/harness/*.ts | wc -l</span><span class="ln"></span><span class="ln"># 6. index.ts 只有 5 行（应该 5）</span><span class="ln">wc -l &lt; packages/agent/src/index.ts</span><span class="ln"></span><span class="ln"># 7. 八个工具（应该 8）</span><span class="ln">ls packages/coding-agent/src/core/tools/*.ts | \</span><span class="ln">  grep -cE '/(bash|powershell|read|write|edit|find|grep|ls)\.ts'</span></code></pre></div>
+<p>七条全部对上的话，你手上的快照就是本书用的这一份。</p>
+<p><strong>如果第 4 条和第 5 条同时满足，说明你理解对了一件事</strong>：<code>harness</code> 没消失，它搬了家，而且变小了。</p>
+<hr>
+<h2 id="sec-20-八-四个可以带走的方法">八、四个可以带走的方法</h2>
+<p><strong>方法一：迁移时先分&quot;路径变了&quot;和&quot;结论变了&quot;。</strong></p>
+<p>路径变了，<code>grep</code> 就能修；结论变了，要重读代码。混在一起处理，会以为改完 import 就完事了——第八条（<code>stopReason</code> 退役）这种，改完 import 依然是错的。</p>
+<p>判断法：<strong>一句话里如果出现&quot;因为…所以…&quot;，它就是结论；只出现&quot;文件在哪&quot;，它就是路径。</strong></p>
+<p><strong>方法二：看到&quot;行数变少&quot;就当重写处理。</strong></p>
+<p><code>read.ts</code> 275 → 224，<code>edit.ts</code> 330 → 218。行数减少意味着逻辑被压缩、内联或搬走，旧行号 100% 失效。行数变多反而安全些（新代码在后面追加），变少要格外小心。</p>
+<p><strong>方法三：用&quot;目录搬家&quot;读架构。</strong></p>
+<p><code>agent/src/harness/</code> 一个目录变成四个新位置，这个搬法本身就是一份架构说明书。<strong>东西搬去哪，说明谁需要它。</strong> 压缩搬去 <code>coding-agent</code> 是因为只有 CLI 要上下文管理；存储搬去 <code>durable</code> 是因为任何运行时都要落盘。</p>
+<p>想知道一个模块的定位，别看它的文档，看它从哪搬到了哪。</p>
+<p><strong>方法四（额外）：用 grep 的&quot;0 命中&quot;当体检。</strong></p>
+<p>升级完别人的代码库，不要只看 <code>git diff</code>。 先跑五条 <code>grep -c</code>，命中数为 0 的那几条就是你要改的地方：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -rc "stopReason === \"toolUse\"" src | grep -v ':0'</span><span class="ln">grep -rc "agent/src/harness" src | grep -v ':0'</span><span class="ln">grep -rc "orchestrator" src | grep -v ':0'</span><span class="ln">grep -rc "pi-agent-core\".*SessionManager" src | grep -v ':0'</span><span class="ln">grep -rc "tools/read.ts:[0-9]\{3\}" docs | grep -v ':0'</span></code></pre></div>
+<p>前四条对代码，最后一条对文档。<strong>升级之后的&quot;编译通过&quot;不代表&quot;行为正确&quot;</strong>——只有把旧符号搜干净，才能确定没漏。</p>
+<hr>
+<h2 id="sec-21-源码索引">源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/agent/src/index.ts</code></td>
+<td>5</td>
+<td>全部导出</td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>960</td>
+<td>内层循环续命条件</td>
+</tr>
+<tr>
+<td><code>packages/agent/src/types.ts</code></td>
+<td>552</td>
+<td><code>AgentRequestUpdate</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/harness/types.ts</code></td>
+<td>1,080</td>
+<td>旧 <code>types.ts</code> 的落点</td>
+</tr>
+<tr>
+<td><code>packages/durable/src/harness/scheduler.ts</code></td>
+<td>3,159</td>
+<td>旧 2,999 行已过期</td>
+</tr>
+<tr>
+<td><code>packages/durable/src/harness/compaction.ts</code></td>
+<td>501</td>
+<td>与 coding-agent 那套不同</td>
+</tr>
+<tr>
+<td><code>packages/durable/src/storage/jsonl/storage.ts</code></td>
+<td>908</td>
+<td>旧 <code>jsonl-storage.ts</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/storage/memory.ts</code></td>
+<td>893</td>
+<td>旧 <code>memory-storage.ts</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/compaction/compaction.ts</code></td>
+<td>1,105</td>
+<td>旧 984 行已过期</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/session-manager.ts</code></td>
+<td>2,029</td>
+<td>另一套会话实现</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/read.ts</code></td>
+<td>224</td>
+<td>旧行号 275 越界</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/edit.ts</code></td>
+<td>218</td>
+<td>旧行号 330 越界</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/config.ts</code></td>
+<td>682</td>
+<td>从 <code>core/</code> 上移一层</td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m15-schema-telemetry.html"><span class="lbl">上一篇</span>契约与遥测 —— 一份声明，五种解释</a>
+      <a class="next" href="appendix-typescript.html"><span class="lbl">下一篇</span>附录 B —— 读源码用的 TypeScript 速查</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-五分钟纠偏清单" class="">一、五分钟纠偏清单</a><a href="#sec-2-二-路径对照-11-条搬迁记录" class="">二、路径对照：11 条搬迁记录</a><a href="#sec-3-2-1-为什么会有两个-harness" class="lv3">2.1 为什么会有两个 harness/</a><a href="#sec-4-三-行号对照-文件还在-内容已重写" class="">三、行号对照：文件还在，内容已重写</a><a href="#sec-5-3-1-校验脚本只查得到两类错" class="lv3">3.1 校验脚本只查得到两类错</a><a href="#sec-6-四-论断作废清单" class="">四、论断作废清单</a><a href="#sec-7-4-1-quot-pi-由五个包组成-quot" class="lv3">4.1 &amp;quot;Pi 由五个包组成&amp;quot;</a><a href="#sec-8-4-2-quot-运行时在-packages-agent-里-quot" class="lv3">4.2 &amp;quot;运行时在 packages/agent 里&amp;quot;</a><a href="#sec-9-4-3-quot-agent-src-index-ts-导出-harness-q" class="lv3">4.3 &amp;quot;agent/src/index.ts 导出 harness&amp;quot;</a><a href="#sec-10-4-4-quot-循环靠-stopreason-决定要不要继续-quot" class="lv3">4.4 &amp;quot;循环靠 stopReason 决定要不要继续&amp;quot;</a><a href="#sec-11-4-5-quot-工具集在请求前算出来就固定了-quot" class="lv3">4.5 &amp;quot;工具集在请求前算出来就固定了&amp;quot;</a><a href="#sec-12-4-6-quot-有-7-个内置工具-quot" class="lv3">4.6 &amp;quot;有 7 个内置工具&amp;quot;</a><a href="#sec-13-4-7-quot-依赖版本-0-80-2-quot" class="lv3">4.7 &amp;quot;依赖版本 ^0.80.2&amp;quot;</a><a href="#sec-14-4-8-quot-有一个-orchestrator-负责多-agent-编排-q" class="lv3">4.8 &amp;quot;有一个 orchestrator 负责多 agent 编排&amp;quot;</a><a href="#sec-15-五-旧版根本没有的东西" class="">五、旧版根本没有的东西</a><a href="#sec-16-5-1-十二个包-各自从哪来" class="lv3">5.1 十二个包，各自从哪来</a><a href="#sec-17-六-没变的东西" class="">六、没变的东西</a><a href="#sec-18-6-1-四段最容易被照抄错的代码" class="lv3">6.1 四段最容易被照抄错的代码</a><a href="#sec-19-七-自查-一条命令验证你的记忆" class="">七、自查：一条命令验证你的记忆</a><a href="#sec-20-八-四个可以带走的方法" class="">八、四个可以带走的方法</a><a href="#sec-21-源码索引" class="">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

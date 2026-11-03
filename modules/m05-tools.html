@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具系统 —— 八个工具，一道文件锁 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="active">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M05</div>
+      <h1>工具系统 —— 八个工具，一道文件锁</h1>
+      <div class="module-meta">6,200 字 · 含 218 行代码 · 约 30 分钟</div>
+    </header>
+    <p>M04 结尾留下的问题是：模型返回一个 <code>toolCall</code>——一个名字、一段 JSON，谁去执行？</p>
+<p>答案在 <code>coding-agent/src/core/tools/</code>。这个目录 <strong>16 个文件、3,662 行</strong>，看起来平平无奇，但它要回答三个很难的问题：</p>
+<ul>
+<li>模型给的参数可能不合 schema、可能是坏 JSON、可能根本不存在的工具名，怎么办</li>
+<li>模型一次调八个工具，并行还是串行</li>
+<li><strong>两个工具同时改同一个文件，怎么不打架</strong></li>
+</ul>
+<p>第三个问题的答案是本章的核心。先说结论：<strong>按文件路径分片的串行锁，粒度是文件，不是全局。</strong></p>
+<hr>
+<h2 id="sec-1-一-八个工具-一张台账">一、八个工具，一张台账</h2>
+<p><code>ToolName</code> 正好八个取值（<code>index.ts:95</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolName =</span><span class="ln">	| <span class="tok-str">"read"</span> | <span class="tok-str">"bash"</span> | <span class="tok-str">"powershell"</span> | <span class="tok-str">"edit"</span></span><span class="ln">	| <span class="tok-str">"write"</span> | <span class="tok-str">"grep"</span> | <span class="tok-str">"find"</span> | <span class="tok-str">"ls"</span>;</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>文件</th>
+<th>行数</th>
+<th>干什么</th>
+<th>截断方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bash</code></td>
+<td><code>bash.ts</code></td>
+<td>442</td>
+<td>跑 shell 命令</td>
+<td><code>truncateTail</code>（保尾部）</td>
+</tr>
+<tr>
+<td><code>grep</code></td>
+<td><code>grep.ts</code></td>
+<td>325</td>
+<td>搜内容</td>
+<td><code>truncateLine</code> + 条数上限</td>
+</tr>
+<tr>
+<td><code>find</code></td>
+<td><code>find.ts</code></td>
+<td>318</td>
+<td>按 glob 找文件</td>
+<td>条数上限 + 字节兜底</td>
+</tr>
+<tr>
+<td><code>read</code></td>
+<td><code>read.ts</code></td>
+<td>224</td>
+<td>读文件/图片</td>
+<td><code>truncateHead</code>（保头部）</td>
+</tr>
+<tr>
+<td><code>edit</code></td>
+<td><code>edit.ts</code></td>
+<td>218</td>
+<td>精确文本替换</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ls</code></td>
+<td><code>ls.ts</code></td>
+<td>175</td>
+<td>列目录</td>
+<td>条数上限 + 字节兜底</td>
+</tr>
+<tr>
+<td><code>write</code></td>
+<td><code>write.ts</code></td>
+<td>97</td>
+<td>新建/覆盖</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>powershell</code></td>
+<td><code>powershell.ts</code></td>
+<td>68</td>
+<td>跑 PowerShell</td>
+<td><code>truncateTail</code></td>
+</tr>
+</tbody>
+</table>
+<p>八个工具本体合计 <strong>1,867 行</strong>。而支撑它们的基础设施——<code>truncate</code> / <code>output-accumulator</code> / <code>file-mutation-queue</code> / <code>path-utils</code> / <code>edit-diff</code> / <code>render-utils</code> / <code>tool-definition-wrapper</code> / <code>index</code>——合计 <strong>1,795 行</strong>。</p>
+<p><strong>一半的代码在管另一半。</strong> 这是本章想说清的事：工具本身都是&quot;薄&quot;的（<code>write</code> 只有 97 行），真正的工作量在于&quot;怎么让这八个东西不互相踩&quot;。</p>
+<h3 id="sec-2-1-1-三套预设-不是一套">1.1 三套预设，不是一套</h3>
+<p><code>index.ts</code> 提供三个工厂，权限依次放大：</p>
+<table>
+<thead>
+<tr>
+<th>工厂</th>
+<th>含哪几个</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>createReadOnlyTools</code></td>
+<td><code>read</code> <code>grep</code> <code>find</code> <code>ls</code></td>
+<td>只读模式、审查场景</td>
+</tr>
+<tr>
+<td><code>createCodingTools</code></td>
+<td><code>read</code> <code>bash</code> <code>edit</code> <code>write</code></td>
+<td>日常编码</td>
+</tr>
+<tr>
+<td><code>createAllTools</code></td>
+<td>全部 8 个</td>
+<td>全权限</td>
+</tr>
+</tbody>
+</table>
+<p>注意 <code>createCodingTools</code> 里<strong>没有 <code>grep</code> / <code>find</code> / <code>ls</code></strong>。这不是漏了——有 <code>bash</code> 就够了，<code>grep</code> 那三个工具的价值是&quot;不经过 shell 也能搜&quot;，属于减依赖而非加能力。</p>
+<p>而 <code>createReadOnlyTools</code> 把 <code>bash</code> 排除在外，才是真正的安全边界：<strong>只读模式不能有 shell</strong>，因为 shell 什么都能干。</p>
+<h3 id="sec-3-1-2-三种体格">1.2 三种体格</h3>
+<p>看行数分布就会发现三个档位：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">441/442    bash          跑进程，要管超时/中止/进程树/流式输出</span><span class="ln">317-325    grep / find   包一层 ripgrep / glob，管条数和字节</span><span class="ln">68-224     其余六个       读、写、改、列目录</span></code></pre></div>
+<p>最悬殊的一组是 <code>bash</code>（442 行）和 <code>powershell</code>（68 行）——差 6.5 倍。原因很简单：<code>powershell.ts</code> <strong>一行执行逻辑都没有</strong>，全部复用 <code>bash.ts</code> 导出的 <code>createLocalShellOperations</code> 和 <code>createShellToolDefinition</code>，只改三样东西：shell 名、提示符、临时文件前缀。</p>
+<h3 id="sec-4-1-3-模型怎么知道有这八个工具">1.3 模型怎么知道有这八个工具</h3>
+<p>八个工具都在 <code>createAllTools</code> 里，但模型并不会&quot;看到&quot;这个函数。它看到的是<strong>每个工具自报的一段文字</strong>。</p>
+<p>每个工具文件开头都有这么一个 <code>as const</code> 对象：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> readToolSystemPromptContribution = {</span><span class="ln">	snippet: <span class="tok-str">"Read file contents"</span>,</span><span class="ln">	guidelines: [<span class="tok-str">"Use read to examine files instead of cat or sed."</span>],</span><span class="ln">} <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p>八个工具八段，全部挂到 <code>ToolDefinition.promptSnippet</code> / <code>promptGuidelines</code> 上。然后 M04 讲过的折叠把它们带进首条 system 消息的 <code>toolsAdded</code>，最终成为提示词的一部分：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ToolDefinition.promptSnippet</span><span class="ln">        ↓  createToolDefinition</span><span class="ln">Context.tools[]</span><span class="ln">        ↓  normalizeContext（M04 2.1）</span><span class="ln">messages[0].toolsAdded</span><span class="ln">        ↓  provider 渲染</span><span class="ln">系统提示词里的工具说明</span></code></pre></div>
+<p>这条链有个实用推论：<strong>改 <code>guidelines</code> 就是改 Agent 行为，不用动一行逻辑代码。</strong></p>
+<p>看 <code>write</code> 和 <code>edit</code> 的分工是怎么定的——完全靠提示词，不靠代码：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>guidelines 原话</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write</code></td>
+<td>Use write only for new files or complete rewrites</td>
+<td>拦住&quot;小改用 write&quot;</td>
+</tr>
+<tr>
+<td><code>edit</code></td>
+<td>Each <code>edits[].oldText</code> must exactly and uniquely match...</td>
+<td>逼模型给短匹配</td>
+</tr>
+<tr>
+<td><code>edit</code></td>
+<td>Batch changes to one file in a single call</td>
+<td>减少重复打开</td>
+</tr>
+</tbody>
+</table>
+<p>第三行尤其关键：一次 <code>edit</code> 调用的每个 <code>await</code> 都在持有文件锁。<strong>引导模型批量改，等于减少持锁次数。</strong></p>
+<hr>
+<h2 id="sec-5-二-四层类型-一个工具为什么有四张脸">二、四层类型：一个工具为什么有四张脸</h2>
+<p>同一个 <code>read</code> 工具，代码里会出现四种类型名：<code>Tool</code>、<code>AgentTool</code>、<code>ToolDefinition</code>、<code>TypeBoxAgentTool</code>。</p>
+<h3 id="sec-6-2-1-四张脸各管什么">2.1 四张脸各管什么</h3>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ToolDefinition   产品层：带 promptSnippet / renderers / 状态机</span><span class="ln">     ↕ wrapToolDefinition / createToolDefinitionFromAgentTool</span><span class="ln">AgentTool        内核层：@earendil-works/pi-agent-core 认识的形状</span><span class="ln">     ↕ TypeBoxAgentTool</span><span class="ln">静态类型          Static&lt;typeof schema&gt;：TypeBox 推导出的参数类型</span></code></pre></div>
+<p>而 <code>Tool</code> 是 <code>AgentTool&lt;any&gt;</code> 的别名（<code>index.ts:93</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Tool = AgentTool&lt;<span class="tok-kw">any</span>&gt;;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolDef = ToolDefinition&lt;<span class="tok-kw">any</span>, <span class="tok-kw">any</span>&gt;;</span></code></pre></div>
+<h3 id="sec-7-2-2-多出来的两个字段">2.2 多出来的两个字段</h3>
+<p><code>ToolDefinition</code> 比 <code>AgentTool</code> 多出的是什么？看 <code>tool-definition-wrapper.ts:27-49</code> 的转换——它只透传 9 个字段，其中两个是 <code>AgentTool</code> 根本没有的：</p>
+<ul>
+<li><code>promptSnippet</code> / <code>promptGuidelines</code>：这个工具的<strong>一句话说明和用法约束</strong>，会被折进系统提示词（M04 的 <code>toolsAdded</code> 里带的就是这个）</li>
+<li><code>renderers</code>：TUI 里怎么画这次调用（M14 会讲）</li>
+</ul>
+<p>举个例子，<code>write.ts:15-18</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> writeToolSystemPromptContribution = {</span><span class="ln">	snippet: <span class="tok-str">"Create or overwrite files"</span>,</span><span class="ln">	guidelines: [<span class="tok-str">"Use write only for new files or complete rewrites."</span>],</span><span class="ln">} <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p>这一小段就是&quot;模型怎么知道该用 <code>write</code> 而不是 <code>edit</code>&quot;的全部来源。<strong>它不是文档，是提示词的一部分。</strong></p>
+<h3 id="sec-8-2-3-第四张脸-typeboxagenttool">2.3 第四张脸：<code>TypeBoxAgentTool</code></h3>
+<p>在 <code>write.ts</code> 的末尾会看到一个奇怪的返回类型（<code>:94</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createWriteTool</span>(</span><span class="ln">	cwd: <span class="tok-kw">string</span>,</span><span class="ln">	options?: WriteToolOptions,</span><span class="ln">): TypeBoxAgentTool&lt;<span class="tok-kw">typeof</span> writeSchema&gt; {</span></code></pre></div>
+<p>为什么不直接写 <code>AgentTool</code>？<code>tool-definition-wrapper.ts:5-9</code> 的注释解释了原因：</p>
+<blockquote>
+<p><code>pi-agent-core</code> types <code>params</code> through <code>pi-schema</code>, which maps only the common TypeBox kinds.</p>
+</blockquote>
+<p>两个包各自用不同的 schema 基础设施。<code>agent</code> 包通过 <code>pi-schema</code> 推导参数类型，只映射常见 kind；而内置工具用 TypeBox 写 schema，<code>Static&lt;typeof writeSchema&gt;</code> 是<strong>精确的</strong>类型。</p>
+<p><code>TypeBoxAgentTool</code> 就是两者的交：把 <code>execute</code> 和 <code>prepareArguments</code> 两个方法的签名重新声明成 TypeBox 版本（<code>:10-21</code>）。这样在两个世界里都对：传给 <code>agent</code> 包能用，在 <code>coding-agent</code> 内部调用参数有完整类型。</p>
+<p>代价是每加一个工具都得过这层交叉类型。收益是<strong>工具实现里能直接拿到 <code>{ path, content }</code> 的类型推导</strong>，不用手写 interface。</p>
+<p>所以&quot;一个工具几张脸&quot;的完整答案是四张：<code>Tool</code>（别名）、<code>AgentTool</code>（内核形状）、<code>ToolDefinition</code>（产品形状）、<code>TypeBoxAgentTool</code>（类型精确版内核形状）。</p>
+<h3 id="sec-9-2-4-反向转换">2.4 反向转换</h3>
+<p><code>createToolDefinitionFromAgentTool</code>（<code>:65-77</code>）做反方向：把外部传入的裸 <code>AgentTool</code> 包一层成 <code>ToolDefinition</code>。注释说得很直白：</p>
+<blockquote>
+<p>This keeps AgentSession's internal registry definition-first even when a caller provides plain AgentTool overrides.</p>
+</blockquote>
+<p><strong>&quot;definition-first&quot;</strong>——内部注册表只认 <code>ToolDefinition</code>，外部给什么都先转换。这样上层永远不用判断&quot;这个工具是内置的还是扩展塞进来的&quot;。</p>
+<h3 id="sec-10-2-5-为什么不干脆用一个类型">2.5 为什么不干脆用一个类型</h3>
+<p>因为这两层由<strong>不同的包</strong>拥有。<code>AgentTool</code> 在 <code>agent</code> 包，它只需要知道&quot;有个东西能执行、有 schema、有名字&quot;。<code>ToolDefinition</code> 在 <code>coding-agent</code> 包，它要给 TUI 画图、要往系统提示词里塞说明。</p>
+<p>如果把 <code>renderers</code> 塞进 <code>AgentTool</code>，那 <code>agent</code> 包就得认识渲染层——抽象立刻污染。<strong>两层类型不是过度设计，是两个包的边界。</strong></p>
+<hr>
+<h2 id="sec-11-三-五步管道">三、五步管道</h2>
+<p>模型给出了 <code>toolCall</code>，到它变成一条 <code>ToolResultMessage</code>，中间有五步。这张图可以当目录用：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">模型吐 toolCall</span><span class="ln">   │</span><span class="ln">   ├─ 找不到这个工具 ──────────────→ error 消息</span><span class="ln">   ↓</span><span class="ln">① prepareArguments        垫片：修模型发坏的格式</span><span class="ln">   ↓</span><span class="ln">② validateToolArguments   校验：schema 说了算</span><span class="ln">   ↓</span><span class="ln">③ beforeToolCall          钩子：可以拦，可以终止</span><span class="ln">   ↓</span><span class="ln">④ tool.execute            干活（文件锁在这里）</span><span class="ln">   ↓</span><span class="ln">⑤ afterToolCall           钩子：可以改结果</span><span class="ln">   ↓</span><span class="ln">ToolResultMessage</span></code></pre></div>
+<p>代码在 <code>agent/src/agent-loop.ts</code>，<code>prepareToolCall</code>（<code>:718-787</code>）+ <code>executePreparedToolCall</code>（<code>:831-867</code>）+ <code>finalizeExecutedToolCall</code>（<code>:869-920</code>）。</p>
+<h3 id="sec-12-3-1-第-0-步-工具集从哪来">3.1 第 0 步：工具集从哪来</h3>
+<p>管道开始之前，得先知道调用谁。<code>prepareToolCall</code> 的第一行就是查表（<code>agent-loop.ts:726</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> tool = tools.<span class="tok-fn">find</span>((t) =&gt; t.name === toolCall.name);</span><span class="ln"><span class="tok-kw">if</span> (!tool) {</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		kind: <span class="tok-str">"immediate"</span>,</span><span class="ln">		result: <span class="tok-fn">createErrorToolResult</span>(<span class="tok-str">`Tool ${toolCall.name} not found`</span>),</span><span class="ln">		isError: <span class="tok-kw">true</span>,</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p><code>tools</code> 默认取 <code>currentContext.tools ?? []</code>。回到 M03 就知道，这个 <code>tools</code> 是<strong>从 transcript 算出来的当前工具集</strong>（M04 的 <code>toolsAdded</code> / <code>toolsRemoved</code> 累加）。</p>
+<p>于是出现一个真实场景：模型在第 3 轮调了一个第 5 轮才加进来的工具。它会被 <code>not found</code> 拦住——因为<strong>此刻的 transcript 里确实没有这个工具</strong>。</p>
+<p>这不是 bug，是&quot;工具集随对话演进&quot;的必然结果。M07 讲扩展动态加载时会更清楚。</p>
+<h3 id="sec-13-3-2-第-1-步-preparearguments-给模型擦屁股">3.2 第 1 步 <code>prepareArguments</code>：给模型擦屁股</h3>
+<p><code>edit.ts:107</code> 的注释是这一层的存在理由：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Some models (Opus 4.6, GLM-5.1) send edits as a JSON string</span></span><span class="ln"><span class="tok-com">// instead of an array. Others send a single edit object.</span></span></code></pre></div>
+<p>于是 <code>prepareEditArguments</code>（<code>:100-131</code>）要认三种坏格式：<code>edits</code> 是 JSON 字符串、<code>edits</code> 是单个对象、老的顶层 <code>oldText</code>+<code>newText</code>。</p>
+<p>垫片只修<strong>形状</strong>，不修语义。修完照样要过 schema 校验——这个分工很重要：如果垫片顺手把&quot;参数不对&quot;也修了，那 schema 就形同虚设。</p>
+<h3 id="sec-14-3-3-第-2-步-validatetoolarguments-schema-说">3.3 第 2 步 <code>validateToolArguments</code>：schema 说了算</h3>
+<p>一次调用，校验失败就返回 <code>isError: true</code> 的消息。注意这一步<strong>不抛异常</strong>，而是变成消息回到模型手里——模型看到&quot;参数不合法，字段 X 缺少&quot;之后，下一轮通常会自己改对。</p>
+<p>这就是工具设计里的第一条实用原则：<strong>错误信息不是给人看的，是给模型看的下一轮输入。</strong></p>
+<h3 id="sec-15-3-4-第-3-5-步钩子-可拦-可改">3.4 第 3、5 步钩子：可拦、可改</h3>
+<p><code>beforeToolCall</code> 能返回 <code>{ block: true, reason }</code>，还能带 <code>terminate: true</code>。<code>afterToolCall</code> 能替换 <code>content</code>、<code>details</code>、<code>isError</code>。</p>
+<p>两个钩子都有可能抛异常，而两处都被 try/catch 吃掉了（<code>:780-786</code>、<code>:908-911</code>）——<strong>连钩子崩溃都不能让循环挂掉</strong>。</p>
+<p><code>agent-loop.ts:812-819</code> 的注释说明了另一件事：</p>
+<blockquote>
+<p>Run one tool call through the same steps as a model-issued call... Tools that call other tools use this so the hooks (for example permission checks) apply to those calls too.</p>
+</blockquote>
+<p>嵌套工具调用（M13 的 codemode 场景）也走同一条管道，否则&quot;权限检查&quot;就能被&quot;套一层工具调用&quot;绕过去。</p>
+<hr>
+<h2 id="sec-16-四-并行还是串行-一票否决-但没人投这一票">四、并行还是串行：一票否决，但没人投这一票</h2>
+<h3 id="sec-17-4-1-调度层怎么写">4.1 调度层怎么写</h3>
+<p><code>agent-loop.ts:525-533</code> 全文就九行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> toolCalls = assistantMessage.content</span><span class="ln">	.<span class="tok-fn">filter</span>((c) =&gt; c.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span><span class="ln"><span class="tok-kw">const</span> hasSequentialToolCall = toolCalls.<span class="tok-fn">some</span>(</span><span class="ln">	(tc) =&gt; currentContext.tools?.<span class="tok-fn">find</span>((t) =&gt; t.name === tc.name)</span><span class="ln">		?.executionMode === <span class="tok-str">"sequential"</span>,</span><span class="ln">);</span><span class="ln"><span class="tok-kw">if</span> (config.toolExecution === <span class="tok-str">"sequential"</span> || hasSequentialToolCall) {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">executeToolCallsSequential</span>(...);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> <span class="tok-fn">executeToolCallsParallel</span>(...);</span></code></pre></div>
+<p><code>ToolExecutionMode</code> 只有两个值（<code>agent/src/types.ts:47</code>）：<code>&quot;sequential&quot; | &quot;parallel&quot;</code>。默认是 <code>&quot;parallel&quot;</code>（<code>agent.ts:261</code>）。</p>
+<p>有个细节值得注意：<strong>一个批次里只要有一个工具声明了 <code>sequential</code>，整批都串行</strong>。不是&quot;这个串行、那个并行&quot;。理由是顺序保证——如果 A 要等 B 的效果，那把 A 挪到并行队列里就破坏了语义。</p>
+<h3 id="sec-18-4-2-内置工具一个都没标">4.2 内置工具一个都没标</h3>
+<p>这是本章最重要的一个发现。八个内置工具的 <code>ToolDefinition</code> 里，<strong>没有任何一个设置 <code>executionMode</code></strong>。搜遍 <code>core/tools/*.ts</code>，<code>executionMode</code> 只出现在 <code>tool-definition-wrapper.ts</code> 的两行透传里。</p>
+<p>也就是说：<strong>两个 <code>write</code> 同时打同一个文件，是并行开始的。</strong></p>
+<p>那为什么不打架？</p>
+<h3 id="sec-19-4-3-并行批次其实分三段-只有中间一段是并行的">4.3 并行批次其实分三段，只有中间一段是并行的</h3>
+<p>上一节容易让人以为&quot;并行 = 全部 <code>Promise.all</code>&quot;。看 <code>executeToolCallsParallel</code>（<code>:596-670</code>）会发现是三段：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">第①段  串行登记      依次 emit start、依次 prepare</span><span class="ln">第②段  并行执行      全部闭包一起开跑</span><span class="ln">第③段  串行收口      按原顺序 emit 结果消息</span></code></pre></div>
+<p>第①段是 <code>for</code> 循环里 <code>await prepareToolCall</code>——<strong>准备是串行的</strong>。代价是准备慢的调用会推迟后面的登记，收益是 <code>tool_execution_start</code> 事件的顺序<strong>永远等于模型给的顺序</strong>（这对 TUI 渲染很重要）。</p>
+<p>第②段的写法值得看：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">finalizedCalls.<span class="tok-fn">push</span>(<span class="tok-kw">async</span> () =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> executed = <span class="tok-kw">await</span> <span class="tok-fn">executePreparedToolCall</span>(</span><span class="ln">		preparation, signal, <span class="tok-fn">emitToolExecutionUpdate</span>(toolCall, emit));</span><span class="ln">	<span class="tok-kw">const</span> finalized = <span class="tok-kw">await</span> <span class="tok-fn">finalizeExecutedToolCall</span>(</span><span class="ln">		currentContext, assistantMessage, preparation,</span><span class="ln">		executed, config, signal);</span><span class="ln">	<span class="tok-kw">return</span> finalized;</span><span class="ln">});</span></code></pre></div>
+<p>推入的是<strong>闭包，不是 promise</strong>。循环期间一个都没启动，直到 <code>Promise.all</code> 才一起 <code>entry()</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> orderedFinalizedCalls = <span class="tok-kw">await</span> Promise.<span class="tok-fn">all</span>(</span><span class="ln">	finalizedCalls.<span class="tok-kw">map</span>((entry) =&gt;</span><span class="ln">		<span class="tok-kw">typeof</span> entry === <span class="tok-str">"function"</span> ? <span class="tok-fn">entry</span>() : Promise.<span class="tok-fn">resolve</span>(entry)),</span><span class="ln">);</span></code></pre></div>
+<p>这个&quot;先登记、后开跑&quot;的顺序保证了<strong>启动时刻接近</strong>。如果边登记边启动，第一个工具可能已经跑完，第八个才开始，那就不是并行了。</p>
+<p>第③段最简单也最重要：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> finalized <span class="tok-kw">of</span> orderedFinalizedCalls) {</span><span class="ln">	<span class="tok-kw">const</span> toolResultMessage = <span class="tok-fn">createToolResultMessage</span>(finalized);</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emitToolResultMessage</span>(toolResultMessage, emit);</span><span class="ln">	messages.<span class="tok-fn">push</span>(toolResultMessage);</span><span class="ln">}</span></code></pre></div>
+<p><code>Promise.all</code> 保留数组顺序，所以<strong>结果消息的顺序 = 模型给的顺序</strong>，与谁先跑完无关。</p>
+<p>为什么强调这点？因为 transcript 是有序的。如果结果按完成顺序推入，同一个 transcript 重放两次会得到不同的消息序列——M10 的会话恢复、M09 的压缩都会跟着出现非确定性。<strong>并发可以乱，落盘不能乱。</strong></p>
+<hr>
+<h2 id="sec-20-五-两个工具同时改一个文件-怎么不打架">五、两个工具同时改一个文件，怎么不打架</h2>
+<p>答案在 <code>file-mutation-queue.ts</code>，全文 61 行。这是整个工具目录里最值得读的文件。</p>
+<h3 id="sec-21-5-1-按路径分片的串行锁">5.1 按路径分片的串行锁</h3>
+<p>核心函数（<code>:32-61</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">async</span> <span class="tok-kw">function</span> withFileMutationQueue&lt;T&gt;(</span><span class="ln">	filePath: <span class="tok-kw">string</span>,</span><span class="ln">	<span class="tok-kw">fn</span>: () =&gt; Promise&lt;T&gt;,</span><span class="ln">): Promise&lt;T&gt; {</span><span class="ln">	<span class="tok-kw">const</span> registration = registrationQueue.<span class="tok-fn">then</span>(<span class="tok-kw">async</span> () =&gt; {</span><span class="ln">		<span class="tok-kw">const</span> key = <span class="tok-kw">await</span> <span class="tok-fn">getMutationQueueKey</span>(filePath);</span><span class="ln">		<span class="tok-kw">const</span> currentQueue =</span><span class="ln">			fileMutationQueues.<span class="tok-kw">get</span>(key) ?? Promise.<span class="tok-fn">resolve</span>();</span><span class="ln"></span><span class="ln">		<span class="tok-kw">let</span> releaseNext!: () =&gt; <span class="tok-kw">void</span>;</span><span class="ln">		<span class="tok-kw">const</span> nextQueue = <span class="tok-kw">new</span> Promise&lt;<span class="tok-kw">void</span>&gt;((r) =&gt; { releaseNext = r; });</span><span class="ln">		<span class="tok-kw">const</span> chainedQueue = currentQueue.<span class="tok-fn">then</span>(() =&gt; nextQueue);</span><span class="ln">		fileMutationQueues.<span class="tok-kw">set</span>(key, chainedQueue);</span><span class="ln">		<span class="tok-kw">return</span> { key, currentQueue, chainedQueue, releaseNext };</span><span class="ln">	});</span><span class="ln">	<span class="tok-com">// ...</span></span><span class="ln">}</span></code></pre></div>
+<p>不熟悉 promise 链的读法是这样的：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">文件 A:  [调用 1 执行中]──→[调用 2 执行中]──→[调用 3]</span><span class="ln">文件 B:  [调用 4 执行中]                    ← 与 A 完全无关</span></code></pre></div>
+<p><code>chainedQueue = currentQueue.then(() =&gt; nextQueue)</code> 是<strong>排队</strong>：新来的调用把自己的 <code>nextQueue</code> 接在上一个的尾巴后面。而 <code>await currentQueue</code>（<code>:52</code>）就是&quot;等我前面那个走完&quot;。</p>
+<p>关键在于 <code>fileMutationQueues</code> 是一个 <code>Map&lt;路径, Promise&gt;</code>。<strong>每个路径一条链，不同路径互不阻塞。</strong> 这就是&quot;按 key 分片的互斥锁&quot;（sharded mutex）。</p>
+<p>如果换成全局一把锁，那&quot;读 A 文件&quot;和&quot;写 B 文件&quot;也得排队——并发度直接掉到 1。</p>
+<h3 id="sec-22-5-2-三个不显眼的细节">5.2 三个不显眼的细节</h3>
+<p><strong>细节一：key 不是入参，是 <code>realpath</code>。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">getMutationQueueKey</span>(filePath: <span class="tok-kw">string</span>): Promise&lt;<span class="tok-kw">string</span>&gt; {</span><span class="ln">	<span class="tok-kw">const</span> resolvedPath = <span class="tok-fn">resolve</span>(filePath);</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">await</span> <span class="tok-fn">realpath</span>(resolvedPath);</span><span class="ln">	} <span class="tok-kw">catch</span> (error) {</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-fn">isMissingPathError</span>(error)) <span class="tok-kw">return</span> resolvedPath;</span><span class="ln">		<span class="tok-kw">throw</span> error;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>为什么要 <code>realpath</code>？因为下面四条路径指向同一个文件，但字符串完全不同：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">./src/../src/a.ts</span><span class="ln">src/a.ts</span><span class="ln">/abs/path/src/a.ts</span><span class="ln">/abs/path/src/lnk.ts     ← 软链接指向 a.ts</span></code></pre></div>
+<p><code>realpath</code> 把它们归一到同一个 key，锁才真正互斥。而 <code>ENOENT</code> / <code>ENOTDIR</code> 时退回 <code>resolvedPath</code>——因为新建文件还没有 realpath 可解析，这一步不 fallback 就没法给&quot;写新文件&quot;上锁。</p>
+<p><strong>细节二：注册本身也要串行。</strong></p>
+<p><code>registrationQueue</code>（<code>:5</code>）是一个全局串行队列，只包住&quot;读 Map-算链-写 Map&quot;这三步。为什么需要它？</p>
+<p>因为两个调用同时进来时，可能都读到旧的 <code>fileMutationQueues.get(key)</code>，于是各自建了一条新链，<strong>互相不知道对方存在</strong>——锁就漏了。这和&quot;自举一个锁需要另一把锁&quot;是同一个问题。</p>
+<p>注意它的写法：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">registrationQueue = registration.<span class="tok-fn">then</span>(</span><span class="ln">	() =&gt; <span class="tok-kw">undefined</span>,</span><span class="ln">	() =&gt; <span class="tok-kw">undefined</span>,</span><span class="ln">);</span></code></pre></div>
+<p>两个 <code>() =&gt; undefined</code> 把成功和失败都吞掉。<strong>注册队列不能因为一次注册失败就永久卡死。</strong></p>
+<p><strong>细节三：最后一个走的负责清理。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">	} <span class="tok-kw">finally</span> {</span><span class="ln">		<span class="tok-fn">releaseNext</span>();</span><span class="ln">		<span class="tok-kw">if</span> (fileMutationQueues.<span class="tok-kw">get</span>(key) === chainedQueue) {</span><span class="ln">			fileMutationQueues.<span class="tok-kw">delete</span>(key);</span><span class="ln">		}</span><span class="ln">	}</span></code></pre></div>
+<p><code>releaseNext()</code> 放行后面的；然后检查&quot;我是不是这条链的尾巴&quot;——是的话从 Map 里删掉。不删的话，长会话里每个改过的文件都会在 Map 里留一个已完成的 promise，<strong>内存只增不减</strong>。</p>
+<p><code>=== chainedQueue</code> 这个判断不能省：如果在我之后又来了一个调用，Map 里存的就变成新的 <code>chainedQueue</code> 了，这时删掉会把别人的锁弄丢。</p>
+<h3 id="sec-23-5-3-中止与锁的冲突">5.3 中止与锁的冲突</h3>
+<p><code>write.ts:66-73</code> 和 <code>edit.ts:160-167</code> 有段一模一样的注释，是这段代码里最老练的一笔：</p>
+<blockquote>
+<p>Do not reject from an abort event listener here: that would release the mutation queue while an in-flight filesystem operation may still finish. Checking <code>signal.aborted</code> after each <code>await</code> observes the same aborts while keeping the queue locked until the current operation has settled.</p>
+</blockquote>
+<p>翻译成大白话：<strong>不要在 abort 事件里直接 reject</strong>，因为 reject 会让 <code>finally</code> 立刻放锁——但此时磁盘写入可能还没完。放锁之后下一个 <code>write</code> 冲进来，就和上一笔未完成的写交错，文件就坏了。</p>
+<p>所以写法是&quot;每个 <code>await</code> 之后查一次&quot;：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> throwIfAborted = (): <span class="tok-kw">void</span> =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (signal?.aborted) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Operation aborted"</span>);</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-fn">throwIfAborted</span>();</span><span class="ln"><span class="tok-kw">await</span> ops.<span class="tok-fn">mkdir</span>(dir);</span><span class="ln"><span class="tok-fn">throwIfAborted</span>();</span><span class="ln"><span class="tok-kw">await</span> ops.<span class="tok-fn">writeFile</span>(absolutePath, content);</span><span class="ln"><span class="tok-fn">throwIfAborted</span>();</span></code></pre></div>
+<p>中止的响应变慢了一个 await，换来的是<strong>锁只在操作真正落定后才释放</strong>。这是一个明确的取舍：<strong>宁可晚 5 毫秒停下，也不要留下半个文件。</strong></p>
+<hr>
+<h2 id="sec-24-六-永不抛出-错误也是一条消息">六、永不抛出：错误也是一条消息</h2>
+<h3 id="sec-25-6-1-三层-try-catch-一个出口">6.1 三层 try/catch，一个出口</h3>
+<p><code>prepareToolCall</code> 的 try 包住了&quot;找工具 → 垫片 → 校验 → 钩子&quot;（<code>:735-786</code>），<code>executePreparedToolCall</code> 包住了 <code>tool.execute</code>（<code>:841-866</code>），<code>finalizeExecutedToolCall</code> 又包住了 <code>afterToolCall</code>（<code>:881-911</code>）。</p>
+<p>三处 catch 的产物完全一样：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">return</span> {</span><span class="ln">	result: <span class="tok-fn">createErrorToolResult</span>(message),</span><span class="ln">	isError: <span class="tok-kw">true</span>,</span><span class="ln">	durationMs,</span><span class="ln">};</span></code></pre></div>
+<p><code>runToolCall</code>（<code>:821-829</code>）的注释把契约写死了：</p>
+<blockquote>
+<p>Never rejects for tool failures: unknown tools, validation errors, blocked calls, and thrown errors come back as <code>isError: true</code>.</p>
+</blockquote>
+<p><strong>工具失败不 reject。</strong> 七种失败，一种产物。</p>
+<p>七种精确列出来，都在 <code>agent-loop.ts</code>：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>失败点</th>
+<th>位置</th>
+<th>错误消息</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>工具不存在</td>
+<td><code>:727</code></td>
+<td><code>Tool X not found</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>垫片抛错</td>
+<td><code>:780</code></td>
+<td>原异常 message</td>
+</tr>
+<tr>
+<td>3</td>
+<td>schema 校验失败</td>
+<td><code>:780</code></td>
+<td>同上（同一个 catch）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>钩子前中止</td>
+<td><code>:748</code></td>
+<td><code>Operation aborted</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>被钩子拦下</td>
+<td><code>:755</code></td>
+<td><code>Tool execution was blocked</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>执行抛错</td>
+<td><code>:855</code></td>
+<td>原异常 message</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>afterToolCall</code> 抛错</td>
+<td><code>:908</code></td>
+<td>原异常 message</td>
+</tr>
+</tbody>
+</table>
+<p>第 2、3 条共用一个 catch，因为它们都在同一个 <code>try</code> 里——<strong>垫片和校验的失败在调用方看来是同一回事。</strong> 这种合并是故意的：模型不需要知道&quot;你的 JSON 形状不对&quot;和&quot;你少传了 path&quot;的区别，它只需要知道&quot;参数不行，重来&quot;。</p>
+<h3 id="sec-26-6-2-错误标志是-quot-平行字段-quot">6.2 错误标志是&quot;平行字段&quot;</h3>
+<p>注意 <code>createErrorToolResult</code>（<code>:922-927</code>）返回的对象里<strong>没有 <code>isError</code></strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">createErrorToolResult</span>(message: <span class="tok-kw">string</span>): AgentToolResult&lt;<span class="tok-kw">any</span>&gt; {</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		content: [{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: message }],</span><span class="ln">		details: {},</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p><code>isError</code> 是调用方在外面单独设的。这个设计有代价：<strong>任何收窄的地方都可能把 <code>isError</code> 丢掉</strong>。所以 <code>finalizeExecutedToolCall</code> 里要写 <code>let isError = executed.isError;</code>，钩子改结果时还要 <code>isError = afterResult.isError ?? isError;</code>。</p>
+<p>为什么不用一个带 <code>isError</code> 的函数？因为 <code>afterToolCall</code> 钩子可能把错误结果改成成功（比如重试后成功），也可能反过来。<strong>把&quot;是不是错误&quot;和&quot;结果内容&quot;分开，钩子才能独立改其中一个。</strong></p>
+<h3 id="sec-27-6-3-为什么-quot-伪造成消息-quot-是最优解">6.3 为什么&quot;伪造成消息&quot;是最优解</h3>
+<p>三个候选方案，对比一下：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>模型能看到错误吗</th>
+<th>循环会中断吗</th>
+<th>重放能还原吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>抛异常到顶层</td>
+<td>不能</td>
+<td>会</td>
+<td>不能</td>
+</tr>
+<tr>
+<td>返回 <code>null</code></td>
+<td>不能</td>
+<td>不会</td>
+<td>不能</td>
+</tr>
+<tr>
+<td><code>isError: true</code> 的消息</td>
+<td>能</td>
+<td>不会</td>
+<td>能</td>
+</tr>
+</tbody>
+</table>
+<p>模型看到错误消息，下一轮会自己调整参数——这是 Agent 自愈能力的来源。而&quot;消息&quot;意味着进 transcript，M03 的&quot;变更即追加&quot;和 M09 的压缩都能把它当正常数据对待。</p>
+<hr>
+<h2 id="sec-28-七-截断三姊妹-2000-行-50kb">七、截断三姊妹：2000 行 / 50KB</h2>
+<p>工具输出不能无限往上下文里塞。<code>truncate.ts</code>（314 行）定了两条独立上限，<strong>谁先到谁赢</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> DEFAULT_MAX_LINES = <span class="tok-num">2000</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> DEFAULT_MAX_BYTES = <span class="tok-num">50</span> * <span class="tok-num">1024</span>;   <span class="tok-com">// 50KB</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> GREP_MAX_LINE_LENGTH = <span class="tok-num">500</span>;</span></code></pre></div>
+<p>三个函数，对应三种&quot;该保哪一头&quot;：</p>
+<table>
+<thead>
+<tr>
+<th>函数</th>
+<th>保哪里</th>
+<th>谁用</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>truncateHead</code></td>
+<td>开头</td>
+<td><code>read</code></td>
+<td>读文件通常从头看</td>
+</tr>
+<tr>
+<td><code>truncateTail</code></td>
+<td>结尾</td>
+<td><code>bash</code></td>
+<td>命令的结论在最后（报错也在最后）</td>
+</tr>
+<tr>
+<td><code>truncateMiddle</code></td>
+<td>首尾各半</td>
+<td>codemode 脚本</td>
+<td>只关心开头和结局</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sec-29-7-1-永远不返回半行">7.1 永远不返回半行</h3>
+<p>这是三条规则中最容易忽略、也最容易被破坏的一条。文件头注释（<code>:8</code>）写的是 &quot;Never returns partial lines (except bash tail truncation edge case)&quot;。</p>
+<p>为什么较真？因为<strong>半行会破坏行号</strong>。如果第 2000 行被切成 <code>function foo(a, b</code>，那模型后续用 <code>offset=2001</code> 接着读，从中间断的地方开始，行号全错一位。<code>read.ts</code> 的续读提示依赖 <code>truncation.outputLines</code>，这个数必须是完整行数。</p>
+<p>唯一的例外是 <code>truncateTail</code> 的&quot;最后一行本身就超 50KB&quot;——此时连一行都放不下，只能取尾部字节。这时会置 <code>lastLinePartial: true</code>，让上层输出一条特殊提示（<code>bash.ts:345-347</code>）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[Showing last 12.3KB of line 5000 (line is 3.4MB).</span><span class="ln"> Full output: /tmp/pi-bash-xxxx.log]</span></code></pre></div>
+<p><strong>降级可以，但必须让读者知道降级了。</strong> 这是&quot;标志位 + 提示语&quot;的双重保险。</p>
+<h3 id="sec-30-7-2-第一行就超限怎么办">7.2 第一行就超限怎么办</h3>
+<p><code>truncateHead</code> 有个专门分支（<code>:105-119</code>）：如果第一行就超过 50KB，返回<strong>空 content</strong>，并把 <code>firstLineExceedsLimit</code> 置为 <code>true</code>。</p>
+<p><code>read.ts:178-182</code> 接住这个标志，输出一条能直接执行的替代方案：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[Line 123 is 3.2MB, exceeds 50KB limit.</span><span class="ln"> Use bash: sed -n '123p' big.log | head -c 51200]</span></code></pre></div>
+<p>这是整章我最喜欢的一处设计。<strong>它不是告诉模型&quot;失败了&quot;，而是告诉模型&quot;换个方法，这条命令能行&quot;。</strong></p>
+<h3 id="sec-31-7-3-字节边界要按字符切">7.3 字节边界要按字符切</h3>
+<p><code>truncate.ts:257</code> 这几行是处理中文的关键：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> start = buf.length - maxBytes;</span><span class="ln"><span class="tok-kw">while</span> (start &lt; buf.length &amp;&amp; (buf[start] &amp; <span class="tok-num">0xc0</span>) === <span class="tok-num">0x80</span>) {</span><span class="ln">	start++;</span><span class="ln">}</span></code></pre></div>
+<p>UTF-8 里 <code>10xxxxxx</code> 是续字节（不是字符开头）。从中间切会把一个汉字劈开，解码后得到一串替换字符 U+FFFD（Unicode 用它标记&quot;这段字节解不出来&quot;）。这段循环往前挪到真正的字符边界。</p>
+<p><code>&amp; 0xc0 === 0x80</code> 这个判断在本章会出现三次（<code>truncate.ts</code>、<code>output-accumulator.ts</code> 两处），是 UTF-8 处理的通用手法——<strong>按字节限流，但按字符切</strong>。</p>
+<h3 id="sec-32-7-4-搜索类工具-条数上限兜底-字节只兜底">7.4 搜索类工具：条数上限兜底，字节只兜底</h3>
+<p><code>grep</code> / <code>find</code> / <code>ls</code> 不用行数限制，因为它们的输出行数本来就由<strong>条数</strong>决定了：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>默认条数</th>
+<th>超限提示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grep</code></td>
+<td>100 条匹配（<code>DEFAULT_LIMIT</code>）</td>
+<td><code>Use limit=200 for more, or refine pattern</code></td>
+</tr>
+<tr>
+<td><code>find</code></td>
+<td>1000 个结果</td>
+<td><code>Use limit=2000 for more, or refine pattern</code></td>
+</tr>
+<tr>
+<td><code>ls</code></td>
+<td>500 个条目</td>
+<td><code>Use limit=1000 for more</code></td>
+</tr>
+</tbody>
+</table>
+<p>所以它们调 <code>truncateHead</code> 时传的是 <code>maxLines: Number.MAX_SAFE_INTEGER</code>（<code>grep.ts:283</code>、<code>find.ts:146</code>、<code>ls.ts:140</code>）——<strong>行数上限等于关掉，只留 50KB 字节兜底。</strong></p>
+<p>为什么还要留字节兜底？因为单行可能极长。一个 <code>min.js</code> 匹配到的一行可能有几百 KB，100 条这样的行远超 50KB。这时 <code>truncateHead</code> 会按<strong>字节</strong>截，<code>truncatedBy</code> 是 <code>&quot;bytes&quot;</code> 而不是 <code>&quot;lines&quot;</code>。</p>
+<p><code>grep</code> 还有第二道：单行先过 <code>truncateLine</code>，超过 500 字符切成 <code>... [truncated]</code>，并置 <code>linesTruncated</code>，最后统一提示：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Some lines truncated to 500 chars. Use read tool to see full lines</span></code></pre></div>
+<p>注意最后半句——<strong>它指向了另一个工具。</strong> 工具之间互相指路，比&quot;失败&quot;有用得多。</p>
+<p><code>ls</code> 的注释（<code>:139</code>）把逻辑说得很直白：</p>
+<blockquote>
+<p>Apply byte truncation. There is no separate line limit because entry count is already capped.</p>
+</blockquote>
+<p><strong>两层上限，能合并的时候就合并，不能就必须两格都在。</strong> 合并的前提是&quot;一个是另一个的严格更紧的约束&quot;——条目数已封顶，行数就不会超，所以关掉行数是对的。</p>
+<hr>
+<h2 id="sec-33-八-流式输出怎么不撑爆内存">八、流式输出怎么不撑爆内存</h2>
+<p><code>bash</code> 的问题和 <code>read</code> 不同：<code>read</code> 是一次拿到整个文件，<code>bash</code> 是<strong>边跑边出</strong>。一条 <code>npm install</code> 可能吐 200MB。</p>
+<p><code>output-accumulator.ts</code>（257 行）的答案：<strong>只留尾巴，超了就落盘。</strong></p>
+<h3 id="sec-34-8-1-三件事同时做">8.1 三件事同时做</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">append</span>(data: Buffer): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.finished) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Cannot append to a finished"</span>);</span><span class="ln">	<span class="tok-kw">this</span>.totalRawBytes += data.length;</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">appendDecodedText</span>(<span class="tok-kw">this</span>.decoder.<span class="tok-fn">decode</span>(data, { stream: <span class="tok-kw">true</span> }));</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.tempFileStream || <span class="tok-kw">this</span>.<span class="tok-fn">shouldUseTempFile</span>()) {</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">ensureTempFile</span>();</span><span class="ln">		<span class="tok-kw">this</span>.tempFileStream?.<span class="tok-fn">write</span>(data);</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (data.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">		<span class="tok-kw">this</span>.rawChunks.<span class="tok-fn">push</span>(data);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>三件事：统计总量、解码成文本（只留尾巴）、决定要不要落盘。</p>
+<p><strong><code>{ stream: true }</code> 是必须的。</strong> chunk 边界可能正好落在汉字的三个字节中间，一次性解码会出乱码。<code>TextDecoder</code> 的 streaming 模式会把不完整的尾巴留着，等下一个 chunk 补上。</p>
+<p><strong><code>maxRollingBytes = maxBytes * 2</code></strong>（<code>:60</code>）：尾巴留两倍余量，因为 <code>truncateTail</code> 之后还要按行切，切完可能不够了。</p>
+<h3 id="sec-35-8-2-落盘之后的读法">8.2 落盘之后的读法</h3>
+<p>一旦超限就切到临时文件，<code>rawChunks</code> 全部写进去并清空（<code>:252-255</code>）。之后内存占用就恒定了——<strong>只保留尾巴那一小段文本</strong>。</p>
+<p><code>readFullOutput(maxBytes)</code>（<code>:149-176</code>）读文件时也是&quot;首尾各一半 + 中间省略标记&quot;：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> omitted = size - headBytes - tailBytes;</span><span class="ln"><span class="tok-kw">return</span> {</span><span class="ln">	content: <span class="tok-str">`${headText}\n\n[... ${omitted} bytes omitted ...]\n\n${tailText}`</span>,</span><span class="ln">	truncated: <span class="tok-kw">true</span>,</span><span class="ln">};</span></code></pre></div>
+<p><code>bash</code> 给模型的输出是 50KB（截断尾部），给 codemode 脚本的 <code>structuredContent</code> 是 1MB（首尾各半）。<strong>同一个命令，两个消费者，两种预算。</strong></p>
+<h3 id="sec-36-8-3-闸门模式-关了就一律不收">8.3 闸门模式：关了就一律不收</h3>
+<p><code>bash.ts</code> 里有个 <code>acceptingOutput</code> 变量（<code>:276</code>），<code>finishOutput()</code> 第一件事就是把它置 <code>false</code>（<code>:328</code>）。<code>agent-loop.ts:837</code> 的 <code>executePreparedToolCall</code> 里有同名的 <code>acceptingUpdates</code>。</p>
+<p>这是同一个模式，本章出现两次：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">开始 → 闸门开 → 数据随便进</span><span class="ln">结束 → 闸门关 → 之后来的全部丢弃</span></code></pre></div>
+<p>为什么需要？因为进程退出和 stdout 关闭<strong>不是同时发生的</strong>。子进程已经 <code>exit</code>，但管道里还有缓冲数据在路上，晚到的 <code>data</code> 事件如果还被接受，就会污染已经定稿的结果。</p>
+<p><code>agent-loop.ts:846-849</code> 那几行更细：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">(partialResult) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (!acceptingUpdates) <span class="tok-kw">return</span>;</span><span class="ln">	updateEvents.<span class="tok-fn">push</span>(Promise.<span class="tok-fn">resolve</span>(<span class="tok-fn">onUpdate</span>(partialResult)));</span><span class="ln">},</span></code></pre></div>
+<p>它不只丢弃，还把进行中的 update 收集成 <code>Promise</code>，在 <code>await Promise.all(updateEvents)</code> 之后才返回。<strong>保证&quot;最后一个 update&quot;一定在结果之前到达消费者</strong>，不会出现&quot;结果已经渲染完了，界面又被一个迟到的进度覆盖&quot;。</p>
+<hr>
+<h2 id="sec-37-九-编辑的三个编码暗坑">九、编辑的三个编码暗坑</h2>
+<p><code>edit.ts</code> 只有 217 行，但有三处防的是真实事故。</p>
+<h3 id="sec-38-9-1-bom">9.1 BOM</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Strip BOM before matching. The model will not include an</span></span><span class="ln"><span class="tok-com">// invisible BOM in oldText.</span></span><span class="ln"><span class="tok-kw">const</span> { bom, text: content } = <span class="tok-fn">splitBom</span>(rawContent);</span></code></pre></div>
+<p>Windows 上很多文件带 UTF-8 BOM（<code>\uFEFF</code>）。模型看不到它，也绝不会在 <code>oldText</code> 里写它。所以匹配前必须剥掉，写回时再拼上（<code>:194</code>：<code>const finalContent = bom + restoreLineEndings(...)</code>）。</p>
+<p><strong>不剥</strong> → <code>oldText</code> 永远匹配不到，模型会反复重试同一处。
+<strong>剥了不拼回</strong> → 文件 BOM 被静默删掉，Git diff 里出现一行&quot;整文件重写&quot;。</p>
+<h3 id="sec-39-9-2-行尾符">9.2 行尾符</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> originalEnding = <span class="tok-fn">detectLineEnding</span>(content);</span><span class="ln"><span class="tok-kw">const</span> normalizedContent = <span class="tok-fn">normalizeToLF</span>(content);</span><span class="ln"><span class="tok-kw">const</span> { baseContent, newContent } =</span><span class="ln">	<span class="tok-fn">applyEditsToNormalizedContent</span>(normalizedContent, edits, path);</span></code></pre></div>
+<p><code>CRLF</code> 文件里，模型给的多行 <code>oldText</code> 通常是 <code>LF</code>。直接匹配必然失败。所以：记原行尾 → 转成 <code>LF</code> → 改 → 转回去。</p>
+<p>这也是&quot;改一个字却整文件 diff&quot;的常见成因：<strong>如果你不记录原行尾，写回时统一成 LF，整个文件每一行都会变。</strong></p>
+<h3 id="sec-40-9-3-路径变体">9.3 路径变体</h3>
+<p><code>path-utils.ts</code>（118 行）里有五连试探，全是 macOS 的坑：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">tryMacOSScreenshotPath</span>(filePath: <span class="tok-kw">string</span>): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">return</span> filePath.<span class="tok-fn">replace</span>(/ (AM|PM)\./gi, <span class="tok-str">`${NARROW_NO_BREAK_SPACE}$1.`</span>);</span><span class="ln">}</span></code></pre></div>
+<p>macOS 截图文件名用的是<strong>窄不换行空格</strong>（U+202F）而不是普通空格；文件名存的是 <strong>NFD</strong> 分解形式；法语系统截图里的撇号是 <strong>U+2019</strong> 而不是 <code>'</code>。</p>
+<p>用户手打出来的路径必然对不上。于是 <code>resolveReadPath</code> 依次试：原路径 → AM/PM 变体 → NFD 变体 → 弯引号变体 → NFD+弯引号组合。</p>
+<p><strong>这些不是洁癖，是&quot;用户报了文件名，你找不到，他就以为工具坏了&quot;。</strong></p>
+<hr>
+<h2 id="sec-41-十-operations-抽象-工具不直接碰系统">十、Operations 抽象：工具不直接碰系统</h2>
+<p>每个工具都定义了一个 <code>XxxOperations</code> 接口，把系统能力抽出来：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> WriteOperations {</span><span class="ln">	writeFile: (absolutePath: <span class="tok-kw">string</span>, content: <span class="tok-kw">string</span>) =&gt; Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">	mkdir: (dir: <span class="tok-kw">string</span>) =&gt; Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">}</span></code></pre></div>
+<p>注释都一样：<em>Override these to delegate file writing to remote systems (for example SSH).</em></p>
+<p>这个抽象带来三件事：</p>
+<ol>
+<li><strong>可测</strong>：<code>write</code> 的行为测试不需要真写磁盘</li>
+<li><strong>可远程</strong>：SSH 场景下换掉 <code>operations</code>，工具的 schema、截断、锁全都照旧</li>
+<li><strong>可嵌壳</strong>：<code>bash.ts</code> 的 <code>spawnHook</code>（<code>:183</code>）能在命令执行前改写 command / cwd / env，这是扩展拦截 <code>user_bash</code> 的入口</li>
+</ol>
+<p>但要注意抽象的<strong>粒度</strong>：每个工具声明<strong>自己需要的最小集合</strong>。<code>write</code> 只要 <code>writeFile</code> + <code>mkdir</code>，<code>edit</code> 要 <code>readFile</code> + <code>writeFile</code> + <code>access</code>。没有一个&quot;万能 FileSystem 接口&quot;——那样每个实现方都得把用不到的方法也实现一遍。</p>
+<hr>
+<h2 id="sec-42-十一-自己动手验证">十一、自己动手验证</h2>
+<p><strong>实验 1：确认八个工具。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-main/pi-main/packages/coding-agent/src/core/tools</span><span class="ln">sed -n '93,105p' index.ts</span></code></pre></div>
+<p><code>ToolName</code> 八个 + <code>allToolNames</code> 八个，两者必须同步——漏一个就会在 <code>createToolDefinition</code> 的 <code>default</code> 分支抛 <code>Unknown tool name</code>。</p>
+<p><strong>实验 2：确认没有工具声明 sequential。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -rn "executionMode" *.ts</span></code></pre></div>
+<p>只有 <code>tool-definition-wrapper.ts</code> 的两行透传。<strong>零命中就是答案</strong>：内置工具全部走并行调度。</p>
+<p><strong>实验 3：看锁的粒度。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -n "fileMutationQueues" file-mutation-queue.ts</span></code></pre></div>
+<p>四处：声明、读、写、删。一个 <code>Map&lt;string, Promise&lt;void&gt;&gt;</code> 就是全部状态。</p>
+<p><strong>实验 4：验证&quot;永远不还半行&quot;。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node -e "</span><span class="ln">const {truncateHead} = require('./dist/core/tools/truncate.js');</span><span class="ln">const big = Array.from({length:5000}, (_,i)=&gt;'line '+(i+1)).join('\n');</span><span class="ln">const r = truncateHead(big, {maxLines:10});</span><span class="ln">console.log(r.outputLines, r.truncatedBy,</span><span class="ln">  JSON.stringify(r.content.split('\n').pop()));</span><span class="ln">"</span></code></pre></div>
+<p><code>outputLines</code> 应该是 10，最后一行是完整的 <code>line 10</code>。（需要先 build。）</p>
+<p><strong>实验 5：数一数截断的出现次数。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -c "0xc0) === 0x80" truncate.ts output-accumulator.ts</span></code></pre></div>
+<p>两次和一次。这个模式只出现在&quot;按字节往回退到字符边界&quot;的地方。</p>
+<p><strong>实验 6：读出工具的提示词贡献。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -rn "SystemPromptContribution" *.ts | head</span></code></pre></div>
+<p>八个工具各有一段。这些就是模型&quot;知道该用哪个工具&quot;的全部依据。</p>
+<p><strong>实验 7：改一处试试——改掉模型看到的那一行。</strong></p>
+<ul>
+<li><strong>改哪里</strong>　<code>bash.ts:45</code>，把 <code>snippet</code> 换成 <code>&quot;Run shell commands&quot;</code>。</li>
+<li><strong>预期</strong>　打印 <code>bashToolSystemPromptContribution.snippet</code>，
+从 <code>Execute bash commands (ls, grep, find, etc.)</code>
+变成 <code>Run shell commands</code>（本机实测）。</li>
+<li><strong>连带</strong>　<code>bash.ts:421</code> 把它接进 <code>promptSnippet</code>，最终进系统提示词
+的工具清单（M08 §三）。它不影响工具能不能跑，只影响模型「会不会想起来
+用它」——最容易改、最难量化的一行。有提示词快照测试就会报 diff。</li>
+<li><strong>回滚</strong>　改回原字符串。</li>
+</ul>
+<p>两行脚本就能看结果（跑法用 M01 §7.2 那条 <code>--import</code> 命令）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { bashToolSystemPromptContribution <span class="tok-kw">as</span> c }</span><span class="ln">  <span class="tok-kw">from</span> <span class="tok-str">"./packages/coding-agent/src/core/tools/bash.ts"</span>;</span><span class="ln">console.<span class="tok-fn">log</span>(c.snippet);</span></code></pre></div>
+<hr>
+<h2 id="sec-43-十二-工程暗坑">十二、工程暗坑</h2>
+<p><strong>1. 用 promise 链做锁，别忘了 <code>finally</code>。</strong></p>
+<p><code>withFileMutationQueue</code> 里如果 <code>fn()</code> 抛了而你没在 <code>finally</code> 里 <code>releaseNext()</code>，这条文件链<strong>永久阻塞</strong>——后续所有对该文件的写都会挂住，而且看日志完全看不出原因（进程还活着，只是不干活）。<strong>任何基于 promise 链的锁，放锁必须在 <code>finally</code>。</strong></p>
+<p><strong>2. <code>realpath</code> 会因文件不存在而抛。</strong></p>
+<p><code>getMutationQueueKey</code> 必须捕获 <code>ENOENT</code> / <code>ENOTDIR</code> 并退回 <code>resolve()</code> 结果，否则&quot;写新文件&quot;这个最常见的场景直接失败。</p>
+<p><strong>3. 不要在 abort 监听里 reject。</strong></p>
+<p>见 5.3。放锁早于操作结束 = 下一笔写和上一笔未完成的写交错。</p>
+<p><strong>4. <code>truncateHead</code> 对超长首行返回空字符串。</strong></p>
+<p>不要以为&quot;有 content 就是成功&quot;。<code>content === &quot;&quot;</code> 且 <code>firstLineExceedsLimit === true</code> 是合法状态，必须单独处理。</p>
+<p><strong>5. 非零退出码不是异常。</strong></p>
+<p><code>bash.ts:399-406</code> 里 <code>exitCode !== 0</code> 返回的是 <code>isError: true</code> 的<strong>正常结果</strong>，不是 reject。而对 codemode 脚本，<code>structuredContent.exit_code</code> 照旧给出——<strong>同一个事实，对模型是&quot;失败&quot;，对脚本是&quot;数据&quot;。</strong></p>
+<p><strong>6. 进程退出了，stdio 可能还连着。</strong></p>
+<p><code>bash.ts:145-147</code> 用 <code>waitForChildProcess</code> 而不是裸 <code>once(&quot;exit&quot;)</code>，注释写着 &quot;without hanging on inherited stdio handles held by detached descendants&quot;。子 shell 拉起的后台进程继承了 stdout，父进程 <code>exit</code> 之后管道不关，只等 exit 会卡死。</p>
+<p><strong>7. PowerShell 输出默认不是 UTF-8。</strong></p>
+<p><code>powershell.ts:16</code> 那一行前缀就是补丁：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> UTF8_OUTPUT_PREFIX =</span><span class="ln">	<span class="tok-str">"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n"</span>;</span></code></pre></div>
+<p>没有它，中文输出在 Windows 上会变问号。<strong>这不是 Pi 的 bug，是 PowerShell 5.1 的默认编码。</strong></p>
+<p><strong>8. grep 不能读用户的 ripgrep 配置。</strong></p>
+<p><code>grep.ts:161</code> 用了 <code>--no-config</code>，注释说工具契约不能依赖用户配置。如果用户的 <code>~/.ripgreprc</code> 加了 <code>--max-columns</code> 或者改了输出格式，工具解析就崩了。<strong>包装外部命令时，先把它变成&quot;可预测的机器&quot;。</strong></p>
+<hr>
+<h2 id="sec-44-十三-四个可以带走的方法">十三、四个可以带走的方法</h2>
+<p><strong>方法一：锁的粒度选&quot;业务主键&quot;，不选&quot;全局&quot;。</strong></p>
+<p><code>fileMutationQueues</code> 用文件路径当 key。如果换成全局锁，正确性一分不差，吞吐量掉到 1/8（八个工具只能一个个来）。</p>
+<p>写并发控制时先问：<strong>这次冲突到底发生在哪个对象上？</strong> 那个对象的标识，就是锁的 key。</p>
+<p><strong>方法二：给&quot;降级&quot;配一个标志位，别让它沉默。</strong></p>
+<p><code>truncated</code> / <code>truncatedBy</code> / <code>lastLinePartial</code> / <code>firstLineExceedsLimit</code> / <code>matchLimitReached</code> / <code>entryLimitReached</code>——六个标志位，每个都对应一句给模型的提示。</p>
+<p>降级本身不是问题，<strong>静默降级</strong>才是。模型不知道数据被截断了，就会基于不完整的信息下结论。</p>
+<p><strong>方法三：错误信息要写成&quot;下一步能做什么&quot;。</strong></p>
+<p>对比两种写法：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">✗  File too large to read.</span><span class="ln">✓  [Line 123 is 3.2MB, exceeds 50KB limit.</span><span class="ln">    Use bash: sed -n '123p' big.log | head -c 51200]</span></code></pre></div>
+<p>第二种模型能直接照做。<strong>工具报错的读者是模型，不是人。</strong></p>
+<p><strong>方法四：让&quot;关闸&quot;成为结束流程的第一件事。</strong></p>
+<p><code>acceptingOutput = false</code> 在 <code>finishOutput()</code> 第一行；<code>acceptingUpdates = false</code> 在拿到结果后的第一件事。晚到的数据不会污染已定稿的结果。</p>
+<p>任何&quot;流式 + 有一个终点&quot;的系统都需要这一行。</p>
+<hr>
+<h2 id="sec-45-下一步">下一步</h2>
+<p>工具能跑了，但它们说的话要进 transcript——一条 <code>ToolResultMessage</code>，带 <code>toolCallId</code>、<code>isError</code>、可能还有图片。</p>
+<p>M03 讲过工具结果是&quot;挂在 user 消息里&quot;还是&quot;独立 <code>role: &quot;tool&quot;</code>&quot;是 provider 差异。那 Pi 内部到底用哪种？消息类型分几层？</p>
+<p>下一章打开消息系统。</p>
+<hr>
+<h2 id="sec-46-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
+<td>225</td>
+<td><code>ToolName</code> <code>:95</code>、三套预设 <code>:164-224</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/file-mutation-queue.ts</code></td>
+<td>62</td>
+<td>全文，尤其 <code>:32-61</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/truncate.ts</code></td>
+<td>315</td>
+<td>常量 <code>:11-13</code>、<code>truncateHead</code> <code>:78-160</code>、字节边界 <code>:247-262</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/output-accumulator.ts</code></td>
+<td>258</td>
+<td><code>append</code> <code>:64-78</code>、<code>readFullOutput</code> <code>:149-176</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/bash.ts</code></td>
+<td>442</td>
+<td>进程树 <code>:96-165</code>、闸门 <code>:321-335</code>、退出码 <code>:385-407</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/write.ts</code></td>
+<td>97</td>
+<td>锁 + abort <code>:66-88</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/edit.ts</code></td>
+<td>218</td>
+<td>垫片 <code>:100-131</code>、BOM/行尾 <code>:187-195</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/read.ts</code></td>
+<td>224</td>
+<td>续读提示 <code>:175-202</code>、中止 <code>:110-119</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/path-utils.ts</code></td>
+<td>119</td>
+<td>macOS 五连 <code>:52-84</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/tools/tool-definition-wrapper.ts</code></td>
+<td>78</td>
+<td>双向转换 <code>:27-77</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>960</td>
+<td>五步管道 <code>:704-920</code>、一票否决 <code>:518-533</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/types.ts</code></td>
+<td>—</td>
+<td><code>ToolExecutionMode</code> <code>:47</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m04-model-call.html"><span class="lbl">上一篇</span>模型调用 —— 一行代码背后的十层翻译</a>
+      <a class="next" href="m06-messages.html"><span class="lbl">下一篇</span>消息系统 —— 四种给模型看，八种给系统记</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-八个工具-一张台账" class="">一、八个工具，一张台账</a><a href="#sec-2-1-1-三套预设-不是一套" class="lv3">1.1 三套预设，不是一套</a><a href="#sec-3-1-2-三种体格" class="lv3">1.2 三种体格</a><a href="#sec-4-1-3-模型怎么知道有这八个工具" class="lv3">1.3 模型怎么知道有这八个工具</a><a href="#sec-5-二-四层类型-一个工具为什么有四张脸" class="">二、四层类型：一个工具为什么有四张脸</a><a href="#sec-6-2-1-四张脸各管什么" class="lv3">2.1 四张脸各管什么</a><a href="#sec-7-2-2-多出来的两个字段" class="lv3">2.2 多出来的两个字段</a><a href="#sec-8-2-3-第四张脸-typeboxagenttool" class="lv3">2.3 第四张脸：TypeBoxAgentTool</a><a href="#sec-9-2-4-反向转换" class="lv3">2.4 反向转换</a><a href="#sec-10-2-5-为什么不干脆用一个类型" class="lv3">2.5 为什么不干脆用一个类型</a><a href="#sec-11-三-五步管道" class="">三、五步管道</a><a href="#sec-12-3-1-第-0-步-工具集从哪来" class="lv3">3.1 第 0 步：工具集从哪来</a><a href="#sec-13-3-2-第-1-步-preparearguments-给模型擦屁股" class="lv3">3.2 第 1 步 prepareArguments：给模型擦屁股</a><a href="#sec-14-3-3-第-2-步-validatetoolarguments-schema-说" class="lv3">3.3 第 2 步 validateToolArguments：schema 说了算</a><a href="#sec-15-3-4-第-3-5-步钩子-可拦-可改" class="lv3">3.4 第 3、5 步钩子：可拦、可改</a><a href="#sec-16-四-并行还是串行-一票否决-但没人投这一票" class="">四、并行还是串行：一票否决，但没人投这一票</a><a href="#sec-17-4-1-调度层怎么写" class="lv3">4.1 调度层怎么写</a><a href="#sec-18-4-2-内置工具一个都没标" class="lv3">4.2 内置工具一个都没标</a><a href="#sec-19-4-3-并行批次其实分三段-只有中间一段是并行的" class="lv3">4.3 并行批次其实分三段，只有中间一段是并行的</a><a href="#sec-20-五-两个工具同时改一个文件-怎么不打架" class="">五、两个工具同时改一个文件，怎么不打架</a><a href="#sec-21-5-1-按路径分片的串行锁" class="lv3">5.1 按路径分片的串行锁</a><a href="#sec-22-5-2-三个不显眼的细节" class="lv3">5.2 三个不显眼的细节</a><a href="#sec-23-5-3-中止与锁的冲突" class="lv3">5.3 中止与锁的冲突</a><a href="#sec-24-六-永不抛出-错误也是一条消息" class="">六、永不抛出：错误也是一条消息</a><a href="#sec-25-6-1-三层-try-catch-一个出口" class="lv3">6.1 三层 try/catch，一个出口</a><a href="#sec-26-6-2-错误标志是-quot-平行字段-quot" class="lv3">6.2 错误标志是&amp;quot;平行字段&amp;quot;</a><a href="#sec-27-6-3-为什么-quot-伪造成消息-quot-是最优解" class="lv3">6.3 为什么&amp;quot;伪造成消息&amp;quot;是最优解</a><a href="#sec-28-七-截断三姊妹-2000-行-50kb" class="">七、截断三姊妹：2000 行 / 50KB</a><a href="#sec-29-7-1-永远不返回半行" class="lv3">7.1 永远不返回半行</a><a href="#sec-30-7-2-第一行就超限怎么办" class="lv3">7.2 第一行就超限怎么办</a><a href="#sec-31-7-3-字节边界要按字符切" class="lv3">7.3 字节边界要按字符切</a><a href="#sec-32-7-4-搜索类工具-条数上限兜底-字节只兜底" class="lv3">7.4 搜索类工具：条数上限兜底，字节只兜底</a><a href="#sec-33-八-流式输出怎么不撑爆内存" class="">八、流式输出怎么不撑爆内存</a><a href="#sec-34-8-1-三件事同时做" class="lv3">8.1 三件事同时做</a><a href="#sec-35-8-2-落盘之后的读法" class="lv3">8.2 落盘之后的读法</a><a href="#sec-36-8-3-闸门模式-关了就一律不收" class="lv3">8.3 闸门模式：关了就一律不收</a><a href="#sec-37-九-编辑的三个编码暗坑" class="">九、编辑的三个编码暗坑</a><a href="#sec-38-9-1-bom" class="lv3">9.1 BOM</a><a href="#sec-39-9-2-行尾符" class="lv3">9.2 行尾符</a><a href="#sec-40-9-3-路径变体" class="lv3">9.3 路径变体</a><a href="#sec-41-十-operations-抽象-工具不直接碰系统" class="">十、Operations 抽象：工具不直接碰系统</a><a href="#sec-42-十一-自己动手验证" class="">十一、自己动手验证</a><a href="#sec-43-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-44-十三-四个可以带走的方法" class="">十三、四个可以带走的方法</a><a href="#sec-45-下一步" class="">下一步</a><a href="#sec-46-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

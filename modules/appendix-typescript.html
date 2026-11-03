@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>附录 B —— 读源码用的 TypeScript 速查 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="active">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">APX</div>
+      <h1>附录 B —— 读源码用的 TypeScript 速查</h1>
+      <div class="module-meta">1,600 字 · 含 80 行代码 · 约 12 分钟</div>
+    </header>
+    <p>这本书的代码块全部来自 v1.4.0 源码，不是伪代码。所以读之前，你得能
+看懂两种东西：<strong>TypeScript 的类型写法</strong>，和<strong>Node 运行时的几个内建对象</strong>。</p>
+<p>不用会写。会认就行。</p>
+<p>这一页只列正文里真正出现过、且 Python 里没有对应物的写法。每条三行：
+写法长什么样 / 书里哪儿用过（可点坐标）/ Python 里怎么对应。</p>
+<blockquote>
+<p>领域术语不在这里——<code>差分</code>、<code>两阶段提交</code>、<code>幂等</code>这些是业务概念，
+各自在正文首次出现时给了定义，查它们请回对应章节。</p>
+</blockquote>
+<hr>
+<h2 id="sec-1-一-第一件事-类型标注是注释">一、第一件事：类型标注是注释</h2>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/tools/render-utils.ts:80-83</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolRenderResultLike&lt;TDetails&gt; = {</span><span class="ln">	content: (TextContent | ImageContent)[];</span><span class="ln">	details: TDetails;</span><span class="ln">};</span></code></pre></div>
+<p><code>TDetails</code> 是待填的参数，<code>content</code> 后面的 <code>(TextContent | ImageContent)[]</code>
+是「数组，元素是这两种之一」。<strong>这些冒号后面的东西运行时全部消失</strong>，
+编译产物里只剩 <code>{}</code>。读的时候可以当注释看。</p>
+<p>Python 侧：</p>
+<div class="code-block" data-lang="python">
+<div class="code-head"><span class="lang">python</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"># 近似写法：类型标注在运行时同样不强制</span><span class="ln">@dataclass</span><span class="ln">class ToolRenderResultLike(Generic[TDetails]):</span><span class="ln">    content: list[TextContent | ImageContent]</span><span class="ln">    details: TDetails</span></code></pre></div>
+<p>一句总纲：<strong>看类型标注是为了知道「这里装的是什么」，不是为了看它怎么实现。</strong></p>
+<hr>
+<h2 id="sec-2-二-八种只有读源码才会遇到的写法">二、八种只有读源码才会遇到的写法</h2>
+<h3 id="sec-3-2-1-联合类型-a-b-一个变量几种形状">2.1 联合类型 <code>A | B</code>：一个变量几种形状</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/types.ts:489</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> StopReason =</span><span class="ln">	| <span class="tok-str">"pending"</span> | <span class="tok-str">"stop"</span> | <span class="tok-str">"length"</span> | <span class="tok-str">"toolUse"</span></span><span class="ln">	| <span class="tok-str">"error"</span> | <span class="tok-str">"aborted"</span> | <span class="tok-str">"deferred"</span>;</span></code></pre></div>
+<p>七个字符串之一。M03 §六整节都在讲这七个值分别什么时候出现。</p>
+<p>Python 是 <code>Literal</code>：</p>
+<div class="code-block" data-lang="python">
+<div class="code-head"><span class="lang">python</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">StopReason = Literal[</span><span class="ln">    "pending", "stop", "length", "toolUse",</span><span class="ln">    "error", "aborted", "deferred",</span><span class="ln">]</span></code></pre></div>
+<h3 id="sec-4-2-2-判别联合-never-漏一种就编译不过">2.2 判别联合 + <code>never</code>：漏一种就编译不过</h3>
+<p><code>AgentMessage</code> 是八种消息的联合，它们的 <code>role</code> 字段各不相同——这个字段
+叫<strong>判别键</strong>。有了它，<code>switch (m.role)</code> 的每个 <code>case</code> 里，<code>m</code> 会被自动
+收窄成对应的那一种：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/messages.ts:148-196（节选）</span></span><span class="ln"><span class="tok-kw">switch</span> (m.role) {</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">		<span class="tok-kw">if</span> (m.excludeFromContext) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">		<span class="tok-kw">return</span> { role: <span class="tok-str">"user"</span>, content: [], timestamp: m.timestamp };</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"compactionSummary"</span>:</span><span class="ln">		<span class="tok-kw">return</span> { role: <span class="tok-str">"user"</span>, content: [], timestamp: m.timestamp };</span><span class="ln">	<span class="tok-com">// …另外几种自定义消息同理</span></span><span class="ln">	<span class="tok-kw">default</span>:</span><span class="ln">		<span class="tok-com">// biome-ignore lint/correctness/noSwitchDeclarations: fine</span></span><span class="ln">		<span class="tok-kw">const</span> _exhaustiveCheck: <span class="tok-kw">never</span> = m;</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p>最后那行是全书最重要的三行类型代码之一。原理：八种都写过 <code>case</code> 之后，
+<code>m</code> 的类型被收窄成 <code>never</code>（不可能是任何东西），赋值才通过。<strong>漏掉一种，
+<code>m</code> 就不是 <code>never</code>，这行直接编译报错</strong>——它把「加了消息类型忘了改转换器」
+变成了编译期错误，而不是线上的静默丢消息。</p>
+<p>M06 §3.3 完整讲过这段（<code>m06:325-338</code>）。</p>
+<p>Python 没有等价物。<code>match</code> 语句可以穷尽，但漏了分支只在运行时炸。</p>
+<h3 id="sec-5-2-3-泛型-lt-t-gt-待填的类型参数">2.3 泛型 <code>&lt;T&gt;</code>：待填的类型参数</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/models.ts:275</span></span><span class="ln">getModelsOfType&lt;TType <span class="tok-kw">extends</span> ModelType&gt;(</span><span class="ln">	<span class="tok-kw">type</span>: TType,</span><span class="ln">	provider?: <span class="tok-kw">string</span>,</span><span class="ln">): <span class="tok-kw">readonly</span> ModelTypeMap[TType][];</span></code></pre></div>
+<p>读法：<code>&lt;TType extends ModelType&gt;</code> 是「调用时再定的类型，但必须是
+<code>ModelType</code> 之一」；返回值的 <code>ModelTypeMap[TType]</code> 是按 <code>TType</code> 查表拿到的
+具体类型。传 <code>&quot;chat&quot;</code> 拿到聊模型列表，传 <code>&quot;image&quot;</code> 拿到图像模型列表——
+<strong>同一个函数，返回类型跟着参数走</strong>。</p>
+<p>Python 用 <code>TypeVar</code>：</p>
+<div class="code-block" data-lang="python">
+<div class="code-head"><span class="lang">python</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">TType = TypeVar("TType", bound=ModelType)</span><span class="ln"></span><span class="ln">async def get_models_of_type(</span><span class="ln">    t: TType, provider: str | None = None,</span><span class="ln">) -&gt; list[ModelTypeMap[TType]]: ...</span></code></pre></div>
+<p>实际差别：Python 的类型参数运行时还在（可反射），TS 的编译后消失。</p>
+<h3 id="sec-6-2-4-类型谓词-is-收窄的开关">2.4 类型谓词 <code>is</code>：收窄的开关</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/models.ts:1232</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> hasApi&lt;TApi <span class="tok-kw">extends</span> Api&gt;(</span><span class="ln">	model: AnyModel,</span><span class="ln">	api: TApi,</span><span class="ln">): model <span class="tok-kw">is</span> Model&lt;TApi&gt; {</span></code></pre></div>
+<p>返回类型写 <code>model is Model&lt;TApi&gt;</code> 而不是 <code>boolean</code>。这意味着<strong>只要
+<code>if (hasApi(m, &quot;anthropic-messages&quot;))</code> 成立，<code>m</code> 在分支里就变成
+<code>Model&lt;&quot;anthropic-messages&quot;&gt;</code></strong>，可以访问该 API 的专属字段。</p>
+<p>它为什么必需，源码自己在 <code>models.ts:270</code> 写了：动态模型列表的类型是宽的
+<code>Model&lt;Api&gt;</code>，要用 <code>hasApi()</code> 收窄。Python 侧是 <code>TypeGuard</code>，用法几乎一样。</p>
+<h3 id="sec-7-2-5-条件类型-类型层面的-if">2.5 条件类型：类型层面的 if</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/types.ts:640-646（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolResultMessage&lt;TDetails = JsonValue&gt; =</span><span class="ln">	IsJsonCompatible&lt;TDetails&gt; <span class="tok-kw">extends</span> <span class="tok-kw">true</span></span><span class="ln">		? {</span><span class="ln">				role: <span class="tok-str">"toolResult"</span>;</span><span class="ln">				toolCallId: <span class="tok-kw">string</span>;</span><span class="ln">				toolName: <span class="tok-kw">string</span>;</span><span class="ln">				content: (TextContent | ImageContent)[];</span><span class="ln">				details?: JsonRepresentation&lt;TDetails&gt;;</span><span class="ln">				<span class="tok-com">// …</span></span><span class="ln">			}</span><span class="ln">		: <span class="tok-kw">never</span>;</span></code></pre></div>
+<p><code>X extends true ? A : never</code> 就是「不合规就变成 <code>never</code>」。配套的工具类型
+在同文件 <code>:494-537</code>：</p>
+<ul>
+<li><code>IsJsonCompatible&lt;T&gt;</code>：递归判断能不能安全落盘（函数、<code>undefined</code>、
+<code>Symbol</code> 都判假）</li>
+<li><code>InvalidJsonKeys&lt;T&gt;</code>：反向找出<strong>哪个键</strong>不合法，报错能指到字段</li>
+<li><code>JsonRepresentation&lt;T&gt;</code>：把内存类型映射成「落盘后的形态」</li>
+</ul>
+<p>为什么值得：<code>details</code> 的唯一归宿是 jsonl 文件（M10）。塞 <code>Date</code> 进去落盘
+变字符串，塞 <code>Map</code> 进去变 <code>{}</code>——错误在落盘那一刻才暴露。M06 §3.5
+（<code>m06:367-390</code>）是这个设计的完整动机。</p>
+<p>Python 只有 <code>TypeVar</code> + 重载能近似，没有真正的条件类型。</p>
+<h3 id="sec-8-2-6-satisfies-检查-但别改我的类型">2.6 <code>satisfies</code>：检查，但别改我的类型</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/keybindings.ts:171</span></span><span class="ln">} <span class="tok-kw">as</span> <span class="tok-kw">const</span> <span class="tok-kw">satisfies</span> KeybindingDefinitions;</span></code></pre></div>
+<p><code>as const</code> 把对象冻成字面量类型（键名保留、值不可变），<code>satisfies</code> 再拿它
+去比对 <code>KeybindingDefinitions</code> 的形状。<strong>叠加效果：既被校验，又保留字面量
+的精确类型</strong>——这正是写配置表最想要的。</p>
+<p>对比标注写法 <code>: KeybindingDefinitions</code>：校验过了，但类型被放宽，字面量
+信息丢了。</p>
+<p><code>satisfies</code> 在正文出现六次。例如 <code>agent-loop.ts:620</code>
+<code>} satisfies FinalizedToolCallOutcome;</code>——返回值不写标注而用 satisfies，
+就是为了让调用方拿到精确的联合成员。</p>
+<h3 id="sec-9-2-7-as-const-把字面量冻成常量">2.7 <code>as const</code>：把字面量冻成常量</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/tools/bash.ts:47</span></span><span class="ln">} <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p>工具定义里到处是这个。<code>bash.ts:44-47</code> 给的是工具的提示词贡献：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/tools/bash.ts:44-47</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> bashToolSystemPromptContribution = {</span><span class="ln">	snippet: <span class="tok-str">"Execute bash commands (ls, grep, find, etc.)"</span>,</span><span class="ln">	guidelines: [<span class="tok-str">"You can inspect PI_* environment variables …"</span>],</span><span class="ln">} <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p>不加 <code>as const</code> 时，<code>snippet</code> 被推断成 <code>string</code>、<code>guidelines</code> 被推断成
+<code>string[]</code>；加了之后是字面量类型与 <code>readonly [&quot;…&quot;]</code>，拼进提示词时不会再
+被当成任意字符串。同类写法在工具定义里出现二十多次（<code>edit.ts:48</code>、
+<code>grep.ts:37</code> 都是）。M02 那张包表也是这么写的（<code>m02:524</code>）。</p>
+<p>Python 没有等价物：字符串字面量本来就是那个值。</p>
+<h3 id="sec-10-2-8-declare-module-声明合并">2.8 <code>declare module</code>：声明合并</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/messages.ts:70-77</span></span><span class="ln"><span class="tok-kw">declare</span> <span class="tok-kw">module</span> <span class="tok-str">"@earendil-works/pi-agent-core"</span> {</span><span class="ln">	<span class="tok-kw">interface</span> CustomAgentMessages {</span><span class="ln">		bashExecution: BashExecutionMessage;</span><span class="ln">		custom: CustomMessage;</span><span class="ln">		branchSummary: BranchSummaryMessage;</span><span class="ln">		compactionSummary: CompactionSummaryMessage;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>它不是「重新定义」，而是<strong>往一个已存在的 interface 里追加成员</strong>。<code>agent</code>
+包里的 <code>AgentMessage</code> 由 <code>CustomAgentMessages</code> 的成员拼成，所以这段一旦
+进入编译图，<code>AgentMessage</code> 就从 4 种变 8 种。</p>
+<p>M06 §3 整节讲它的收益与三个副作用（<code>m06:340-365</code>）。Python 无对应机制。</p>
+<hr>
+<h2 id="sec-11-三-符号速查表">三、符号速查表</h2>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>读作</th>
+<th>本书实例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x?: T</code></td>
+<td>这个字段可以不存在</td>
+<td><code>setProtocolVersion?</code>（<code>transport.ts:18-26</code>）</td>
+</tr>
+<tr>
+<td><code>readonly T[]</code></td>
+<td>只读数组，别原地改</td>
+<td><code>getProviders(): readonly Provider[]</code>（<code>models.ts:259</code>）</td>
+</tr>
+<tr>
+<td><code>Record&lt;K, V&gt;</code></td>
+<td>键是 K、值是 V 的字典</td>
+<td><code>headers?: Record&lt;string, string&gt;</code>（<code>provider-composer.ts:61</code>）</td>
+</tr>
+<tr>
+<td><code>T | undefined</code></td>
+<td>可能是空</td>
+<td><code>Model | undefined</code></td>
+</tr>
+<tr>
+<td><code>x!</code></td>
+<td>我保证不是空</td>
+<td>读代码时忽略这个感叹号</td>
+</tr>
+<tr>
+<td><code>x?.y</code></td>
+<td>空就返回空，不报错</td>
+<td><code>result.details?.truncation</code></td>
+</tr>
+<tr>
+<td><code>x ?? y</code></td>
+<td>左边空才用右边（只认 null/undefined）</td>
+<td><code>?? DEFAULT_MAX_MESSAGE_BYTES</code></td>
+</tr>
+<tr>
+<td><code>as T</code></td>
+<td>断言成 T（不检查）</td>
+<td><code>as Record&lt;string, unknown&gt;</code></td>
+</tr>
+<tr>
+<td><code>satisfies T</code></td>
+<td>检查但保留原类型</td>
+<td><code>as const satisfies …</code></td>
+</tr>
+<tr>
+<td><code>#field</code></td>
+<td>真私有，运行时也看不到</td>
+<td><code>scheduler.ts:1874</code> <code>async #drain()</code></td>
+</tr>
+<tr>
+<td><code>Promise&lt;T&gt;</code></td>
+<td>异步操作，等到 T</td>
+<td><code>start(): Promise&lt;void&gt;</code></td>
+</tr>
+<tr>
+<td><code>import type</code></td>
+<td>只拿类型，运行时不存在</td>
+<td><code>messages.ts:8-9</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="sec-12-四-node-运行时-四个绕不开的内建对象">四、Node 运行时：四个绕不开的内建对象</h2>
+<p>源码里出现频率最高、Python 里又没有直接对应物的四个：</p>
+<p><strong><code>Buffer</code></strong>——字节数组。M13 的 stdio 传输整节都在用它拼字节
+（<code>stdio.ts:181-207</code>）。Python 里是 <code>bytes</code> + <code>bytearray</code>。</p>
+<p><strong><code>child_process</code></strong>——起子进程。MCP 的 stdio 传输本质是 spawn 一个服务器
+进程再读它的 stdout（<code>stdio.ts:449</code> 的 <code>killProcessTree</code>）。Python 里是
+<code>subprocess</code>。</p>
+<p><strong><code>AbortSignal</code></strong>——取消令牌。长任务都带一个 <code>signal</code> 参数，用户按 Esc 就
+<code>abort()</code>。Python 里是 <code>asyncio.Task.cancel()</code>。</p>
+<p><strong><code>queueMicrotask</code></strong>——把一个函数排到当前同步代码之后、下一次 IO 之前。
+<code>scheduler.ts:1871</code> 用它做「合并多次唤醒」：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/durable/src/harness/scheduler.ts:1868-1874（节选）</span></span><span class="ln"><span class="tok-kw">if</span> (<span class="tok-kw">this</span>.#draining || !<span class="tok-kw">this</span>.#enabled || !<span class="tok-kw">this</span>.#closing) <span class="tok-kw">return</span>;</span><span class="ln"><span class="tok-kw">this</span>.#draining = <span class="tok-kw">true</span>;</span><span class="ln"><span class="tok-fn">queueMicrotask</span>(() =&gt; <span class="tok-kw">void</span> <span class="tok-kw">this</span>.#<span class="tok-fn">drain</span>());</span></code></pre></div>
+<p>M11 §五讲了这个循环的全部意义：<strong>没有 <code>while</code>，靠「再排一次」驱动</strong>。
+Python 里最接近 <code>asyncio.call_soon</code>。</p>
+<hr>
+<h2 id="sec-13-五-python-程序员的三个真陷阱">五、Python 程序员的三个真陷阱</h2>
+<p><strong>一，<code>[]</code> 和 <code>{}</code> 是 truthy。</strong> Python 里空列表是假值，JS 里是<strong>真值</strong>。
+所以源码判断空数组一律 <code>.length === 0</code>，不会写 <code>if (!arr)</code>。</p>
+<p><strong>二，<code>==</code> 会隐式转换，<code>===</code> 不会。</strong> 源码里清一色 <code>===</code>（biome 有规则拦着）。
+<code>&quot;8&quot; == 8</code> 在 Python 里是 False，在 JS 里是 true。</p>
+<p><strong>三，<code>.map()</code> 返回新数组，<code>.forEach()</code> 返回 <code>undefined</code>。</strong> Python 的
+列表推导返回列表，生成器函数返回迭代器——JS 没有同款惰性版。</p>
+<hr>
+<h2 id="sec-14-六-正文里哪些地方该回这一页">六、正文里哪些地方该回这一页</h2>
+<table>
+<thead>
+<tr>
+<th>你在正文卡住的地方</th>
+<th>回这一节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>看到 <code>&lt;T&gt;</code>、<code>ModelTypeMap[TType]</code></td>
+<td>2.3</td>
+</tr>
+<tr>
+<td>看到 <code>model is Model&lt;TApi&gt;</code></td>
+<td>2.4</td>
+</tr>
+<tr>
+<td>看到 <code>extends true ? A : never</code></td>
+<td>2.5</td>
+</tr>
+<tr>
+<td>看到 <code>satisfies</code>、<code>as const</code></td>
+<td>2.6、2.7</td>
+</tr>
+<tr>
+<td>看到 <code>declare module</code> 后类型突然变多</td>
+<td>2.8</td>
+</tr>
+<tr>
+<td>看到 <code>switch</code> 末尾的 <code>_exhaustiveCheck: never</code></td>
+<td>2.2</td>
+</tr>
+<tr>
+<td>看到 <code>#drain</code> 这种井号开头的方法</td>
+<td>三（符号表）</td>
+</tr>
+<tr>
+<td>看到 <code>Buffer.concat</code>、<code>spawn</code>、<code>signal.aborted</code></td>
+<td>四</td>
+</tr>
+<tr>
+<td>看到 <code>if (!arr.length)</code> 而不是 <code>if (!arr)</code></td>
+<td>五</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="sec-15-源码索引">源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本页用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/ai/src/types.ts</code></td>
+<td>917</td>
+<td><code>StopReason</code> <code>:489</code>、JSON 判定 <code>:494-537</code>、<code>ToolResultMessage</code> <code>:640</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/models.ts</code></td>
+<td>1,300</td>
+<td><code>Models</code> 接口 <code>:258</code>、<code>hasApi</code> <code>:1232</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/messages.ts</code></td>
+<td>196</td>
+<td>声明合并 <code>:70-77</code>、<code>convertToLlm</code> <code>:148-196</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/keybindings.ts</code></td>
+<td>359</td>
+<td><code>as const satisfies</code> <code>:171</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/harness/scheduler.ts</code></td>
+<td>3,158</td>
+<td><code>#drain</code> <code>:1874</code>、<code>queueMicrotask</code> <code>:1871</code></td>
+</tr>
+<tr>
+<td><code>packages/mcp/src/transports/transport.ts</code></td>
+<td>64</td>
+<td><code>McpTransport</code> <code>:18-26</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="appendix-migration.html"><span class="lbl">上一篇</span>附录 —— v0.80 → v1.4 迁移对照</a>
+      <a class="next" href="appendix-service.html"><span class="lbl">下一篇</span>附录 C —— 把 Agent 装进你的服务</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-第一件事-类型标注是注释" class="">一、第一件事：类型标注是注释</a><a href="#sec-2-二-八种只有读源码才会遇到的写法" class="">二、八种只有读源码才会遇到的写法</a><a href="#sec-3-2-1-联合类型-a-b-一个变量几种形状" class="lv3">2.1 联合类型 A | B：一个变量几种形状</a><a href="#sec-4-2-2-判别联合-never-漏一种就编译不过" class="lv3">2.2 判别联合 + never：漏一种就编译不过</a><a href="#sec-5-2-3-泛型-lt-t-gt-待填的类型参数" class="lv3">2.3 泛型 &amp;lt;T&amp;gt;：待填的类型参数</a><a href="#sec-6-2-4-类型谓词-is-收窄的开关" class="lv3">2.4 类型谓词 is：收窄的开关</a><a href="#sec-7-2-5-条件类型-类型层面的-if" class="lv3">2.5 条件类型：类型层面的 if</a><a href="#sec-8-2-6-satisfies-检查-但别改我的类型" class="lv3">2.6 satisfies：检查，但别改我的类型</a><a href="#sec-9-2-7-as-const-把字面量冻成常量" class="lv3">2.7 as const：把字面量冻成常量</a><a href="#sec-10-2-8-declare-module-声明合并" class="lv3">2.8 declare module：声明合并</a><a href="#sec-11-三-符号速查表" class="">三、符号速查表</a><a href="#sec-12-四-node-运行时-四个绕不开的内建对象" class="">四、Node 运行时：四个绕不开的内建对象</a><a href="#sec-13-五-python-程序员的三个真陷阱" class="">五、Python 程序员的三个真陷阱</a><a href="#sec-14-六-正文里哪些地方该回这一页" class="">六、正文里哪些地方该回这一页</a><a href="#sec-15-源码索引" class="">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

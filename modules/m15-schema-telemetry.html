@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>契约与遥测 —— 一份声明，五种解释 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="active">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M15</div>
+      <h1>契约与遥测 —— 一份声明，五种解释</h1>
+      <div class="module-meta">9,700 字 · 含 518 行代码 · 约 45 分钟</div>
+    </header>
+    <p>两个包，一共 <strong>51 个文件 / 6,137 行</strong>，都不产出任何功能。</p>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th>文件</th>
+<th>行数</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema</code></td>
+<td>43</td>
+<td>4,565</td>
+<td>不用 <code>eval</code> 的 JSON Schema 校验器</td>
+</tr>
+<tr>
+<td><code>telemetry</code></td>
+<td>8</td>
+<td>1,572</td>
+<td>与厂商无关的遥测契约</td>
+</tr>
+</tbody>
+</table>
+<p><code>schema/src</code> 的主要文件：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compiler.ts</code></td>
+<td>593</td>
+<td>schema → 闭包</td>
+</tr>
+<tr>
+<td><code>coerce.ts</code></td>
+<td>556</td>
+<td>把模型给的值掰成 schema 要的值</td>
+</tr>
+<tr>
+<td><code>checks.ts</code></td>
+<td>451</td>
+<td>闭包原语：<code>and</code> / <code>declaredObject</code> / <code>guardObject</code></td>
+</tr>
+<tr>
+<td><code>explain.ts</code></td>
+<td>390</td>
+<td>失败时才走的那一遍</td>
+</tr>
+<tr>
+<td><code>annotations.ts</code></td>
+<td>208</td>
+<td><code>unevaluatedProperties</code> 的注解追踪</td>
+</tr>
+<tr>
+<td><code>resolver.ts</code></td>
+<td>203</td>
+<td><code>$ref</code> / <code>$id</code> / <code>$anchor</code></td>
+</tr>
+<tr>
+<td><code>builders.ts</code></td>
+<td>200</td>
+<td><code>obj()</code> / <code>str()</code> / <code>opt()</code>，兼 TS 类型</td>
+</tr>
+<tr>
+<td><code>validator.ts</code></td>
+<td>93</td>
+<td><code>compile()</code>、<code>Validator</code>、<code>CoercingValidator</code></td>
+</tr>
+<tr>
+<td><code>typebox-static.ts</code></td>
+<td>76</td>
+<td>读 TypeBox 的 <code>'~kind'</code>，不 import TypeBox</td>
+</tr>
+<tr>
+<td><code>formats/</code></td>
+<td>31 文件 / 1,682</td>
+<td><code>date-time</code> / <code>ipv4</code> / <code>idn-hostname</code> 等 21 种</td>
+</tr>
+</tbody>
+</table>
+<p><code>telemetry/src</code> 全部：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index.ts</code></td>
+<td>465</td>
+<td>契约：span / metrics / propagation + 类型推导</td>
+</tr>
+<tr>
+<td><code>memory.ts</code></td>
+<td>463</td>
+<td><code>InMemoryTelemetryContext</code>，测试与本地开发用</td>
+</tr>
+<tr>
+<td><code>metrics.ts</code></td>
+<td>145</td>
+<td><code>createTypedMetrics</code>，指标名与属性类型绑定</td>
+</tr>
+<tr>
+<td><code>render.ts</code></td>
+<td>49</td>
+<td>把 span 渲染成文本</td>
+</tr>
+<tr>
+<td><code>noop.ts</code></td>
+<td>37</td>
+<td>什么都不做的默认实现</td>
+</tr>
+<tr>
+<td><code>testing/</code></td>
+<td>3 文件 / 415</td>
+<td>适配器一致性测试套件</td>
+</tr>
+</tbody>
+</table>
+<p>翻 <code>package.json</code>，两个包的 <code>dependencies</code> 都是<strong>空的</strong>。有依赖的是用它们
+的那些包：</p>
+<table>
+<thead>
+<tr>
+<th>使用方</th>
+<th>用 <code>schema</code> 干什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ai</code></td>
+<td>校验模型发回来的工具参数；把 schema 改写成 provider 的 strict 方言</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td><code>Static&lt;S&gt;</code> 给工具注册表定型</td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td>工具的入参与 <code>structuredOutput</code> 两头校验</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td>contract、snapshot、JSON 列的类型</td>
+</tr>
+<tr>
+<td><code>coding-agent</code></td>
+<td><code>models.json</code> 这类配置文件的形状</td>
+</tr>
+</tbody>
+</table>
+<p>这一章要回答 <code>task.md</code> 里那句验收：<strong>把 schema 抽出来，到底解决了什么问题</strong>。</p>
+<hr>
+<h2 id="sec-1-一-问题-一份-schema-五个读者">一、问题：一份 schema，五个读者</h2>
+<p>一个工具长这样（<code>durable/src/tools/read.ts:34-43</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> readSchema = <span class="tok-fn">obj</span>(</span><span class="ln">  {</span><span class="ln">    path: <span class="tok-fn">str</span>({ description: <span class="tok-str">"Path to the file to read"</span> }),</span><span class="ln">    offset: <span class="tok-fn">opt</span>(<span class="tok-fn">num</span>({ description: <span class="tok-str">"Line number to start from"</span> })),</span><span class="ln">    limit: <span class="tok-fn">opt</span>(<span class="tok-fn">num</span>({ description: <span class="tok-str">"Maximum lines to read"</span> })),</span><span class="ln">  },</span><span class="ln">  { open: <span class="tok-kw">true</span> },</span><span class="ln">);</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ReadToolInput = Static&lt;<span class="tok-kw">typeof</span> readSchema&gt;;</span></code></pre></div>
+<p>十四行，做了四件事：</p>
+<ol>
+<li>生成一个<strong>普通的 JSON Schema 对象</strong>，可以 <code>JSON.stringify</code> 进请求体，
+发给模型。</li>
+<li>生成 TypeScript 类型 <code>ReadToolInput</code>，函数体里的 <code>input.path</code> 有类型。</li>
+<li>生成<strong>运行时校验器</strong>，模型送回来的 <code>arguments</code> 要过这一关。</li>
+<li>失败时生成<strong>给人看的错误</strong>，这份错误还要能塞进下一轮对话。</li>
+</ol>
+<p>再加两件本章会讲的：</p>
+<ol start="5">
+<li>provider 的 strict 模式要的<strong>另一种写法</strong>：所有属性必填、对象封闭。</li>
+<li>MCP server 送来的 schema 可能是<strong>恶意或残缺的</strong>，校验器得扛住。</li>
+</ol>
+<p>一件声明，五个读者。如果每个读者各写一份，它们迟早会不一致——而&quot;不一致&quot;
+在这里的具体含义是：<strong>模型以为合法的值，运行时判非法</strong>。用户看到的是
+&quot;工具调用失败&quot;，实际原因是两个包对 <code>additionalProperties</code> 的默认值理解
+不同。</p>
+<p>所以这份声明必须只有一处，且这一处必须能被所有读者<strong>以同样的语义</strong>解释。
+这就是 <code>pi-schema</code> 存在的理由。不是&quot;代码复用&quot;，是&quot;语义单一来源&quot;。</p>
+<h3 id="sec-2-1-1-为什么不用-ajv-不用-zod">1.1 为什么不用 ajv、不用 zod</h3>
+<p>三个硬约束把现成的库排除掉了。</p>
+<p><strong>一、不能有 <code>eval</code>。</strong> <code>packages/schema/package.json</code> 的 description 写着：</p>
+<blockquote>
+<p>JSON Schema validation without eval: drafts 2020-12 and 7, compiled into
+plain closures</p>
+</blockquote>
+<p>ajv 的默认模式是 <code>new Function(&quot;schema&quot;, &quot;...&quot; )</code>——把 schema 编译成源码
+再 eval。这在 Node 里没问题，在 Cloudflare Workers 里会被拒绝，在带 CSP 的
+浏览器里也会被拒绝。而 M13 讲的 codemode 沙箱、<code>scripts/browser-smoke-entry.ts</code>
+这个浏览器入口，都需要同一套校验能跑。</p>
+<p><strong>二、schema 来自不可信来源。</strong> <code>types.ts:4-6</code> 的注释：</p>
+<blockquote>
+<p>Schemas come from tool definitions, MCP servers and other untrusted sources,
+so compile() reads every keyword defensively instead of trusting a static
+shape</p>
+</blockquote>
+<p>注意 <code>JsonSchema = boolean | object</code>（<code>types.ts:7</code>）——不是 <code>SchemaObject</code>。
+schema 本身可以是 <code>true</code> 或 <code>false</code>，这两个是合法的 JSON Schema；也可以
+是一个对象，但里面每个关键字的值都可能是垃圾。编译器不能假设 <code>properties</code>
+是对象、<code>required</code> 是数组。</p>
+<p><strong>三、必须和 TypeBox 互操作。</strong> 工具可能用 <code>pi-schema</code> 的 builder 定义，
+也可能是别的包里的 TypeBox schema。<code>typebox-static.ts:1-3</code>：</p>
+<blockquote>
+<p>The static types of TypeBox-built schemas, read from the type shapes TypeBox
+1.x declares (<code>'~kind'</code>, <code>'~optional'</code>, <code>'~readonly'</code>, <code>'~unsafe'</code>) without
+importing TypeBox</p>
+</blockquote>
+<p><strong>只读类型形状，不 import</strong>。TypeBox 是 400 KB 的包，工具参数的类型推导
+不需要把它拉进依赖图。</p>
+<h3 id="sec-3-1-2-决定-三个关键字集合">1.2 决定：三个关键字集合</h3>
+<p><code>compiler.ts</code> 的做法是把 schema 编译成<strong>一堆闭包</strong>。编译期只做一次，
+之后每次校验就是几次函数调用。这没什么新鲜的——新鲜的是它对&quot;什么值得
+专门化&quot;的判断，看 <code>plain()</code> 怎么分组：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/compiler.ts:139-166（节选）</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">plain</span>(node: SchemaObject, base: <span class="tok-kw">string</span>): Check {</span><span class="ln">  <span class="tok-kw">const</span> parts: Check[] = [];</span><span class="ln">  <span class="tok-kw">const</span> types = node.<span class="tok-kw">type</span> === <span class="tok-kw">undefined</span></span><span class="ln">    ? <span class="tok-kw">undefined</span></span><span class="ln">    : Array.<span class="tok-fn">isArray</span>(node.<span class="tok-kw">type</span>) ? node.<span class="tok-kw">type</span> : [node.<span class="tok-kw">type</span>];</span><span class="ln">  <span class="tok-kw">const</span> single = types?.length === <span class="tok-num">1</span> ? types[<span class="tok-num">0</span>] : <span class="tok-kw">undefined</span>;</span><span class="ln">  <span class="tok-kw">let</span> typeInGroup = <span class="tok-kw">false</span>;</span><span class="ln">  ...</span><span class="ln">  <span class="tok-kw">const</span> <span class="tok-kw">string</span> = <span class="tok-kw">this</span>.<span class="tok-fn">stringGroup</span>(node, single === <span class="tok-str">"string"</span>);</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">string</span> !== <span class="tok-kw">undefined</span>) parts.<span class="tok-fn">push</span>(<span class="tok-kw">string</span>);</span><span class="ln">  <span class="tok-kw">const</span> numeric = single === <span class="tok-str">"number"</span> || single === <span class="tok-str">"integer"</span>;</span><span class="ln">  <span class="tok-kw">const</span> <span class="tok-kw">number</span> = <span class="tok-kw">this</span>.<span class="tok-fn">numberGroup</span>(</span><span class="ln">    node, single === <span class="tok-str">"number"</span> ? <span class="tok-num">1</span> : single === <span class="tok-str">"integer"</span> ? <span class="tok-num">2</span> : <span class="tok-num">0</span>);</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">number</span> !== <span class="tok-kw">undefined</span>) parts.<span class="tok-fn">push</span>(<span class="tok-kw">number</span>);</span><span class="ln">  <span class="tok-kw">const</span> <span class="tok-kw">object</span> = <span class="tok-kw">this</span>.<span class="tok-fn">objectGroup</span>(node, base, single === <span class="tok-str">"object"</span>);</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">object</span> !== <span class="tok-kw">undefined</span>) parts.<span class="tok-fn">push</span>(<span class="tok-kw">object</span>);</span><span class="ln">  <span class="tok-kw">const</span> array = <span class="tok-kw">this</span>.<span class="tok-fn">arrayGroup</span>(node, base, single === <span class="tok-str">"array"</span>);</span><span class="ln">  <span class="tok-kw">if</span> (array !== <span class="tok-kw">undefined</span>) parts.<span class="tok-fn">push</span>(array);</span><span class="ln">  typeInGroup = ...;</span><span class="ln">  <span class="tok-kw">if</span> (types !== <span class="tok-kw">undefined</span> &amp;&amp; !typeInGroup) parts.<span class="tok-fn">unshift</span>(<span class="tok-fn">typeCheck</span>(types));</span><span class="ln">  <span class="tok-kw">this</span>.<span class="tok-fn">inPlace</span>(node, base, parts);</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-fn">and</span>(parts);</span><span class="ln">}</span></code></pre></div>
+<p>关键词按<strong>它们约束的类型</strong>分组：<code>minLength</code> / <code>pattern</code> / <code>format</code> 归字符串，
+<code>minimum</code> / <code>multipleOf</code> 归数字，<code>properties</code> / <code>required</code> 归对象，
+<code>items</code> / <code>contains</code> 归数组。</p>
+<p>一个值只需要判断一次&quot;它是什么类型&quot;，然后进对应的那一组。如果分开判断，
+<code>{ type: &quot;string&quot;, minLength: 3 }</code> 会先判类型、再判长度，而长度那一步又
+要确认一次它是字符串。</p>
+<p><code>typeInGroup</code> 这个标志是&quot;省掉一次类型判断&quot;的记账：如果类型已经在组里
+判过了，就不再 <code>unshift(typeCheck(types))</code>。这一行看着琐碎，但它决定了
+最常见的 schema（<code>{ type: &quot;string&quot;, minLength: 1 }</code>）编译出来是<strong>两个</strong>
+闭包还是<strong>一个</strong>。</p>
+<hr>
+<h2 id="sec-4-二-编译-从-schema-到闭包">二、编译：从 schema 到闭包</h2>
+<p>入口只有一个（<code>validator.ts:14-27</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> compile&lt;S <span class="tok-kw">extends</span> JsonSchema&gt;(</span><span class="ln">  schema: S,</span><span class="ln">  options: CompileOptions = NO_OPTIONS,</span><span class="ln">): Validator&lt;Static&lt;S&gt;&gt; | CoercingValidator&lt;Static&lt;S&gt;&gt; {</span><span class="ln">  <span class="tok-kw">const</span> check = <span class="tok-fn">compileCheck</span>(schema, options);</span><span class="ln">  <span class="tok-kw">return</span> options.coerce === <span class="tok-kw">true</span></span><span class="ln">    ? <span class="tok-kw">new</span> <span class="tok-fn">CoercingValidator</span>(schema, options, check)</span><span class="ln">    : <span class="tok-kw">new</span> <span class="tok-fn">Validator</span>(schema, options, check);</span><span class="ln">}</span></code></pre></div>
+<p>返回的 <code>Validator</code> 有两个东西：一个 <code>check</code> 函数，一个懒建的 <code>errors</code>。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/validator.ts:31-41（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">class</span> Validator&lt;T = <span class="tok-kw">unknown</span>&gt; {</span><span class="ln">  <span class="tok-com">/** Whether `value` is valid. A plain function: it may be passed around</span></span><span class="ln"><span class="tok-com">   *  without its validator. */</span></span><span class="ln">  <span class="tok-kw">readonly</span> check: (value: <span class="tok-kw">unknown</span>) =&gt; value <span class="tok-kw">is</span> T;</span></code></pre></div>
+<p>注释值得抄下来：<strong><code>check</code> 是一个普通函数，可以脱离 validator 传走</strong>。</p>
+<p>它的类型是 <code>value is T</code>，所以 <code>if (validator.check(v))</code> 之后 <code>v</code> 就变成了
+<code>T</code>，不需要断言。这就是&quot;编译产物&quot;和&quot;类型谓词&quot;合并成一件事——schema 编译
+出来的闭包，恰好就是 TypeScript 判断 <code>v is T</code> 的那件事。</p>
+<h3 id="sec-5-2-1-错误只在失败时才算">2.1 错误只在失败时才算</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/validator.ts:50-54</span></span><span class="ln"><span class="tok-fn">errors</span>(value: <span class="tok-kw">unknown</span>): ValidationError[] {</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.<span class="tok-fn">check</span>(value)) <span class="tok-kw">return</span> [];</span><span class="ln">  <span class="tok-kw">this</span>.explainer ??=</span><span class="ln">    <span class="tok-kw">new</span> <span class="tok-fn">Explainer</span>(<span class="tok-fn">compiler</span>(<span class="tok-kw">this</span>.schema, <span class="tok-kw">this</span>.options), <span class="tok-kw">this</span>.schema);</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">this</span>.explainer.<span class="tok-fn">errors</span>(value);</span><span class="ln">}</span></code></pre></div>
+<p>两处懒：</p>
+<ul>
+<li>先跑 <code>check</code>。值合法就返回 <code>[]</code>，永远不构造 <code>Explainer</code>。</li>
+<li><code>??=</code>：一个 validator 只在第一次失败时建解释器，之后复用。</li>
+</ul>
+<p><code>durable/src/harness/tool.ts:793-794</code> 就是这么用的：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (validator.<span class="tok-fn">check</span>(value)) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">const</span> [first] = validator.<span class="tok-fn">errors</span>(value);</span></code></pre></div>
+<p>工具每次返回 <code>structuredOutput</code> 都校验，但绝大多数返回是合法的，所以
+<strong>98% 的调用只付一个闭包的开销</strong>，一次垃圾回收都不需要。</p>
+<h3 id="sec-6-2-2-两次编译-restart-哨兵">2.2 两次编译：<code>RESTART</code> 哨兵</h3>
+<p><code>$dynamicRef</code> 是个奇怪的关键字：它的目标不是编译期决定的，而是在运行时
+沿着&quot;动态作用域&quot;往上找。这就要求所有 check 在运行时维护一个作用域栈——
+但如果 schema 里根本没有 <code>$dynamicRef</code>，这个栈就是纯浪费。</p>
+<p>解法是<strong>先乐观地编一遍</strong>（<code>validator.ts:83-93</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">compiler</span>(schema: JsonSchema, options: CompileOptions): Compiler {</span><span class="ln">  <span class="tok-kw">const</span> plain = <span class="tok-kw">new</span> <span class="tok-fn">Compiler</span>(schema, options, <span class="tok-kw">false</span>);</span><span class="ln">  <span class="tok-kw">try</span> {</span><span class="ln">    plain.<span class="tok-fn">root</span>();</span><span class="ln">    <span class="tok-kw">return</span> plain;</span><span class="ln">  } <span class="tok-kw">catch</span> (error) {</span><span class="ln">    <span class="tok-kw">if</span> (error !== RESTART) <span class="tok-kw">throw</span> error;</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-kw">new</span> <span class="tok-fn">Compiler</span>(schema, options, <span class="tok-kw">true</span>);</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p>编译过程中一旦遇到&quot;确实需要动态作用域&quot;的书签式 <code>$dynamicRef</code>，
+<code>bookended()</code> 就 <code>throw RESTART</code>（<code>compiler.ts:228</code>）——一个 <code>Symbol</code>，
+不是 <code>Error</code>。外层捕获它，扔掉整个编译器，带 <code>dynamic = true</code> 重来。</p>
+<p>注释说得很直白：</p>
+<blockquote>
+<p>Most schemas compile without tracking the dynamic scope; one with a bookended
+$dynamicRef compiles again with it.</p>
+</blockquote>
+<p>代价是遇到 <code>$dynamicRef</code> 时编译两次；收益是<strong>其他所有 schema 的每一条
+热路径上都没有那个 <code>scope</code> 数组</strong>。用一个必然失败的异常换全局的常量因子，
+这是典型的&quot;稀有路径付双倍，常见路径付零&quot;。</p>
+<hr>
+<h2 id="sec-7-三-闭包怎么造出来">三、闭包怎么造出来</h2>
+<p><code>check()</code> 是递归的主循环（<code>compiler.ts:98-113</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">check</span>(node: <span class="tok-kw">unknown</span>, base: <span class="tok-kw">string</span>): Check {</span><span class="ln">  <span class="tok-kw">if</span> (node === <span class="tok-kw">true</span>) <span class="tok-kw">return</span> ALWAYS;</span><span class="ln">  <span class="tok-kw">if</span> (node === <span class="tok-kw">false</span>) <span class="tok-kw">return</span> NEVER;</span><span class="ln">  <span class="tok-kw">if</span> (!<span class="tok-fn">isSchemaObject</span>(node))</span><span class="ln">    <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`A schema must be an object or a boolean, got ...`</span>);</span><span class="ln">  <span class="tok-kw">const</span> cached = <span class="tok-kw">this</span>.cache.<span class="tok-kw">get</span>(node);</span><span class="ln">  <span class="tok-kw">if</span> (cached !== <span class="tok-kw">undefined</span>) <span class="tok-kw">return</span> cached;</span><span class="ln">  <span class="tok-kw">const</span> bare = <span class="tok-kw">this</span>.<span class="tok-fn">bareType</span>(node);</span><span class="ln">  <span class="tok-kw">if</span> (bare !== <span class="tok-kw">undefined</span>) <span class="tok-kw">return</span> bare;</span><span class="ln">  <span class="tok-kw">const</span> slot: { check: Check | <span class="tok-kw">undefined</span> } = { check: <span class="tok-kw">undefined</span> };</span><span class="ln">  <span class="tok-kw">this</span>.cache.<span class="tok-kw">set</span>(node, <span class="tok-fn">indirect</span>(slot));</span><span class="ln">  <span class="tok-kw">const</span> check = <span class="tok-kw">this</span>.<span class="tok-fn">build</span>(node, <span class="tok-kw">this</span>.r.<span class="tok-fn">baseFor</span>(node, base));</span><span class="ln">  slot.check = check;</span><span class="ln">  <span class="tok-kw">this</span>.cache.<span class="tok-kw">set</span>(node, check);</span><span class="ln">  <span class="tok-kw">return</span> check;</span><span class="ln">}</span></code></pre></div>
+<p>四个细节，每个都在解决一个具体问题：</p>
+<p><strong><code>true</code> → <code>ALWAYS</code>，<code>false</code> → <code>NEVER</code>。</strong> 两个模块级常量，全包共用一份。</p>
+<p><strong>按 schema 对象缓存。</strong> <code>Map&lt;object, Check&gt;</code>。同一个子 schema 对象被引用
+两次（<code>$ref</code> 到同一个 definitions 项、或者 JS 里复用了同一个对象字面量），
+只编译一次。</p>
+<p><strong>先放 <code>indirect(slot)</code> 再编译。</strong> 这是处理<strong>递归</strong>的手法。schema 可以是
+自引用的（树的节点里有节点）；如果直接递归编译，<code>build</code> 遇到自己就栈溢出。
+所以先把占位闭包放进缓存，编译完成后再把真正的实现塞进 <code>slot</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/checks.ts:95-98</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">indirect</span>(slot: { check: Check | <span class="tok-kw">undefined</span> }): Check {</span><span class="ln">  <span class="tok-kw">return</span> (v) =&gt; (slot.check <span class="tok-kw">as</span> Check)(v);</span><span class="ln">}</span></code></pre></div>
+<p>多一层函数调用的代价，换来任意深度的递归都能编译。</p>
+<p><strong><code>bareType()</code> 抄近道</strong>（<code>compiler.ts:128-136</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">bareType</span>(node: SchemaObject): Check | <span class="tok-kw">undefined</span> {</span><span class="ln">  <span class="tok-kw">let</span> <span class="tok-kw">type</span>: <span class="tok-kw">unknown</span>;</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> k <span class="tok-kw">in</span> node) {</span><span class="ln">    <span class="tok-kw">if</span> (k === <span class="tok-str">"type"</span>) <span class="tok-kw">type</span> = node.<span class="tok-kw">type</span>;</span><span class="ln">    <span class="tok-kw">else</span> <span class="tok-kw">if</span> (!NEUTRAL_KEYWORDS.<span class="tok-fn">has</span>(k)) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">type</span> === <span class="tok-kw">undefined</span>) <span class="tok-kw">return</span> ALWAYS;</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">typeof</span> <span class="tok-kw">type</span> === <span class="tok-str">"string"</span> ? TYPE_CHECKS.<span class="tok-kw">get</span>(<span class="tok-kw">type</span>) : <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p>如果一个 schema 只有 <code>type</code> 和几个中性关键字（<code>title</code> / <code>description</code> /
+<code>default</code> 这类注解），它的 check 就是 <code>TYPE_CHECKS</code> 里那个共享的
+<code>typeof v === &quot;string&quot;</code>——全包只有一个闭包实例。<code>{ type: &quot;string&quot; }</code>
+这种最常见的子 schema <strong>零成本</strong>。</p>
+<h3 id="sec-8-3-1-对象的专门化-一个三元组数组">3.1 对象的专门化：一个三元组数组</h3>
+<p>对象是工具参数的主力形态，所以 <code>objectCore</code>（<code>compiler.ts:324-355</code>）做了
+一件很具体的事：把 <code>properties</code> 摊平成一个<strong>三元组数组</strong>。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/compiler.ts:337-346（节选）</span></span><span class="ln"><span class="tok-com">// One array per object: key, check, flags</span></span><span class="ln"><span class="tok-com">// (leaf code, required, key also names an Object.prototype member).</span></span><span class="ln"><span class="tok-kw">const</span> entries: <span class="tok-kw">unknown</span>[] = [];</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> k <span class="tok-kw">of</span> keys) {</span><span class="ln">  <span class="tok-kw">const</span> check = <span class="tok-kw">this</span>.<span class="tok-fn">check</span>(properties[k], base);</span><span class="ln">  <span class="tok-kw">const</span> flags =</span><span class="ln">    (LEAF_CODES.<span class="tok-kw">get</span>(check) ?? <span class="tok-num">0</span>) |</span><span class="ln">    (required.<span class="tok-fn">includes</span>(k) ? REQUIRED : <span class="tok-num">0</span>) |</span><span class="ln">    (k <span class="tok-kw">in</span> Object.prototype ? INHERITED : <span class="tok-num">0</span>);</span><span class="ln">  entries.<span class="tok-fn">push</span>(k, check, flags);</span><span class="ln">}</span></code></pre></div>
+<p>三个字段塞进一个扁平数组而不是 <code>{key, check, required}</code> 对象数组：省内存，
+并且减少一次属性访问。</p>
+<p><code>flags</code> 里那三个位各有各的原因：</p>
+<ul>
+<li><strong><code>LEAF_CODES</code></strong>：如果这个属性的 check 就是 <code>IS_STRING</code> / <code>IS_NUMBER</code>
+这类内置的，就把一个<strong>整数码</strong>放进去，运行时用 <code>switch</code> 内联执行，
+不调用函数（<code>checks.ts:34</code>）。</li>
+<li><strong><code>REQUIRED</code></strong>：要求计数时不需要再查 <code>required.includes(k)</code>。</li>
+<li><strong><code>INHERITED</code></strong>：<code>k in Object.prototype</code>。这条对应一个真实的安全问题——
+<code>{ in: str() }</code> 这样的 schema，如果对象是 <code>{}</code>（没有自有属性），
+<code>&quot;in&quot; in obj</code> 会因为原型链而返回 <code>true</code>。<code>declaredObject</code> 因此用
+<code>for...in</code> 遍历值的<strong>自有可枚举键</strong>，而不是用 schema 的键去查值：</li>
+</ul>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/checks.ts:229-243（节选）</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> k <span class="tok-kw">in</span> o) {</span><span class="ln">  <span class="tok-kw">let</span> i = <span class="tok-num">0</span>;</span><span class="ln">  <span class="tok-kw">while</span> (i &lt; n &amp;&amp; entries[i] !== k) i += <span class="tok-num">3</span>;</span><span class="ln">  <span class="tok-kw">if</span> (i === n) {</span><span class="ln">    <span class="tok-kw">if</span> (closed) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">    <span class="tok-kw">continue</span>;</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">const</span> x = o[k];</span><span class="ln">  <span class="tok-kw">if</span> (x === <span class="tok-kw">undefined</span>) <span class="tok-kw">continue</span>;</span><span class="ln">  <span class="tok-kw">const</span> f = entries[i + <span class="tok-num">2</span>] <span class="tok-kw">as</span> <span class="tok-kw">number</span>;</span><span class="ln">  <span class="tok-kw">const</span> c = f &amp; CODE;</span><span class="ln">  <span class="tok-kw">if</span> (c !== <span class="tok-num">0</span> ? !<span class="tok-fn">leafOk</span>(c, x) : !(entries[i + <span class="tok-num">1</span>] <span class="tok-kw">as</span> Check)(x)) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">  <span class="tok-kw">if</span> (f &amp; REQUIRED) required++;</span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> required === requiredCount;</span></code></pre></div>
+<p><code>entries[i] !== k</code> 是<strong>按步长 3 遍历扁平数组</strong>：<code>i += 3</code> 直接跳到下一个
+键。注释解释了为什么用 <code>for...in</code> 而不是 <code>Object.keys()</code>:</p>
+<blockquote>
+<p>The value's own keys are walked with for...in (whose <code>o[k]</code> V8 reads from
+the enum cache, unlike a load by a name from a list)</p>
+</blockquote>
+<p>V8 对 <code>for...in</code> 循环里的 <code>o[k]</code> 有枚举缓存，而从字符串列表里取 <code>o[name]</code>
+走的是字典查找——慢一个量级。</p>
+<p><code>x === undefined</code> 跳过的行为也写在注释里：<strong>值为 <code>undefined</code> 的属性视为
+不存在</strong>。这让 <code>{ path: undefined }</code> 和 <code>{}</code> 在 <code>required</code> 判断上等价。</p>
+<h3 id="sec-9-3-2-分支-and-按数量专门化">3.2 分支：<code>and()</code> 按数量专门化</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/checks.ts:73-93（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">and</span>(parts: <span class="tok-kw">readonly</span> Check[]): Check {</span><span class="ln">  <span class="tok-kw">switch</span> (parts.length) {</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-num">0</span>: <span class="tok-kw">return</span> ALWAYS;</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-num">1</span>: <span class="tok-kw">return</span> parts[<span class="tok-num">0</span>];</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-num">2</span>: {</span><span class="ln">      <span class="tok-kw">const</span> [a, b] = parts;</span><span class="ln">      <span class="tok-kw">return</span> (v) =&gt; <span class="tok-fn">a</span>(v) &amp;&amp; <span class="tok-fn">b</span>(v);</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-num">3</span>: {</span><span class="ln">      <span class="tok-kw">const</span> [a, b, c] = parts;</span><span class="ln">      <span class="tok-kw">return</span> (v) =&gt; <span class="tok-fn">a</span>(v) &amp;&amp; <span class="tok-fn">b</span>(v) &amp;&amp; <span class="tok-fn">c</span>(v);</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">default</span>:</span><span class="ln">      <span class="tok-kw">return</span> (v) =&gt; {</span><span class="ln">        <span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = <span class="tok-num">0</span>; i &lt; parts.length; i++) <span class="tok-kw">if</span> (!parts[i](v)) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">        <span class="tok-kw">return</span> <span class="tok-kw">true</span>;</span><span class="ln">      };</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p><code>case 0</code> 和 <code>case 1</code> 不只是优化——它们是<strong>结构消解</strong>：<code>and([])</code> 不产生
+闭包，<code>and([x])</code> 直接返回 <code>x</code>。所以一个只写了 <code>{ type: &quot;object&quot;, properties: {...} }</code> 的 schema，编译结果就是 <code>declaredObject</code> 那一个函数，
+中间没有包裹层。</p>
+<p><code>case 2</code> / <code>case 3</code> 把数组解构成局部变量，让 V8 把 <code>a</code>、<code>b</code> 放进寄存器。
+4 个以上退回循环——再多就不值得展开了。</p>
+<h3 id="sec-10-3-3-标签联合-省掉的是指数">3.3 标签联合：省掉的是指数</h3>
+<p><code>anyOf</code> / <code>oneOf</code> 的朴素实现是&quot;每个分支都试一遍&quot;。工具结果里常见的
+<code>union([obj({ type: lit(&quot;text&quot;), ... }), obj({ type: &quot;image&quot;, ... })])</code>
+这样写，每个分支都要跑一遍完整校验。</p>
+<p><code>tagged()</code>（<code>compiler.ts:247-270</code>）找的是另一种形状：<strong>所有分支都是对象，
+且每个分支在同一个键上有一个互不相同的 <code>const</code></strong>。找到之后，按这个键的
+值直接选分支：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/compiler.ts:260-268（节选）</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> key <span class="tok-kw">of</span> Object.<span class="tok-fn">keys</span>(first)) {</span><span class="ln">  <span class="tok-kw">const</span> tags = resolved.<span class="tok-kw">map</span>((s) =&gt; <span class="tok-fn">tagOf</span>(s, key));</span><span class="ln">  <span class="tok-kw">if</span> (tags.<span class="tok-fn">some</span>((t) =&gt; t === <span class="tok-kw">undefined</span>) || <span class="tok-kw">new</span> <span class="tok-fn">Set</span>(tags).size !== tags.length)</span><span class="ln">    <span class="tok-kw">continue</span>;</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-fn">taggedCheck</span>(key, tags, branches.<span class="tok-kw">map</span>((s) =&gt; <span class="tok-kw">this</span>.<span class="tok-fn">check</span>(s, base)));</span><span class="ln">}</span></code></pre></div>
+<p><code>tagOf(s, key)</code> 从分支里取出 <code>properties[key]</code> 的 <code>const</code>；<code>new Set(tags).size !== tags.length</code> 保证标签互不相同（否则选不出来）。两个条件都满足才用
+标签分派，否则退回&quot;每个都试&quot;。</p>
+<p>省的不只是一次比较：每个分支里可能还嵌着更多联合，朴素实现是指数的。</p>
+<hr>
+<h2 id="sec-11-四-失败时才解释">四、失败时才解释</h2>
+<p><code>check</code> 的返回值只有一个 bit。要知道&quot;哪里错了、错在哪个关键字&quot;，
+需要第二个解释器。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/explain.ts:1-2</span></span><span class="ln"><span class="tok-com">// Errors of a failed value: a walk over the schema that reports each failing</span></span><span class="ln"><span class="tok-com">// keyword at the value it failed on. It runs only for values that failed the</span></span><span class="ln"><span class="tok-com">// check, using the compiler's checks for subschemas.</span></span></code></pre></div>
+<p><strong>同一个 schema，两套执行策略</strong>：热路径是编译出来的闭包（快、只给
+boolean），冷路径是<strong>重新遍历 schema</strong>（慢、给结构化错误）。冷路径里
+遇到子 schema 时仍然调 <code>this.c.check(node, base)(v)</code>——复用了已经编译好
+的闭包，所以&quot;遍历&quot;只在必要的层级发生。</p>
+<p>错误长这样（<code>types.ts:38-43</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ValidationError {</span><span class="ln">  <span class="tok-kw">readonly</span> path: <span class="tok-kw">string</span>;    <span class="tok-com">// JSON Pointer, "" for the value itself</span></span><span class="ln">  <span class="tok-kw">readonly</span> keyword: <span class="tok-kw">string</span>; <span class="tok-com">// the failing keyword</span></span><span class="ln">  <span class="tok-kw">readonly</span> message: <span class="tok-kw">string</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>path</code> 是 JSON Pointer（<code>/edits/0/oldText</code>），因为那是 RFC 6901 规定的
+定位方式，任何语言都能解析。但<strong>模型看不懂 JSON Pointer</strong>，所以
+<code>ai/src/utils/validation.ts:21-28</code> 转了一层：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">formatValidationPath</span>(pointer: <span class="tok-kw">string</span>): <span class="tok-kw">string</span> {</span><span class="ln">  <span class="tok-kw">if</span> (pointer === <span class="tok-str">""</span>) <span class="tok-kw">return</span> <span class="tok-str">"root"</span>;</span><span class="ln">  <span class="tok-kw">return</span> pointer</span><span class="ln">    .<span class="tok-fn">slice</span>(<span class="tok-num">1</span>)</span><span class="ln">    .<span class="tok-fn">split</span>(<span class="tok-str">"/"</span>)</span><span class="ln">    .<span class="tok-kw">map</span>((segment) =&gt; segment.<span class="tok-fn">replace</span>(/~<span class="tok-num">1</span>/g, <span class="tok-str">"/"</span>).<span class="tok-fn">replace</span>(/~<span class="tok-num">0</span>/g, <span class="tok-str">"~"</span>))</span><span class="ln">    .<span class="tok-fn">join</span>(<span class="tok-str">"."</span>);</span><span class="ln">}</span></code></pre></div>
+<p><code>/edits/0/oldText</code> → <code>edits.0.oldText</code>。<code>~1</code> → <code>/</code>、<code>~0</code> → <code>~</code> 是 RFC 6901
+规定的转义（因为 <code>/</code> 和 <code>~</code> 在 pointer 里有特殊含义）。这两行不写，
+一个键名里带斜杠的工具就永远报错报不准。</p>
+<p>最终送进对话的是这段（<code>validation.ts:64-68</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> errors = result.errors</span><span class="ln">  .<span class="tok-kw">map</span>((e) =&gt; <span class="tok-str">`  - ${formatValidationPath(e.path)}: ${e.message}`</span>)</span><span class="ln">  .<span class="tok-fn">join</span>(<span class="tok-str">"\n"</span>);</span><span class="ln"><span class="tok-kw">const</span> errorMessage =</span><span class="ln">  <span class="tok-str">`Validation failed for tool "${toolCall.name}":\n${errors}\n\n`</span></span><span class="ln">  + <span class="tok-str">`Received arguments:\n${JSON.stringify(toolCall.arguments, null, 2)}`</span>;</span></code></pre></div>
+<p>三件事值得抄：<strong>带上了收到的参数</strong>（模型能自己看出<code>&quot;3&quot;</code> vs <code>3</code>）、
+<strong>一条错误一行</strong>、<strong>后缀是 <code>Received arguments</code></strong> 而不是 <code>You sent</code>——
+模型不需要被指责，它需要看到自己发了什么。</p>
+<h3 id="sec-12-4-1-memo-一个必要但不显然的缓存">4.1 <code>memo</code>：一个必要但不显然的缓存</h3>
+<p><code>explain.ts:25-29</code> 的注释是本包最长的一段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * The errors of `$ref` targets for object values, within one errors() call:</span></span><span class="ln"><span class="tok-com"> * a recursive union explains each branch to pick the one to blame, and every</span></span><span class="ln"><span class="tok-com"> * branch would explain the same children again, exponentially in the depth.</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">private</span> memo:</span><span class="ln">  Map&lt;<span class="tok-kw">object</span>, Map&lt;<span class="tok-kw">object</span>, { path: <span class="tok-kw">string</span>; errors: ValidationError[] }&gt;&gt;;</span></code></pre></div>
+<p>要报错就得说清&quot;哪个分支应该被责怪&quot;。联合类型的做法是把每个分支都解释
+一遍，然后挑错误的那个。如果分支自身递归（树的节点里有节点），同一个
+子值会被解释 N 次——<strong>指数级</strong>。</p>
+<p><code>memo</code> 的键是 <code>(schema 节点, 值对象)</code>：同一个节点解释同一个值，只做一次。
+<code>errors()</code> 结束时把它清掉（<code>finally { this.memo = undefined; }</code>），
+所以它只活在一次调用里，不占常驻内存。</p>
+<p>同样的模式在 <code>coerce.ts:39-43</code> 又出现了一次，键也一样。两个解释器各自
+踩过同一个坑。</p>
+<hr>
+<h2 id="sec-13-五-类型-static-lt-s-gt-是怎么算出来的">五、类型：<code>Static&lt;S&gt;</code> 是怎么算出来的</h2>
+<p>前面四节讲的是<strong>运行时</strong>。同一个 schema 还要回答一个编译期问题：
+<code>readSchema</code> 的 <code>Static</code> 到底是什么类型。</p>
+<p>答案是一层<strong>纯类型层面的印记</strong>（<code>builders.ts:7-11</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">declare</span> <span class="tok-kw">const</span> STATIC: unique <span class="tok-kw">symbol</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Schema&lt;T = <span class="tok-kw">unknown</span>&gt; =</span><span class="ln">  { <span class="tok-kw">readonly</span> [keyword: <span class="tok-kw">string</span>]: <span class="tok-kw">unknown</span> } &amp; { <span class="tok-kw">readonly</span> [STATIC]?: T };</span></code></pre></div>
+<p><code>declare const</code> 表示&quot;这个值只在类型世界里存在&quot;。<code>Schema&lt;T&gt;</code> 是一个交叉
+类型：左边是&quot;任意关键字的对象&quot;（所以 <code>obj()</code> 的返回值真的能
+<code>JSON.stringify</code>），右边是一个<strong>带可选属性的 brand</strong>。</p>
+<p><code>STATIC</code> 是 <code>unique symbol</code>，模块外无法构造同名属性。所以只有
+<code>str()</code> / <code>num()</code> / <code>obj()</code> 这些 builder 的返回值带得上这个 brand，
+手写的对象字面量带不上。</p>
+<p>读取 brand 的类型函数（<code>builders.ts:19-25</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Static&lt;S&gt; = S <span class="tok-kw">extends</span></span><span class="ln">  { <span class="tok-kw">readonly</span> <span class="tok-str">"~kind"</span>: <span class="tok-kw">unknown</span> } | { <span class="tok-kw">readonly</span> <span class="tok-str">"~unsafe"</span>: <span class="tok-kw">unknown</span> }</span><span class="ln">  ? TypeBoxStatic&lt;S&gt;</span><span class="ln">  : S <span class="tok-kw">extends</span> { <span class="tok-kw">readonly</span> [STATIC]?: <span class="tok-kw">infer</span> T }</span><span class="ln">    ? <span class="tok-kw">unknown</span> <span class="tok-kw">extends</span> T ? <span class="tok-kw">unknown</span> : T</span><span class="ln">    : <span class="tok-kw">unknown</span>;</span></code></pre></div>
+<p>三个分支，顺序有意义：</p>
+<ol>
+<li>
+<p><strong>先认 TypeBox</strong>。<code>'~kind'</code> / <code>'~unsafe'</code> 是 TypeBox 的 brand 名。
+为什么必须放在最前面，<code>builders.ts:13-14</code> 的注释解释了：</p>
+<blockquote>
+<p>TypeBox is tested first and in its own branch: a builder brand's fallback
+through TypeBoxStatic would leave <code>Static&lt;S&gt;</code> of a generic <code>S</code> (constrained
+to builder schemas) unresolvable to its constraint's types.</p>
+</blockquote>
+<p>大意：如果放在后面，泛型 <code>S extends Schema</code> 里的 <code>S</code> 走错分支就会变成
+<code>unknown</code>，工具参数全部丢失类型。</p>
+</li>
+<li>
+<p><strong>再认自己的 brand</strong>。<code>unknown extends T ? unknown : T</code> 是为了处理
+&quot;brand 存在但 T 是 <code>unknown</code>&quot;的情况——不能把 <code>unknown</code> 当作真实类型
+往上传播，否则 <code>obj({ x: unknown() })</code> 会得到一个 <code>unknown</code> 类型的对象，
+而不是 <code>{ x: unknown }</code>。</p>
+</li>
+<li>
+<p><strong>都不是就 <code>unknown</code></strong>。手写的 JSON Schema 字面量没有类型信息可读。</p>
+</li>
+</ol>
+<p><code>obj()</code> 那一步（<code>builders.ts:165-173</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> StaticObject&lt;P <span class="tok-kw">extends</span> Properties&gt; = Simplify&lt;</span><span class="ln">  { -<span class="tok-kw">readonly</span> [K <span class="tok-kw">in</span> <span class="tok-kw">keyof</span> P <span class="tok-kw">as</span> P[K] <span class="tok-kw">extends</span> Optional ? <span class="tok-kw">never</span> : K]:</span><span class="ln">      Static&lt;P[K]&gt; } &amp; {</span><span class="ln">    -<span class="tok-kw">readonly</span> [K <span class="tok-kw">in</span> <span class="tok-kw">keyof</span> P <span class="tok-kw">as</span> P[K] <span class="tok-kw">extends</span> Optional ? K : <span class="tok-kw">never</span>]?:</span><span class="ln">      P[K] <span class="tok-kw">extends</span> Optional&lt;<span class="tok-kw">infer</span> S&gt; ? Static&lt;S&gt; : <span class="tok-kw">never</span>;</span><span class="ln">  }</span><span class="ln">&gt;;</span></code></pre></div>
+<p><code>as</code> 子句做键重映射：把 <code>P</code> 的键分成两组，<code>Optional</code> 的进第二组并加
+<code>?</code>，其余进第一组。<code>-readonly</code> 是因为 builder 的返回值用了 <code>readonly</code>
+（brand 需要），但用户拿到的值是可写的。</p>
+<p><code>Simplify&lt;T&gt; = { [K in keyof T]: T[K] } &amp; {}</code> 是最后一步：把交叉类型
+拍平成单个对象类型。不拍平的话，IDE 悬停显示的是
+<code>{...} &amp; {...} &amp; {...}</code>，用户很难读。</p>
+<h3 id="sec-14-5-1-代价-unknown-是一个诚实但难用的答案">5.1 代价：<code>unknown</code> 是一个诚实但难用的答案</h3>
+<p><code>typebox-static.ts:1-3</code> 的注释把范围划得很清楚：</p>
+<blockquote>
+<p>Only the common kinds are mapped; every other kind (Enum, Tuple, Intersect,
+Cyclic, Ref, ...) is <code>unknown</code>.</p>
+</blockquote>
+<p><code>'~kind'</code> 是 <code>&quot;Enum&quot;</code> 时，<code>Static&lt;S&gt;</code> 就是 <code>unknown</code>。于是
+<code>input.foo</code> 报错 &quot;Object is of type 'unknown'&quot;，开发者只能自己断言。</p>
+<p>这是<strong>故意的取舍</strong>：宁可让类型断在自己手里，也不要让 <code>Static</code> 猜错而
+在运行时炸。要在类型层面完整复刻 TypeBox 的 <code>Static</code>，就必须 import
+TypeBox 的整个类型系统——那会把 400 KB 的包拉进每个用工具的地方。</p>
+<hr>
+<h2 id="sec-15-六-引用与不可信输入">六、引用与不可信输入</h2>
+<p><code>resolver.ts</code> 只干一件事：把 <code>$ref</code> 字符串解析成一个 schema 节点 + 一个
+base URI。但有三个决定值得单独说。</p>
+<p><strong>一、base URI 用一个保证解析不出来的域</strong>（<code>resolver.ts:12-13</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/** The base URI of a root schema without `$id`; relative references resolve</span></span><span class="ln"><span class="tok-com"> *  against it. */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> DEFAULT_BASE = <span class="tok-str">"https://json-schema.invalid/root.json"</span>;</span></code></pre></div>
+<p><code>.invalid</code> 是 RFC 2606 保留的顶级域，<strong>永远不会被注册</strong>。用一个真实的
+域名的风险是：<code>$ref: &quot;foo.json&quot;</code> 这种相对引用万一被真的发出去一次请求，
+就是一个 SSRF。用 <code>.invalid</code> 让&quot;意外联网&quot;在 DNS 层失败。</p>
+<p><strong>二、索引是懒的</strong>（<code>resolver.ts:15-18</code>）：</p>
+<blockquote>
+<p>The schema is indexed on the first reference, so a schema without references
+is never walked for identifiers.</p>
+</blockquote>
+<p><code>$id</code> 可以出现在 schema 树的任意深度，改变该子树的 base URI。要正确处理
+就得遍历整棵树索引所有 <code>$id</code> / <code>$anchor</code>。但绝大多数工具 schema 一个
+<code>$ref</code> 都没有——所以 <code>ensureIndexed()</code> 只在第一次 <code>resolve()</code> 时跑。
+没有引用的 schema，编译期一次树遍历都不做。</p>
+<p><strong>三、<code>$ref</code> 指不到东西时，有两种脾气</strong>（<code>resolver.ts:72-81</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">resolve</span>(ref: <span class="tok-kw">string</span>, base: <span class="tok-kw">string</span>): Resolved {</span><span class="ln">  <span class="tok-kw">this</span>.<span class="tok-fn">ensureIndexed</span>();</span><span class="ln">  <span class="tok-kw">if</span> (!<span class="tok-kw">this</span>.rejectUnresolved) <span class="tok-kw">return</span> <span class="tok-kw">this</span>.<span class="tok-fn">find</span>(ref, base);</span><span class="ln">  <span class="tok-kw">try</span> {</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-kw">this</span>.<span class="tok-fn">find</span>(ref, base);</span><span class="ln">  } <span class="tok-kw">catch</span> {</span><span class="ln">    <span class="tok-kw">this</span>.unresolved.<span class="tok-fn">add</span>(<span class="tok-fn">resolveUri</span>(ref, base));</span><span class="ln">    <span class="tok-kw">return</span> { node: <span class="tok-kw">false</span>, base };</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p>默认是 <code>&quot;throw&quot;</code>：编译期直接抛，因为写 schema 的人应该发现问题。但在
+<code>&quot;reject&quot;</code> 模式下，解析不到的 <code>$ref</code> 被编译成 <code>false</code>——<strong>只有落在这个
+位置的值会失败</strong>，其他地方照常校验。</p>
+<p>为什么需要第二种？<code>ai/src/utils/validation.ts:13-15</code> 的注释：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// A $ref that names nothing (a dangling definition in an MCP server's schema)</span></span><span class="ln"><span class="tok-com">// rejects only values at its place, instead of making every call of the tool</span></span><span class="ln"><span class="tok-com">// fail.</span></span><span class="ln"><span class="tok-kw">const</span> validator = <span class="tok-fn">compile</span>(schema, {</span><span class="ln">  formats,</span><span class="ln">  coerce: <span class="tok-kw">true</span>,</span><span class="ln">  unresolvedRefs: <span class="tok-str">"reject"</span>,</span><span class="ln">});</span></code></pre></div>
+<p>MCP server 送来的工具 schema 是<strong>外部数据</strong>。它可能引用了自己没送的
+<code>definitions</code>，也可能只是拼错了。用 <code>&quot;throw&quot;</code>，整个工具的每一次调用
+都在编译期炸掉；用 <code>&quot;reject&quot;</code>，只有用到了那个字段的调用会失败，而且
+错误信息指向准确的路径。</p>
+<p><code>durable/src/harness/tool.ts:790</code> 用的是同一个选项，守的是另一头：
+工具的 <code>structuredOutput</code>。</p>
+<h3 id="sec-16-6-1-两个-draft-的差异藏在两行里">6.1 两个 draft 的差异藏在两行里</h3>
+<p><code>CompileOptions.draft</code> 只接受 <code>&quot;2020-12&quot;</code>（默认）和 <code>&quot;7&quot;</code>。差异散在
+各处，但有两处最容易写错：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// schema/src/resolver.ts:53（draft 7 里 $id 是惰性的）</span></span><span class="ln"><span class="tok-kw">if</span> (</span><span class="ln">  <span class="tok-kw">this</span>.draft === <span class="tok-str">"7"</span> &amp;&amp;</span><span class="ln">  (<span class="tok-kw">typeof</span> node.$ref === <span class="tok-str">"string"</span> || id.<span class="tok-fn">startsWith</span>(<span class="tok-str">"#"</span>))</span><span class="ln">) {</span><span class="ln">  <span class="tok-kw">return</span> base;</span><span class="ln">}</span></code></pre></div>
+<p>draft 7 规定：一个同时有 <code>$ref</code> 和 <code>$id</code> 的节点，<code>$id</code> <strong>不生效</strong>
+（因为 <code>$ref</code> 会整个替换掉这个节点）。2020-12 改成了 <code>$ref</code> 与兄弟
+关键字并存，<code>$id</code> 也就生效了。不写这一行，draft 7 的 schema 会解析到
+错误的 base。</p>
+<p>另一处是数组（<code>compiler.ts:360-366</code>）：draft 7 用 <code>items</code> 数组 +
+<code>additionalItems</code>，2020-12 用 <code>prefixItems</code> + <code>items</code>。两个都要支持，
+因为在同一个进程里可能同时校验老配置和新工具。</p>
+<hr>
+<h2 id="sec-17-七-coerce-模型的三个坏习惯">七、coerce：模型的三个坏习惯</h2>
+<p>模型发回来的工具参数经常是&quot;差一点&quot;的：</p>
+<ul>
+<li>该传数字的地方传了 <code>&quot;42&quot;</code></li>
+<li>该传数组的地方传了单个值</li>
+<li>可选字段不省略，而是传 <code>null</code></li>
+</ul>
+<p>这三种都在 schema 之外：<code>{ type: &quot;number&quot; }</code> 对 <code>&quot;42&quot;</code> 就是非法。严格
+拒绝的结果是<strong>模型反复重试同一个错误</strong>，因为它不理解自己错在哪。</p>
+<p>所以 <code>coercing</code> validator 多一步（<code>coerce.ts:50-55</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">coerce</span>(value: <span class="tok-kw">unknown</span>): <span class="tok-kw">unknown</span> {</span><span class="ln">  <span class="tok-kw">const</span> base = <span class="tok-kw">this</span>.c.r.rootBase;</span><span class="ln">  <span class="tok-kw">const</span> withoutNulls = <span class="tok-kw">this</span>.<span class="tok-fn">dropOptionalNulls</span>(value, <span class="tok-kw">this</span>.schema, base);</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">this</span>.<span class="tok-fn">coerceTypes</span>(<span class="tok-kw">this</span>.<span class="tok-fn">convertOnly</span>(withoutNulls), <span class="tok-kw">this</span>.schema, base);</span><span class="ln">}</span></code></pre></div>
+<p>三遍，顺序不能换（<code>coerce.ts:5-13</code> 的注释）：</p>
+<table>
+<thead>
+<tr>
+<th>遍</th>
+<th>做什么</th>
+<th>规则从哪来</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>可选属性上的 <code>null</code> 直接删掉，当作没传</td>
+<td>自有规则</td>
+</tr>
+<tr>
+<td>2</td>
+<td>结构驱动的转换：<code>&quot;3.5&quot;</code> → <code>3</code>、单值 → 单元素数组、联合取第一个能转的分支</td>
+<td>移植 TypeBox 1.3.27 的 <code>Value.Convert</code>（MIT）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>按 <code>type</code> 做基本类型转换，含类型数组</td>
+<td>Ajv 的 <code>coerceTypes</code></td>
+</tr>
+</tbody>
+</table>
+<p>第一遍必须在最前面。如果先做第 2 遍，<code>{ limit: null }</code> 里的 <code>null</code>
+可能被转成 <code>0</code>——那&quot;没传&quot;就变成了&quot;传了 0&quot;。</p>
+<p>第 2、3 遍分开也有理由。第 2 遍是<strong>看结构</strong>的：它知道 <code>$ref</code> 指向哪、
+<code>anyOf</code> 有几个分支、数组的 <code>items</code> 是什么。第 3 遍是<strong>只看 <code>type</code></strong> 的
+兜底，处理第 2 遍管不到的形状，比如 <code>type: [&quot;integer&quot;, &quot;null&quot;]</code> 这种
+类型数组，或者 <code>&quot;&quot;</code> → <code>null</code>。</p>
+<h3 id="sec-18-7-1-两个反无限循环的护栏">7.1 两个反无限循环的护栏</h3>
+<p>coerce 比 check 危险：check 只读，coerce 要<strong>构造新值</strong>，而构造会递归。</p>
+<p><strong>护栏一：重入栈</strong>（<code>coerce.ts:29-36</code> 的注释 + <code>:68-75</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">reenter</span>(node: <span class="tok-kw">object</span>, base: <span class="tok-kw">string</span>, value: <span class="tok-kw">unknown</span>): <span class="tok-kw">unknown</span> {</span><span class="ln">  <span class="tok-kw">const</span> entered = <span class="tok-kw">this</span>.entered;</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = <span class="tok-num">0</span>; i &lt; entered.length; i += <span class="tok-num">2</span>) {</span><span class="ln">    <span class="tok-kw">if</span> (entered[i] === node &amp;&amp; Object.<span class="tok-kw">is</span>(entered[i + <span class="tok-num">1</span>], value)) {</span><span class="ln">      <span class="tok-kw">this</span>.cuts++;</span><span class="ln">      <span class="tok-kw">return</span> value;</span><span class="ln">    }</span><span class="ln">  }</span></code></pre></div>
+<p>栈里存的是 <code>(schema 节点, 值)</code> 对。同一个节点拿着同一个值二次进入，说明
+递归了——原样返回。</p>
+<p>注释说只有两个入口会 push：<code>$ref</code> 和&quot;把单值包成数组&quot;。<strong>递归的 schema
+遇到一个所有分支都不接受的值</strong>，会沿着 <code>$ref</code> 无限转下去。第三遍的类型
+转换把 <code>5</code> 包成 <code>[5]</code>，<code>[5]</code> 又匹配到同一个 schema 的数组分支，再包——只有
+这个栈能停住它。</p>
+<p><strong>护栏二：<code>memo</code></strong>（<code>:39-43</code>），和 §4.1 的 <code>Explainer.memo</code> 一样：递归
+联合的每个分支都转换同一批子值，不记忆就是指数级。</p>
+<p>但这里多了个细节（<code>:37-38</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/** How often a re-entry was cut short in this coerce() call;</span></span><span class="ln"><span class="tok-com"> *  results computed across one are not memoized. */</span></span><span class="ln"><span class="tok-kw">private</span> cuts = <span class="tok-num">0</span>;</span></code></pre></div>
+<p>经过一次&quot;截断&quot;算出来的结果<strong>不能进 memo</strong>。因为截断意味着&quot;这个子值
+我没真正处理，是原样返回的&quot;——把它当正确答案缓存起来，别的分支拿到
+的就是错误的结果。<code>reenter()</code> 在写入前比对 <code>cuts</code> 计数（<code>:78-86</code>），
+不一致就跳过缓存。</p>
+<p>这一个细节把&quot;加缓存&quot;从 5 行变成了 15 行。<strong>缓存和近似结果放在一起，
+就是 bug。</strong></p>
+<h3 id="sec-19-7-2-一个可以跑的最小验证">7.2 一个可以跑的最小验证</h3>
+<p><code>scripts/browser-smoke-entry.ts:10-14</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> schema = <span class="tok-fn">obj</span>({ prompt: <span class="tok-fn">str</span>() });</span><span class="ln"><span class="tok-kw">const</span> args = <span class="tok-fn">validateToolArguments</span>(</span><span class="ln">  { name: <span class="tok-str">"prompt"</span>, description: <span class="tok-str">""</span>, parameters: schema },</span><span class="ln">  { <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>, id: <span class="tok-str">"1"</span>, name: <span class="tok-str">"prompt"</span>, arguments: { prompt: <span class="tok-num">1</span> } },</span><span class="ln">);</span></code></pre></div>
+<p>传进去的是数字 <code>1</code>，<code>str()</code> 要的是字符串。<code>args.prompt</code> 跑完之后是
+<code>&quot;1&quot;</code>。这个文件是被 <code>scripts/check-browser-smoke.mjs</code> 打包的浏览器入口，
+所以它还顺带证明了一件事：<strong>整个校验链在浏览器里能跑</strong>——没有 <code>eval</code>，
+没有 Node 专有模块。</p>
+<h3 id="sec-20-7-3-出口改写-入口还原">7.3 出口改写，入口还原</h3>
+<p>第 1 遍（删掉可选属性上的 <code>null</code>）看起来像个补丁，其实它和 §八 是一对。</p>
+<p>provider 的 strict 模式<strong>不能表达&quot;可选&quot;</strong>：它要求 <code>required</code> 列出所有
+属性名。所以&quot;可选&quot;只能退化成&quot;可空&quot;——把属性类型改成
+<code>anyOf: [原类型, { type: &quot;null&quot; }]</code>，并把它加进 <code>required</code>。</p>
+<p>模型于是会真的传 <code>limit: null</code> 来表达&quot;我不给这个字段&quot;。</p>
+<p>所以：</p>
+<ul>
+<li><strong>出口</strong>（<code>constrained-sampling.ts</code>）把 optional 改写成 nullable 进请求。</li>
+<li><strong>入口</strong>（<code>coerce.ts</code>）把 nullable 上的 <code>null</code> 删掉还原成 optional 出
+校验，交给工具实现。</li>
+</ul>
+<p>两处改写在不同的包里、不同的层，但<strong>必须是同一对</strong>。少任何一半，
+&quot;可选参数&quot;在 strict 模式下要么传不上去，要么传上去之后让工具收到一个
+假的 <code>null</code>。</p>
+<hr>
+<h2 id="sec-21-八-第五种解释-provider-的-strict-方言">八、第五种解释：provider 的 strict 方言</h2>
+<p>前四种解释都发生在本进程内。第五种出了进程：schema 被打包进请求体，
+交给 provider 侧的 structured outputs 编译器，变成一份语法（grammar），
+然后在解码时逐 token 剪枝。</p>
+<p>这个编译器的能力比 JSON Schema 小得多。它没有回溯，没有补集，没有跨文档
+引用——它只能在&quot;已经生成的前缀&quot;上判断&quot;下一个 token 可不可能合法&quot;。</p>
+<h3 id="sec-22-8-1-一份黑名单-十六个关键字">8.1 一份黑名单，十六个关键字</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/api/constrained-sampling.ts:15-32</span></span><span class="ln"><span class="tok-kw">const</span> UNSUPPORTED_STRICT_SCHEMA_KEYS = [</span><span class="ln">  <span class="tok-str">"$ref"</span>, <span class="tok-str">"$defs"</span>, <span class="tok-str">"definitions"</span>, <span class="tok-str">"allOf"</span>, <span class="tok-str">"oneOf"</span>,</span><span class="ln">  <span class="tok-str">"patternProperties"</span>, <span class="tok-str">"dependentSchemas"</span>, <span class="tok-str">"dependencies"</span>,</span><span class="ln">  <span class="tok-str">"unevaluatedProperties"</span>, <span class="tok-str">"propertyNames"</span>, <span class="tok-str">"contains"</span>,</span><span class="ln">  <span class="tok-str">"prefixItems"</span>, <span class="tok-str">"not"</span>, <span class="tok-str">"if"</span>, <span class="tok-str">"then"</span>, <span class="tok-str">"else"</span>,</span><span class="ln">] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p>按&quot;为什么编译不了&quot;分一下组：</p>
+<table>
+<thead>
+<tr>
+<th>组</th>
+<th>关键字</th>
+<th>编译器的难处</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>引用</td>
+<td><code>$ref</code> <code>$defs</code> <code>definitions</code></td>
+<td>请求里必须是一棵有限树，不能有指向别处的边</td>
+</tr>
+<tr>
+<td>组合</td>
+<td><code>allOf</code> <code>oneOf</code> <code>not</code></td>
+<td>求交、求补、要求&quot;恰好一个&quot;，都需要把分支全部展开</td>
+</tr>
+<tr>
+<td>对象</td>
+<td><code>patternProperties</code> <code>dependentSchemas</code> <code>dependencies</code> <code>unevaluatedProperties</code> <code>propertyNames</code></td>
+<td>键名本身要参与约束，而生成键名时约束还不完整</td>
+</tr>
+<tr>
+<td>数组</td>
+<td><code>contains</code> <code>prefixItems</code></td>
+<td><code>contains</code> 是存在量化；<code>prefixItems</code> 与 <code>items</code> 要合成两段式语法</td>
+</tr>
+<tr>
+<td>条件</td>
+<td><code>if</code> <code>then</code> <code>else</code></td>
+<td>要与已生成的内容做匹配</td>
+</tr>
+</tbody>
+</table>
+<p>除了这十六个，还有一批是<strong>形状</strong>被拒（<code>makeJsonSchemaNodeStrict</code> 里逐个
+<code>throw</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/api/constrained-sampling.ts:56-58, 85-90, 97-99</span></span><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-fn">isJsonSchemaObject</span>(schema)) {</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">UnsupportedStrictJsonSchemaError</span>(</span><span class="ln">    <span class="tok-str">"boolean schemas are unsupported"</span>);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">if</span> (Array.<span class="tok-fn">isArray</span>(schema.items)) {  <span class="tok-com">// 元组</span></span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">UnsupportedStrictJsonSchemaError</span>(<span class="tok-str">"tuple schemas are unsupported"</span>);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">if</span> (</span><span class="ln">  schema.additionalProperties !== <span class="tok-kw">undefined</span> &amp;&amp;</span><span class="ln">  schema.additionalProperties !== <span class="tok-kw">false</span></span><span class="ln">) {</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">UnsupportedStrictJsonSchemaError</span>(</span><span class="ln">    <span class="tok-str">"schema-valued or true additionalProperties is unsupported"</span>);</span><span class="ln">}</span></code></pre></div>
+<p>第一行值得停一下：<code>boolean schemas are unsupported</code>。而 §一 引过
+<code>JsonSchema = boolean | object</code>（<code>schema/src/types.ts:7</code>）——<code>pi-schema</code>
+自己把 <code>true</code> 和 <code>false</code> 当作合法的 JSON Schema。同一份标准，两个子集：
+自己实现的那一侧要全，发给 provider 的那一侧要小。</p>
+<p><code>anyOf</code> 还有一条额外限制（<code>:38-47</code>）：分支里只要出现对象或数组，
+整棵树就被拒（&quot;object and array unions are unsupported&quot;）。字符串的
+联合类型可以，<code>{ type: &quot;object&quot; }</code> 的联合不行。</p>
+<h3 id="sec-23-8-2-全部改写只有三行">8.2 全部改写只有三行</h3>
+<p>通过黑名单之后，真正改动 schema 的代码就这三行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/api/constrained-sampling.ts:116-123</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> [key, property] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(properties)) {</span><span class="ln">  <span class="tok-fn">makeJsonSchemaNodeStrict</span>(property, isUnsupportedKeyword);</span><span class="ln">  <span class="tok-kw">if</span> (!required.<span class="tok-fn">has</span>(key) &amp;&amp; !<span class="tok-fn">schemaAllowsNull</span>(property)) {</span><span class="ln">    properties[key] = { anyOf: [property, { <span class="tok-kw">type</span>: <span class="tok-str">"null"</span> }] };</span><span class="ln">  }</span><span class="ln">}</span><span class="ln">schema.required = propertyNames;</span><span class="ln">schema.additionalProperties = <span class="tok-kw">false</span>;</span></code></pre></div>
+<p><code>required = 所有属性名</code>、<code>additionalProperties = false</code>、可选属性包一层
+<code>null</code>。三条合起来的意思是：<strong>strict 模式下，模型必须生成一个完整对象，
+每个字段都有值，不想要的字段给 <code>null</code>。</strong></p>
+<p>为什么不能保留 <code>optional</code>：strict 要求 <code>required</code> 覆盖全部属性名（这是
+provider 编译器的硬要求，不是风格问题）。所以&quot;这次不给&quot;只能退化成
+&quot;这次给 null&quot;。§7.3 已经讲过这一对——这里是出口那一半。</p>
+<p><code>schemaAllowsNull</code>（<code>:49-54</code>）认五种&quot;已经可空&quot;的写法：<code>type: &quot;null&quot;</code>、
+<code>type: [..., &quot;null&quot;]</code>、<code>const: null</code>、<code>enum</code> 含 <code>null</code>、以及 <code>anyOf</code>
+里存在可空分支。所以这层包装是<strong>幂等</strong>的：本来就可空的属性不会被包成
+<code>anyOf: [{ anyOf: [...] }, { type: &quot;null&quot; }]</code>。</p>
+<h3 id="sec-24-8-3-为什么必须先-structuredclone">8.3 为什么必须先 <code>structuredClone</code></h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/api/constrained-sampling.ts:127-140</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">makeStrictJsonSchema</span>(</span><span class="ln">  schema: Tool[<span class="tok-str">"parameters"</span>],</span><span class="ln">  isUnsupportedKeyword?: UnsupportedStrictSchemaKeywordCheck,</span><span class="ln">): Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt; {</span><span class="ln">  <span class="tok-kw">const</span> cloned: <span class="tok-kw">unknown</span> = <span class="tok-fn">structuredClone</span>(schema);</span><span class="ln">  <span class="tok-kw">if</span> (!<span class="tok-fn">isJsonSchemaObject</span>(cloned)) {</span><span class="ln">    <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">UnsupportedStrictJsonSchemaError</span>(</span><span class="ln">      <span class="tok-str">"root schema must have type object"</span>);</span><span class="ln">  }</span><span class="ln">  <span class="tok-fn">makeJsonSchemaNodeStrict</span>(cloned, isUnsupportedKeyword);</span><span class="ln">  ...</span><span class="ln">}</span></code></pre></div>
+<p>三个理由，缺一个都会出事：</p>
+<ol>
+<li><strong>工具定义是共享的。</strong> 同一个 <code>Tool</code> 对象在一次会话里被反复发送，
+还在重试时被重新读取。就地改写意味着第一个开启了 strict 的请求会把
+后面所有请求的 schema 都改掉。</li>
+<li><strong>改写不可逆。</strong> optional 变成 <code>anyOf[..., null]</code> 之后，没人能区分
+&quot;原本就允许 null&quot;和&quot;被 strict 改写出来的 null&quot;——§7.3 里 coerce
+的第 1 遍前提正是&quot;这个 null 是我们加的&quot;，一旦原件被污染，那个前提
+就变成猜测。</li>
+<li><strong>降级要能找到原件。</strong> <code>getJsonSchemaToolParameters</code>（<code>:163-165</code>）
+是二选一：<code>strict === true</code> 才克隆改写，否则原样返回同一个对象引用。</li>
+</ol>
+<h3 id="sec-25-8-4-provider-的上限被写成了常量">8.4 provider 的上限被写成了常量</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/api/constrained-sampling.ts:148-156</span></span><span class="ln"><span class="tok-com">/** Claude rejects (on the Anthropic API and on Bedrock) a request whose</span></span><span class="ln"><span class="tok-com"> *  strict tools exceed its limits with one of these messages.</span></span><span class="ln"><span class="tok-com"> *  Observed limits: 20 strict tools, and 16 optional or union-typed</span></span><span class="ln"><span class="tok-com"> *  parameters across all strict tools. */</span></span><span class="ln"><span class="tok-kw">const</span> STRICT_TOOL_LIMIT_ERROR_MESSAGES = [</span><span class="ln">  <span class="tok-str">"The compiled grammar is too large"</span>,</span><span class="ln">  <span class="tok-str">"Too many strict tools ("</span>,</span><span class="ln">  <span class="tok-str">"Schemas contains too many parameters with union types ("</span>,</span><span class="ln">];</span></code></pre></div>
+<p>三个都不是完整的错误消息，只是片段，匹配用 <code>includes</code>（<code>:159-161</code>）。
+因为尾巴上带着具体数字和参数名，是变的；能稳定的只有这几段。</p>
+<p>注意第三条的语法错误：<code>Schemas contains</code>。原文如此，改对了就匹配不上。
+注释里那句 <code>Observed limits: 20 ... and 16 ...</code> 是观察得来的，不是文档
+写的——provider 没有公开这两个数字。</p>
+<p><code>strict: &quot;prefer&quot;</code>（<code>:143-146</code>）是配套的退路：能 strict 就 strict，
+撞上这三个错误就降级重发一次。</p>
+<p>第八节到这里就有了一个可以直接回答本章验收的结论：<strong>一份声明同时喂给
+五个读者，它的可移植性等于五个子集的交集。</strong> 交集最小的那个读者决定
+了工具作者能写什么。</p>
+<hr>
+<h2 id="sec-26-九-遥测-schema-唯一一个不校验的类型">九、遥测 schema：唯一一个不校验的类型</h2>
+<p>换到第二个包。<code>pi-telemetry</code> 的核心声明是一行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/index.ts:175</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> defineTelemetrySchema&lt;</span><span class="ln">  <span class="tok-kw">const</span> T <span class="tok-kw">extends</span> TelemetrySchemaDefinition,</span><span class="ln">&gt;(</span><span class="ln">  schema: T,</span><span class="ln">): T {</span><span class="ln">  <span class="tok-kw">return</span> schema;</span><span class="ln">}</span></code></pre></div>
+<p><code>const T</code> 让字面量类型不被放宽，然后<strong>原样返回</strong>。整个 465 行的入口文件，
+这个函数不做任何事。</p>
+<p>作者把这一点写在了另一个函数的注释里（<code>:448-451</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * Bind an explicit parent context to the combined span vocabulary of one or</span></span><span class="ln"><span class="tok-com"> * more schemas.</span></span><span class="ln"><span class="tok-com"> * Schema values are used only for type inference; no runtime schema</span></span><span class="ln"><span class="tok-com"> * validation is performed.</span></span><span class="ln"><span class="tok-com"> */</span></span></code></pre></div>
+<p>最硬的证据是参数的<strong>名字</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/index.ts:452-457</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> createTypedSpanStarter&lt;</span><span class="ln">	<span class="tok-kw">const</span> Schemas <span class="tok-kw">extends</span> TelemetrySchemaTuple,</span><span class="ln">&gt;(</span><span class="ln">	telemetryContext: TelemetryContext,</span><span class="ln">	_schemas: Schemas &amp; UniqueTelemetrySchemas&lt;Schemas&gt;,</span><span class="ln">): TypedSpanStarter&lt;Schemas&gt; {</span><span class="ln">	<span class="tok-kw">return</span> bindTypedSpanStarter&lt;Schemas&gt;(telemetryContext);</span><span class="ln">}</span></code></pre></div>
+<p><code>_schemas</code> 下划线开头。整个函数体没有读它一个字段——<code>bindTypedSpanStarter</code>
+（<code>:427-446</code>）里也没有任何地方碰 <code>startAttributes</code> / <code>endAttributes</code> /
+<code>events</code>。</p>
+<p><strong>为什么可以不校验</strong>：信任边界不同。§1.1 第二条说过，<code>pi-schema</code> 面对的是
+MCP server 送来的外部数据，必须防御式读取每个关键字；而遥测的 schema 和
+调用它的代码在同一个仓库、同一次编译里。写错的属性名已经是编译错误了
+（<code>ExactTelemetryAttributes</code>，<code>:243-244</code>，多余的键被映射成 <code>never</code>）。
+运行时再查一遍，只是把编译期能发现的错误推迟到生产环境。</p>
+<h3 id="sec-27-9-1-同一份声明-两条命运">9.1 同一份声明，两条命运</h3>
+<p><code>schema</code> 部分完全不落地，<code>metrics</code> 部分<strong>落地</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/metrics.ts:129-145</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> createTypedMetrics&lt;<span class="tok-kw">const</span> Schemas <span class="tok-kw">extends</span> MetricSchemas&gt;(</span><span class="ln">	metrics: TelemetryMetrics,</span><span class="ln">	schemas: Schemas &amp; ...,</span><span class="ln">): TypedTelemetryMetrics&lt;Schemas&gt; {</span><span class="ln">	<span class="tok-kw">const</span> definitions = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">string</span>, TelemetryMetricDefinition&gt;();</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> schema <span class="tok-kw">of</span> schemas) {</span><span class="ln">		<span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, definition] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(schema.metrics ?? {})) {</span><span class="ln">			definitions.<span class="tok-kw">set</span>(name, definition);</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		counter: (name: <span class="tok-kw">string</span>) =&gt; metrics.<span class="tok-fn">counter</span>(name, definitions.<span class="tok-kw">get</span>(name)),</span><span class="ln">		...</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p>参数叫 <code>schemas</code>，没有下划线；函数体遍历它们；<code>definitions.get(name)</code>
+被当作 <code>InstrumentOptions</code> 直接喂给 adapter。于是 <code>description</code> / <code>unit</code> /
+<code>boundaries</code> 在运行时真的到达了后端。</p>
+<p>理由很实际：<code>description</code> 和 <code>unit</code> 是<strong>后端的展示元数据</strong>——Prometheus
+的 HELP/TYPE、图表 y 轴的单位。adapter 拿不到就只能靠名字猜。而 span 的
+description 只对人有用，写进属性纯属浪费字节（§十 会看到这条纪律执行得
+多彻底）。</p>
+<p>顺带一个类型层面的收紧：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/metrics.ts:43</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> TelemetryMetricAttributeDefinition =</span><span class="ln">	TelemetryStartAttributeDefinition &amp; { cardinality?: <span class="tok-str">"low"</span> };</span></code></pre></div>
+<p>span 属性可以写 <code>cardinality: &quot;low&quot; | &quot;high&quot;</code>（<code>index.ts:133</code>），指标属性
+只能写 <code>&quot;low&quot;</code>。写 <code>&quot;high&quot;</code> 是类型错误，不是文档建议。理由：一个高基数
+属性当指标维度，等于给后端造一条时间序列——<code>response.id</code> 一旦进来了，
+直方图就变成了记账流水。</p>
+<p>指标属性的必填性也推导了（<code>metrics.ts:93-100</code>）：只要有一个
+<code>required: true</code> 的属性，<code>attributes</code> 参数就从可选变成必填。</p>
+<h3 id="sec-28-9-2-重名是类型错误-不是运行时错误">9.2 重名是类型错误，不是运行时错误</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/index.ts:396-400</span></span><span class="ln"><span class="tok-kw">type</span> UniqueTelemetrySchemas&lt;Schemas <span class="tok-kw">extends</span> TelemetrySchemaTuple&gt; =</span><span class="ln">	[DuplicateTelemetrySpanNames&lt;Schemas&gt;] <span class="tok-kw">extends</span> [<span class="tok-kw">never</span>]</span><span class="ln">		? <span class="tok-kw">unknown</span></span><span class="ln">		: { <span class="tok-kw">readonly</span> <span class="tok-str">"duplicate telemetry span names"</span>:</span><span class="ln">			  DuplicateTelemetrySpanNames&lt;Schemas&gt; };</span></code></pre></div>
+<p>用法是 <code>Schemas &amp; UniqueTelemetrySchemas&lt;Schemas&gt;</code>。两份 schema 有同名
+span 时，第二份的类型变成 <code>{ &quot;duplicate telemetry span names&quot;: &quot;...&quot; }</code>，
+与 <code>Schemas</code> 求交得到 <code>never</code>，参数不可传——错误信息就是那个属性名本身，
+里面直接写着重复的是哪个 span。</p>
+<p>这是用类型系统做 lint：没有运行时检查，没有 <code>Set</code>，没有启动时遍历断言。
+<code>createTypedSpanStarter</code> 的整个 465 行里没有一个 <code>if</code> 是为它写的。</p>
+<p><code>DuplicateTelemetrySpanNames</code>（<code>:384-394</code>）是元组递归，带一个 <code>Seen</code>
+累加器单向扫过 schemas 数组。metrics 侧是同一个模板，只换了被扫的字段
+（<code>metrics.ts:79-87</code>）。</p>
+<hr>
+<h2 id="sec-29-十-只记形状-不记内容">十、只记形状，不记内容</h2>
+<p>遥测最难的部分不是记录，是<strong>不记录</strong>。三句真实注释划出了边界：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// durable/src/harness/telemetry.ts:49</span></span><span class="ln"><span class="tok-com">/** Durable's content-free span, event, and metric vocabulary.</span></span><span class="ln"><span class="tok-com"> *  IDs address durable records, never content. */</span></span></code></pre></div>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/telemetry.ts:43</span></span><span class="ln">description: <span class="tok-str">"A completed content block; content is never recorded."</span>,</span></code></pre></div>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/telemetry.ts:59</span></span><span class="ln">errorWhen: <span class="tok-str">"Stop reason is error: provider_error with at most 500</span></span><span class="ln">  error-message characters. Aborted stays ok.<span class="tok-str">",</span></span></code></pre></div>
+<h3 id="sec-30-10-1-一个内容块的四个数字">10.1 一个内容块的四个数字</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/telemetry.ts:42-55</span></span><span class="ln"><span class="tok-str">"pi.ai.block"</span>: {</span><span class="ln">  description: <span class="tok-str">"A completed content block; content is never recorded."</span>,</span><span class="ln">  attributes: {</span><span class="ln">    <span class="tok-kw">type</span>: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>, values: [<span class="tok-str">"text"</span>, <span class="tok-str">"thinking"</span>, <span class="tok-str">"tool_call"</span>],</span><span class="ln">            required: <span class="tok-kw">true</span> },</span><span class="ln">    index: { <span class="tok-kw">type</span>: <span class="tok-str">"number"</span>, required: <span class="tok-kw">true</span> },</span><span class="ln">    chars: { <span class="tok-kw">type</span>: <span class="tok-str">"number"</span>, description: <span class="tok-str">"UTF-16 character count."</span>,</span><span class="ln">             required: <span class="tok-kw">true</span> },</span><span class="ln">    tool: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>,</span><span class="ln">            description: <span class="tok-str">"Tool name, for tool-call blocks only."</span> },</span><span class="ln">  },</span><span class="ln">},</span></code></pre></div>
+<p>一段三千 token 的思考，进日志的是 <code>{ type: &quot;thinking&quot;, index: 1, chars: 8123 }</code> 这样的东西。会话内容、工具参数、模型输出，一个字都没有。</p>
+<p><code>chars</code> 的实现里有一个不显然的地方：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/telemetry.ts:162-179</span></span><span class="ln"><span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"toolcall_delta"</span>) {</span><span class="ln">  toolChars.<span class="tok-kw">set</span>(event.contentIndex,</span><span class="ln">    (toolChars.<span class="tok-kw">get</span>(event.contentIndex) ?? <span class="tok-num">0</span>) + event.delta.length);</span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"text_end"</span> || event.<span class="tok-kw">type</span> === <span class="tok-str">"thinking_end"</span>) {</span><span class="ln">  span.<span class="tok-fn">addEvent</span>(<span class="tok-str">"pi.ai.block"</span>, {</span><span class="ln">    <span class="tok-kw">type</span>: event.<span class="tok-kw">type</span> === <span class="tok-str">"text_end"</span> ? <span class="tok-str">"text"</span> : <span class="tok-str">"thinking"</span>,</span><span class="ln">    index: event.contentIndex, chars: event.content.length });</span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"toolcall_end"</span>) {</span><span class="ln">  <span class="tok-kw">const</span> chars = toolChars.<span class="tok-kw">get</span>(event.contentIndex) ?? <span class="tok-num">0</span>;</span><span class="ln">  toolChars.<span class="tok-kw">delete</span>(event.contentIndex);</span><span class="ln">  span.<span class="tok-fn">addEvent</span>(<span class="tok-str">"pi.ai.block"</span>, {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"tool_call"</span>, index: event.contentIndex, chars,</span><span class="ln">    tool: event.toolCall.name });</span><span class="ln">}</span></code></pre></div>
+<p>文本和思考的结束事件带着全文，直接量长度。工具调用的结束事件带的是<strong>解析
+好的</strong> call，没有原文——只能一边收 <code>toolcall_delta</code> 一边累加。而那个
+<code>delete</code> 不是清理卫生，是正确性：同一个 <code>contentIndex</code> 在重试时会复用，
+不删就会把两次的长度加在一起。</p>
+<h3 id="sec-31-10-2-高基数进-span-低基数才进指标">10.2 高基数进 span，低基数才进指标</h3>
+<p>同一件事在两个粒度上的两个名字：</p>
+<table>
+<thead>
+<tr>
+<th>事实</th>
+<th>span 属性</th>
+<th>metric 属性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>哪次请求</td>
+<td><code>response.id</code>（high，<code>ai/telemetry.ts:38</code>）</td>
+<td>不记</td>
+</tr>
+<tr>
+<td>哪个任务</td>
+<td><code>task.id</code>（high，<code>durable/.../telemetry.ts:81</code>）</td>
+<td><code>task</code>（注册名，<code>:128</code>）</td>
+</tr>
+<tr>
+<td>哪个工具调用</td>
+<td><code>tool.call_id</code>（high，<code>:95</code>）</td>
+<td><code>tool.name</code></td>
+</tr>
+</tbody>
+</table>
+<p>理由很物理：span 是一行记录，metric 是一个<strong>聚合桶</strong>。桶的键只有几十种
+取值才叫桶，几万种取值叫索引。§9.1 那条类型收紧只是把这条规律写成了
+编译期规则。</p>
+<h3 id="sec-32-10-3-500-字符是一条硬边界">10.3 500 字符是一条硬边界</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ai/src/telemetry.ts:192-196</span></span><span class="ln"><span class="tok-kw">if</span> (message.stopReason === <span class="tok-str">"error"</span>) {</span><span class="ln">  span.<span class="tok-fn">setStatus</span>({</span><span class="ln">    status: <span class="tok-str">"error"</span>,</span><span class="ln">    error: { name: <span class="tok-str">"provider_error"</span>,</span><span class="ln">             message: <span class="tok-fn">ownedSlice</span>(message.errorMessage ?? <span class="tok-str">""</span>, <span class="tok-num">0</span>, <span class="tok-num">500</span>) },</span><span class="ln">  });</span><span class="ln">}</span></code></pre></div>
+<p>用 <code>ownedSlice</code> 而不是 <code>slice</code>：结果不引用原串的底层缓冲区，VM 不会为了
+这 500 个字符保住一份可能几 MB 的错误响应（V8 的 sliced string 持有父串
+引用）。</p>
+<p>500 这个数字在 durable 侧重复了一遍（<code>:113</code>：&quot;a diagnostic capped at 500
+characters&quot;）。为什么是这么小的数：错误信息进的是错误聚合器，聚合器的
+价值来自&quot;同一类错误合成一条&quot;。带上完整栈和上游响应体的消息，每条都是
+新的一条，聚合器就退化成日志。</p>
+<p>同一行注释里还有半句更含蓄的：<code>Aborted stays ok.</code>。用户按 Ctrl-C 不是
+故障。把它记成 error，错误率曲线就变成了用户的打字速度。</p>
+<h3 id="sec-33-10-4-一个声明了但从不读取的字段">10.4 一个声明了但从不读取的字段</h3>
+<p><code>TelemetryAttributeMetadata</code> 有 <code>sensitive?: boolean</code>（<code>index.ts:130-134</code>）。
+全仓搜一遍：声明一处，读取零处。</p>
+<p>这不是遗漏，是取舍。<code>sensitive</code> 是给写 schema 的人留的记号（&quot;这个字段
+将来可能要脱敏&quot;），真正的保护不靠它，靠<strong>词表本身里没有内容</strong>——§10.1
+的 <code>chars</code> 就是那个策略的产物。一个只能记长度的字段，没有办法泄露它
+量过的那段文字。</p>
+<p>可以批评它是死代码。但它诚实地留在原地：字段的<strong>语义</strong>（&quot;这个属性敏感&quot;）
+比它的<strong>执行</strong>（&quot;运行时拦一下&quot;）更容易先定下来，而执行需要一个真正会脱敏
+的 adapter 才谈得上。</p>
+<hr>
+<h2 id="sec-34-十一-契约与实现分离">十一、契约与实现分离</h2>
+<p>两个包都讲完了，最后看接缝：一个契约，两个实现。</p>
+<p><code>TelemetryContext</code> 只有三样东西（<code>index.ts:98-103</code>）：<code>metrics?</code>、
+<code>propagation?</code>、<code>startSpan</code>。<code>TelemetrySpan</code> 继承它，再加四个写方法
+（<code>:105-110</code>）。</p>
+<p><strong>span 就是一个 context</strong>。这不是洁癖，是让子 span 能直接在父 span 上开：
+<code>memory.ts</code> 的 <code>startSpan</code> 里，parent 就是 <code>{ context, localId, span }</code>
+（<code>:196-205</code>）。</p>
+<p>两个可选能力而不是一个胖接口：<code>metrics</code> 和 <code>propagation</code> 都是 <code>?</code>。一个
+只记 span 的 adapter 不该被迫实现指标；一个只做 trace 透传的网关不该被迫
+实现采样。<code>noop.ts</code> 把它们各自做成冻结单例（<code>:8-23</code>）。</p>
+<p><code>NOOP_TELEMETRY_CONTEXT</code> 的类型是 <code>TelemetrySpan</code>（<code>:37</code>），不是
+<code>TelemetryContext</code>。因为 span 是 context 的超集——根 context 也要能开
+span，一个对象同时扮演两个角色，省掉一层包装。</p>
+<h3 id="sec-35-11-1-两个实现-两种时间观">11.1 两个实现，两种时间观</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>InMemoryTelemetryContext</code></th>
+<th><code>SqliteTelemetry</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>何时成形</td>
+<td>开始时就 push 一条可变记录，结束时改它</td>
+<td>结束时才变成一行</td>
+</tr>
+<tr>
+<td>同步/异步</td>
+<td>全同步，<code>getSpans()</code> 立刻能读</td>
+<td>记录路径不碰 SQL，每秒 flush</td>
+</tr>
+<tr>
+<td>队列上限</td>
+<td>无</td>
+<td>10,000 条，超了计数丢弃，不抛错</td>
+</tr>
+<tr>
+<td>失败怎么办</td>
+<td>不会失败</td>
+<td>写失败即永久停止记录，错误留给 flush</td>
+</tr>
+<tr>
+<td>保留期</td>
+<td>进程内</td>
+<td>7 天，在同一事务里 <code>DELETE</code></td>
+</tr>
+<tr>
+<td>对外暴露</td>
+<td>所有 span，带 <code>settled</code> 标志</td>
+<td>只有落盘的行</td>
+</tr>
+</tbody>
+</table>
+<p>第二行最能说明&quot;契约&quot;是什么。<code>chord/src/telemetry-sqlite/index.ts:335-337</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/** Portable, buffered SQLite recorder. Recording never performs SQL;</span></span><span class="ln"><span class="tok-com"> * flush runs every second.</span></span><span class="ln"><span class="tok-com"> * Only settled spans are stored. Metrics aggregate count/sum/min/max per</span></span><span class="ln"><span class="tok-com"> * ten-second interval.</span></span><span class="ln"><span class="tok-com"> * A write failure permanently stops recording and is reported by flush and</span></span><span class="ln"><span class="tok-com"> * close. */</span></span></code></pre></div>
+<p>&quot;记录不做 SQL&quot;。span 可能在模型流式响应的热路径上结束，一次同步 <code>INSERT</code>
+就能把首 token 延迟拉长几毫秒。记录只是往数组里 <code>push</code> 十元组
+（<code>:205-216</code>），IO 留给每秒一次的 <code>drain</code>。</p>
+<p>同一段注释里的另外三条，都是刻意选择：</p>
+<ul>
+<li><strong>满了就丢，计数但不抛错</strong>（<code>:203</code>、<code>:241-244</code>）。两个计数器
+<code>droppedSpans</code> / <code>droppedMeasurements</code>。遥测不能因为缓冲区满了就让
+agent 停下来——观测者不改变被观测系统的行为。</li>
+<li><strong>写失败即永久停止</strong>（<code>:319-326</code>）：<code>failed = this.stopped = true</code>，
+清空队列，<code>clearInterval</code>，不重试。一块坏掉的磁盘不该让之后每个 span
+都付一次失败重试的代价。</li>
+<li><strong>只有已结算的 span 会落盘</strong>。这条让两个实现的行为能对齐：内存实现
+开始时就建档，但 <code>getSpans()</code> 的读者看到的字段与 SQLite 落盘的行一致。</li>
+</ul>
+<p>两个实现共享的两条规则，值得单独记：</p>
+<ol>
+<li><strong>结算之后不可改。</strong> 内存实现的四个写方法都以
+<code>if (recordedSpan.settled) return;</code> 开头（<code>memory.ts:207-227</code>）；
+SQLite 用 <code>record()</code> 包一层（<code>:160-162</code>）。span 结束后的 <code>setStatus</code>
+是静默空操作而不是抛错——清理代码里顺手补一个状态是常见写法。</li>
+<li><strong>identity 存在 WeakMap 里。</strong> <code>contextCarriers</code>（<code>memory.ts:98</code>）/
+<code>identities</code>（<code>index.ts:51</code>），注释：<code>Identity survives settlement without exposing backend IDs on the generic context contract.</code></li>
+</ol>
+<p>第二条是 <code>inject()</code> 在 span 结束后仍然能工作的原因：context 对象还活着，
+后端 ID 就查得到。代价是多一张 WeakMap；收益是换后端不用改调用方。</p>
+<h3 id="sec-36-11-2-一条会静默丢数据的路径">11.2 一条会静默丢数据的路径</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/memory.ts:188</span></span><span class="ln"><span class="tok-kw">if</span> (parent?.span?.settled) <span class="tok-kw">return</span> <span class="tok-fn">startInertSpan</span>(state, options, callback);</span></code></pre></div>
+<p>在一个<strong>已经结束</strong>的 span 里开子 span，子 span 什么都不记。SQLite 侧对应
+的是 <code>this.stopped</code>（<code>:144</code>）——同一个 <code>inert</code> 兜底，两个触发条件。</p>
+<p>后果：<code>void someAsyncWork()</code> 里开的 span，如果父 span 先结束（比如父 span
+只包了&quot;发出请求&quot;而没包&quot;等结果&quot;），整棵子树都不会出现在 trace 里。<strong>没有
+报错，没有计数。</strong></p>
+<p>这是刻意取舍：父 span 在子 span 之前结束，trace 的时间轴就倒过来了（子的
+<code>startedMs</code> 大于父的 <code>endedMs</code>），后端要么拒绝要么画出负宽度。宁可丢，
+不要错。代价是<strong>排查时看不到东西，而且不知道为什么看不到</strong>。§十四 有
+一个能复现这个行为的实验。</p>
+<h3 id="sec-37-11-3-conformance-把-quot-两个实现-quot-变成-quo">11.3 conformance：把&quot;两个实现&quot;变成&quot;同一份用例&quot;</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// telemetry/src/testing/conformance.ts:43-46</span></span><span class="ln"><span class="tok-com">/** Creates runner-independent cases for the callback telemetry adapter</span></span><span class="ln"><span class="tok-com"> * contract. */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createTelemetryAdapterConformance</span>(</span><span class="ln">	factory: TelemetryAdapterFixtureFactory,</span><span class="ln">): <span class="tok-kw">readonly</span> TelemetryAdapterConformanceCase[] {</span></code></pre></div>
+<p>返回的是<strong>用例数组</strong>，不是 <code>describe</code> / <code>it</code> 调用（<code>testing/types.ts:16-21</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/** A runner-independent conformance case that can be registered with any</span></span><span class="ln"><span class="tok-com"> * test framework. */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> TelemetryAdapterConformanceCase {</span><span class="ln">	<span class="tok-kw">readonly</span> group: <span class="tok-kw">string</span>;</span><span class="ln">	<span class="tok-kw">readonly</span> name: <span class="tok-kw">string</span>;</span><span class="ln">	<span class="tok-fn">run</span>(): Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">}</span></code></pre></div>
+<p>一个包不 import 任何测试框架，就能给所有 adapter 提供同一份检查表。
+fixture 是 <code>AsyncDisposable</code>（<code>types.ts:5</code>），每个用例跑完自动收尾
+（<code>conformance.ts:21-25</code>：<code>await using fixture = await factory();</code>）。</p>
+<p>跑它的是另一个包：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// chord/test/telemetry-sqlite.test.ts:92-95</span></span><span class="ln"><span class="tok-fn">describe</span>(<span class="tok-str">"SQLite telemetry span and propagation conformance"</span>, () =&gt; {</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> test <span class="tok-kw">of</span> <span class="tok-fn">createTelemetryAdapterConformance</span>(fixture)</span><span class="ln">    .<span class="tok-fn">filter</span>((test) =&gt; test.group !== <span class="tok-str">"metrics"</span>))</span><span class="ln">    <span class="tok-fn">it</span>(<span class="tok-str">`${test.group}: ${test.name}`</span>, test.run);</span><span class="ln">});</span></code></pre></div>
+<p><code>pi-chord</code> 通过公开的 <code>pi-telemetry/testing</code> 子路径拿到用例，把 SQLite
+适配器接进去跑。<code>group</code> 是一等字段，所以能按能力过滤——SQLite 适配器的
+fixture 不提供 <code>metrics</code> 快照，其余全过。</p>
+<p>同一个文件里还有一条直接验证 §11.1 第二行的测试（<code>:98-110</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> transaction = vi.<span class="tok-fn">spyOn</span>(f.db, <span class="tok-str">"transaction"</span>);</span><span class="ln"><span class="tok-kw">const</span> pending = f.telemetry.<span class="tok-fn">startSpan</span>({ name: <span class="tok-str">"active"</span> }, (span) =&gt; {</span><span class="ln">  span.<span class="tok-fn">addEvent</span>(<span class="tok-str">"begin"</span>);</span><span class="ln">  f.telemetry.metrics.<span class="tok-fn">counter</span>(<span class="tok-str">"calls"</span>).<span class="tok-fn">add</span>(<span class="tok-num">1</span>);</span><span class="ln">  <span class="tok-kw">return</span> gate.promise;</span><span class="ln">});</span><span class="ln"><span class="tok-fn">expect</span>(transaction).not.<span class="tok-fn">toHaveBeenCalled</span>();</span></code></pre></div>
+<p>&quot;记录不做 SQL&quot;这句话被写成了一个断言。</p>
+<p>这是&quot;契约与实现分离&quot;的最后一块：契约不只是类型，还有<strong>行为</strong>。类型保证
+签名对，conformance 保证语义对，而两者都不需要 adapter 知道对方的存在。</p>
+<hr>
+<h2 id="sec-38-十二-两条完整链路">十二、两条完整链路</h2>
+<p>前面十一节都是局部。这一节把两条链拼起来，一条走值，一条走日志。</p>
+<h3 id="sec-39-12-1-值-从声明到-handler">12.1 值：从声明到 handler</h3>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">obj({ path: str(), offset: opt(num()) }, { open: true })</span><span class="ln">  |</span><span class="ln">  |  产出是一个普通的 JS 对象，可以 JSON.stringify：</span><span class="ln">  |  { type: "object", properties: { path, offset }, required: ["path"] }</span><span class="ln">  |  （open: true，所以没有 additionalProperties: false）</span><span class="ln">  |</span><span class="ln">  +-(1)-&gt; 请求体 ------------------------------&gt; provider</span><span class="ln">  |         |</span><span class="ln">  |         +-(5)-&gt; strict 方言：required 补齐全部键</span><span class="ln">  |                  optional 包成 anyOf [原类型, null]</span><span class="ln">  |</span><span class="ln">  +-(2)-&gt; Static&lt;S&gt;  =  { path: string; offset?: number }</span><span class="ln">  |</span><span class="ln">  +-(3)-&gt; compile()  -&gt;  check(value): boolean</span><span class="ln">  |</span><span class="ln">  +-(4)-&gt; errors(v)  -&gt;  Explainer  -&gt;  ValidationError[]</span></code></pre></div>
+<p>五个读者，五种解释。第（2）个在编译期，其余四个在运行时或进程外。</p>
+<p>值的回程：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">model</span><span class="ln">  |  toolCall.arguments = { prompt: 1 }</span><span class="ln">  v</span><span class="ln">validateToolArguments            ai/src/utils/validation.ts:54-69</span><span class="ln">  |  argumentsError 非空就直接抛（JSON 都没解析成功）</span><span class="ln">  |  WeakMap&lt;schema, CoercingValidator&gt;      每个 schema 只编译一次</span><span class="ln">  |  structuredClone(arguments)              工具改参数不改 transcript</span><span class="ln">  v</span><span class="ln">CoercingValidator.parse                          schema/src/validator.ts:73-76</span><span class="ln">  |</span><span class="ln">  +--&gt; coerce(value)                              先掰，再判</span><span class="ln">  |      1 dropOptionalNulls   删掉可选属性上的 null</span><span class="ln">  |      2 convertOnly         结构驱动（TypeBox 的 Value.Convert）</span><span class="ln">  |      3 coerceTypes         按 type 兜底（Ajv 的 coerceTypes）</span><span class="ln">  |      每条路径 copy-on-write，没变就返回同一个引用</span><span class="ln">  |</span><span class="ln">  +--&gt; check(coerced)</span><span class="ln">         |</span><span class="ln">         +-- true  -&gt;  { ok: true, value }   -&gt; handler 拿到 "1"</span><span class="ln">         |</span><span class="ln">         +-- false -&gt;  { ok: false, errors } -&gt; Explainer（memo 防指数）</span><span class="ln">                        |</span><span class="ln">                     [{ path: "/prompt", keyword: "type", ... }]</span><span class="ln">                        |</span><span class="ln">                     formatValidationPath("/prompt") -&gt; "prompt"</span><span class="ln">                        |</span><span class="ln">                     "Validation failed for tool \"prompt\":\n  - prompt: ..."</span></code></pre></div>
+<p>最后那条错误消息回到对话里，模型看到的是<strong>自己原本发的参数</strong>
+（<code>:66</code> 里 <code>JSON.stringify(toolCall.arguments)</code>，不是 coerce 之后的值）。
+这是对的：要让它知道错在哪，而不是告诉它&quot;我把它改成了什么&quot;。</p>
+<p><code>keyword</code> 字段在拼消息时被丢掉了（<code>:64</code> 只取 <code>path</code> 和 <code>message</code>）——
+<code>message</code> 已经是人话，<code>keyword</code> 是给程序读的。</p>
+<h3 id="sec-40-12-2-旁路-从调用到日志">12.2 旁路：从调用到日志</h3>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">业务代码                                adapter</span><span class="ln">--------                                -------</span><span class="ln"></span><span class="ln">start("pi.ai.request", {provider, model, api})</span><span class="ln">  |</span><span class="ln">  +-- 同步拿到 span 句柄 -------------&gt; 记录开始时间与属性</span><span class="ln">  |</span><span class="ln">  +-- onEvent(第一个 chunk) ----------&gt; addEvent("pi.ai.first_chunk")</span><span class="ln">  |                                     histogram.record(首块耗时)</span><span class="ln">  +-- onEvent(text_end) --------------&gt; addEvent("pi.ai.block",</span><span class="ln">  |                                       { type, index, chars })</span><span class="ln">  +-- onEvent(toolcall_end) ----------&gt; addEvent("pi.ai.block",</span><span class="ln">  |                                       { ..., tool: 工具名 })</span><span class="ln">  +-- onResult(message) ---------------&gt; setAttributes({ usage.*,</span><span class="ln">  |                                       cost.total, response.id })</span><span class="ln">  |                                     counter.add("pi.ai.tokens", ...)</span><span class="ln">  |                                     histogram.record(duration, ...)</span><span class="ln">  +-- finish() ------------------------&gt; span 结算（settled = true）</span><span class="ln">                                            |</span><span class="ln">                    InMemoryTelemetryContext     SqliteTelemetry</span><span class="ln">                        立刻可读                  每秒 flush</span><span class="ln">                                            |</span><span class="ln">                      getSpans() / findTraces() / findMetrics()</span><span class="ln">                                            |</span><span class="ln">                                renderTrace(spans) -&gt; 文本树</span></code></pre></div>
+<p>两条链在形状上是同一个套路：<strong>热路径只记形状，读的时候才解释。</strong>
+<code>check</code> 是布尔，<code>errors</code> 才构造对象；<code>addEvent</code> 只是往数组里 push，
+<code>renderTrace</code> 才把树画出来。</p>
+<hr>
+<h2 id="sec-41-十三-工程暗坑">十三、工程暗坑</h2>
+<p><strong>1. strict 改写不可逆，<code>coerce</code> 第 1 遍只能靠猜。</strong></p>
+<p><code>{ limit: number | null }</code> 如果作者的意思是&quot;显式表示不限制&quot;，那模型传
+<code>limit: null</code> 就是有意义的。但 <code>dropOptionalNulls</code> 一律删——它无法区分
+&quot;用户自己写的可空&quot;和&quot;§8.2 那条 <code>anyOf</code> 改写出来的可空&quot;。<strong>不要把 <code>null</code>
+当作业务值</strong>，它在 strict 模式下已被系统征用为&quot;没给&quot;。</p>
+<p><strong>2. <code>unresolvedRefs: &quot;reject&quot;</code> 把笔误变成了静默拒绝。</strong></p>
+<p><code>$ref: &quot;#/$defs/paramters&quot;</code> 少一个字母，在 <code>&quot;reject&quot;</code> 模式下编译成 <code>false</code>
+节点（<code>resolver.ts:72-81</code>），<strong>编译期一声不响</strong>。只有那个位置的调用会失败，
+其他字段照常工作——生产上看起来像&quot;某个参数永远校验不过&quot;。默认的 <code>&quot;throw&quot;</code>
+才会当场报错；<code>ai</code> 和 <code>durable</code> 都选了 <code>&quot;reject&quot;</code>，因为它们守的是外部 schema。
+自己写 schema 时用默认值。</p>
+<p><strong>3. 属性名撞上 <code>Object.prototype</code> 要单独处理。</strong></p>
+<p><code>for (const k in o)</code> 会走到原型链上的可枚举属性。一个名为 <code>toString</code> 或
+<code>constructor</code> 的工具参数，<code>for...in</code> 会在没有这个键的值上也走到它。所以
+编译期给这类键打 <code>INHERITED</code> 标记（<code>compiler.ts:344</code>），校验时要求
+<code>Object.hasOwn(o, k)</code>（<code>checks.ts:264</code>）。</p>
+<p><strong>4. <code>chars</code> 数的是 UTF-16 码元，不是字符。</strong></p>
+<p><code>event.content.length</code> 是 JS 字符串长度。一个 emoji 记 2，一个由四个码点
+组成的字形族记 8。description 老老实实写了 &quot;UTF-16 character count&quot;——
+如果你要用这个数算 token 或算钱，先换算。</p>
+<p><strong>5. 父 span 结算后开的子 span 会静默消失。</strong></p>
+<p><code>memory.ts:188</code> 的 <code>if (parent?.span?.settled) return startInertSpan(...)</code>。
+后果见 §11.2：<code>void</code> 掉的异步任务，整棵子树都不进 trace，<strong>没有报错，
+也没有计数</strong>。<code>droppedSpans</code> 只统计队列溢出，不统计这一种。</p>
+<p><strong>6. span 结算后的写入是静默空操作。</strong></p>
+<p>四个写方法都以 <code>if (recordedSpan.settled) return;</code> 开头（<code>memory.ts:207-227</code>），
+SQLite 侧用 <code>record()</code> 包一层（<code>:160-162</code>）。所以 <code>finally</code> 里补一句
+<code>span.setStatus({ status: &quot;error&quot; })</code>——如果 span 已经结算，这句话什么都不做。
+看起来&quot;清理代码写了就生效&quot;，实际可能一个字都没记上。</p>
+<p><strong>7. SQLite 里 <code>true</code> 和 <code>1</code> 不是一回事，JSON1 会混。</strong></p>
+<p><code>json_extract(attributes, '$.flag')</code> 对 <code>true</code> 返回 <code>1</code>。所以按属性值过滤
+不能只比数值，得连类型一起比——<code>store.ts:48-60</code> 用 <code>json_each</code> 拿
+<code>entry.type</code>：</p>
+<div class="code-block" data-lang="sql">
+<div class="code-head"><span class="lang">sql</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">EXISTS (SELECT 1 FROM json_each(?) entry</span><span class="ln">        WHERE entry.key = ?</span><span class="ln">          AND entry.type = 'true'      -- 布尔走类型</span><span class="ln">          AND entry.value = 1)         -- 数字走值</span></code></pre></div>
+<p>注释原话：<code>JSON equality must distinguish boolean true from numeric 1.</code></p>
+<p><strong>8. 指标序列的身份取决于属性键的顺序。</strong></p>
+<p><code>index.ts:230-237</code> 先把属性键 <code>sort()</code> 再 <code>JSON.stringify</code>，用这个字符串
+当 <code>series_key</code>。不排序的话 <code>{a,b}</code> 和 <code>{b,a}</code> 是两条序列，
+<code>ON CONFLICT(interval_ms, series_key)</code> 永远不会合并它们。自己写 adapter
+时这一步不能省。</p>
+<p><strong>9. <code>contentEncoding</code> / <code>contentMediaType</code> 在 draft 7 是断言，在 2020-12 是注解。</strong></p>
+<p><code>KNOWN_FAILURES</code> 里四条 <code>it.fails</code> 就是因为这个（<code>conformance.test.ts:17-21</code>）：
+一份按 draft 7 写的 schema 会拒绝非法 base64，用 2020-12 编译就不拒绝了，
+<strong>而且没有任何提示</strong>。跨 draft 的 <code>$ref</code> 同理——引用的文档按当前编译的
+draft 解释，不是它自己的 draft（另外两条 <code>it.fails</code>）。</p>
+<hr>
+<h2 id="sec-42-十四-自己动手验证">十四、自己动手验证</h2>
+<p>两个包都用 <code>vitest</code>（<code>package.json</code> 的 <code>test</code> 是 <code>vitest --run</code>）。下面
+每条命令都要先装依赖；写作环境里没有 <code>node_modules</code>，所以判据是<strong>从测试
+源码里读出来的</strong>，不是我跑出来的输出。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/schema &amp;&amp; npm install &amp;&amp; npm test</span></code></pre></div>
+<h3 id="sec-43-实验-1-官方套件-4-213-条用例">实验 1：官方套件，4,213 条用例</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/schema</span><span class="ln">npm test -- test/conformance.test.ts</span></code></pre></div>
+<p>判据：<code>test/fixtures/json-schema-test-suite</code> 下有 <strong>144 个文件 / 4,213 条
+用例</strong>（2020-12 有 80 个文件，draft 7 有 64 个）。每条用例跑两遍：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">it</span>(<span class="tok-str">`${test.description} (errors agree with check)`</span>, () =&gt; {</span><span class="ln">  <span class="tok-kw">const</span> validator = <span class="tok-fn">compile</span>(group.schema, options);</span><span class="ln">  <span class="tok-kw">const</span> errors = validator.<span class="tok-fn">errors</span>(test.data);</span><span class="ln">  <span class="tok-fn">expect</span>(errors.length === <span class="tok-num">0</span>).<span class="tok-fn">toBe</span>(validator.<span class="tok-fn">check</span>(test.data));</span><span class="ln">});</span></code></pre></div>
+<p>这条断言是本章最重要的自检：<strong>热路径和冷路径必须同谋</strong>。<code>errors</code> 与
+<code>check</code> 走的是两套完全不同的实现（闭包 vs 遍历 schema），一条不一致
+就是 bug。</p>
+<p>九条已知失败用 <code>it.fails</code> 登记（<code>conformance.test.ts:9-21</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> known = KNOWN_FAILURES.<span class="tok-fn">has</span>(</span><span class="ln">  <span class="tok-str">`${file.name} &gt; ${group.description} &gt; ${test.description}`</span>);</span><span class="ln">(known ? it.fails : it)(test.description, () =&gt; { ... });</span></code></pre></div>
+<p><code>it.fails</code> 的语义是&quot;这条必须失败&quot;。哪天修好了，它会变成红灯，逼你把
+名字从名单里删掉。<strong>这比 <code>skip</code> 强得多</strong>：<code>skip</code> 是永久的遗忘，
+<code>it.fails</code> 是一次性的欠条。</p>
+<h3 id="sec-44-实验-2-三遍-coerce-各自独立">实验 2：三遍 coerce 各自独立</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/schema</span><span class="ln">npm test -- test/coerce.test.ts</span></code></pre></div>
+<p>判据：<code>describe</code> 的层级就是 §7 那张表——
+<code>pass 1: optional nulls</code>（<code>:118</code>）、
+<code>pass 2: TypeBox's conversion rules on JSON Schema</code>（<code>:151</code>）、
+<code>pass 3: primitive coercion by type</code>（<code>:215</code>）。
+还有两节值得单独看：<code>where the passes conflict, the conversion rules win</code>（<code>:258</code>）和 <code>recursive schemas</code>（<code>:280</code>）——后者是 §7.1 那两个
+护栏的用例。</p>
+<h3 id="sec-45-实验-3-ref-的两种脾气">实验 3：<code>$ref</code> 的两种脾气</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/schema</span><span class="ln">npm test -- test/validator.test.ts -t "unresolved references"</span></code></pre></div>
+<p>判据：<code>validator.test.ts:192</code> 那一节。默认模式下指不到的 <code>$ref</code> 在
+<code>compile()</code> 时抛；<code>unresolvedRefs: &quot;reject&quot;</code> 下编译通过，只有落在那个
+位置的值失败。</p>
+<h3 id="sec-46-实验-4-同一份一致性用例-两个-adapter">实验 4：同一份一致性用例，两个 adapter</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/telemetry &amp;&amp; npm test -- test/conformance.test.ts</span><span class="ln">cd packages/chord   &amp;&amp; npm test -- test/telemetry-sqlite.test.ts</span></code></pre></div>
+<p>判据：先看内存实现全过（<code>conformance.test.ts:17</code>
+<code>InMemoryTelemetryContext conformance</code>），再看 SQLite 实现跑<strong>同一份用例</strong>
+（<code>chord/test/telemetry-sqlite.test.ts:92-95</code>），只过滤掉 <code>metrics</code> 组。
+第二个文件里还有一条断言直接钉住 §11.1 第二行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">expect</span>(transaction).not.<span class="tok-fn">toHaveBeenCalled</span>();   <span class="tok-com">// 记录路径不碰 SQL</span></span></code></pre></div>
+<h3 id="sec-47-实验-5-没有-eval">实验 5：没有 <code>eval</code></h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node scripts/check-browser-smoke.mjs</span></code></pre></div>
+<p>判据：它把 <code>scripts/browser-smoke-entry.ts</code> 打包成浏览器能跑的产物。
+那个入口里 <code>{ prompt: 1 }</code> 会被校验并转成 <code>&quot;1&quot;</code>（§7.2）。这条能过，
+说明整条校验链在浏览器里可用——也就是 §1.1 第一条约束成立。</p>
+<hr>
+<h2 id="sec-48-十五-收束">十五、收束</h2>
+<h3 id="sec-49-15-1-三个可迁移的方法">15.1 三个可迁移的方法</h3>
+<p><strong>一、让贵的计算只发生在失败路径上。</strong></p>
+<p><code>check</code> 是一个普通函数，还被声明成类型谓词 <code>value is T</code>（<code>validator.ts:34</code>），
+所以它可以脱离 validator 传走。<code>errors()</code> 第一句就是 <code>if (this.check(value)) return []</code>（<code>:51</code>），<code>Explainer</code> 用 <code>??=</code> 懒建。一次工具调用成功了，
+就一个闭包被调用；只有失败时才走第二套实现（遍历 schema、拿 memo、拼路径）。</p>
+<p>代价是两套实现要永远保持一致。这个代价是用<strong>实验 1 那条
+<code>errors agree with check</code></strong> 付掉的——每条用例都跑两遍。贵的东西放到
+失败路径，前提是你能写出这个不变式的自动检查。</p>
+<p><strong>二、防御等级跟着信任边界走，而不是跟着类型走。</strong></p>
+<p>同一个仓库里，<code>pi-schema</code> 把每个关键字都当敌人（<code>boolean | object</code>、
+防御式读取、<code>&quot;reject&quot;</code> 兜底），<code>pi-telemetry</code> 的 schema 却一行校验都不做
+（<code>_schemas</code> 参数根本没用）。差别不是洁癖程度，是<strong>输入来自哪里</strong>：
+前者收的是 MCP server 送来的 JSON，后者收的是同一个仓库里写死的常量。</p>
+<p>给内部常量写运行时校验，是把编译期错误挪到生产环境，还多付一次开销。</p>
+<p><strong>三、观测者不改变被观测系统的行为。</strong></p>
+<p><code>SqliteTelemetry</code> 满了就计数丢弃（<code>:203</code>、<code>:241-244</code>），写坏了就永久
+停止记录（<code>:319-326</code>），结算后的写入静默变空操作。三条加起来是一个
+承诺：<strong>instrument 之后，程序的行为和没 instrument 一样</strong>。</p>
+<p>代价是&quot;看不到东西的时候不知道为什么看不到&quot;（§11.2）。所以要有计数器
+——<code>droppedSpans</code> / <code>droppedMeasurements</code> 就是这个承诺的收据。</p>
+<h3 id="sec-50-15-2-这章的边界">15.2 这章的边界</h3>
+<p>没讲的部分：</p>
+<ul>
+<li><code>annotations.ts</code>（208 行）：<code>unevaluatedProperties</code> 要靠注解追踪判断
+&quot;哪些键已经被前面的子 schema 覆盖过&quot;。全章只提了一次名字。</li>
+<li><code>formats/</code>（31 文件 / 1,682 行）：21 种 format 的正则与 IDN 处理，
+从 TypeBox 1.3.27 移植。本章只用到了&quot;它是可选入口&quot;这个事实。</li>
+<li><code>explain.ts</code> 的 390 行：只讲了 memo 和那两条路径。<code>memo</code> 的键是
+<code>(节点, 值对象)</code> 二元组，为什么值也要进键，值得单独读。</li>
+<li><code>coerce.ts</code> 的逐条转换规则：<code>coerce-typebox.test.ts</code> 有 1,344 行，
+全是移植过来的 TypeBox 用例。本章只讲了三个 pass 的分工和两个护栏。</li>
+<li><code>constrained-sampling.ts</code> 的后半段（<code>:167-335</code>）：grammar 采样
+（lark / regex）与流式增量拼接。这是另一条完整的链路，与 strict
+JSON Schema 并列。</li>
+<li><code>memory.ts</code> 的查询侧：<code>findTraces</code> 的游标分页用
+<code>JSON.stringify([startedMs, traceId])</code> 当 cursor（<code>:370</code>、<code>:404</code>），
+时间戳相同时靠 traceId 打破平局。</li>
+</ul>
+<h3 id="sec-51-15-3-最后一章">15.3 最后一章</h3>
+<p>M01 的地图上，这一章是十二个包里最小的两个（51 文件 / 6,137 行，占全仓
+不到 3%）。它们也是最不&quot;功能&quot;的两个——没有网络、没有磁盘、没有界面。
+但每个别的包都从它们那里 import 了一种<strong>说法</strong>：什么叫合法，
+什么叫可观测。</p>
+<p>回头看 M02 那张十二包地图，两个包的箭头几乎指向所有其他包。这不是
+依赖倒置的技巧，是&quot;语义单一来源&quot;的必然结果：谁定义了&quot;合法&quot;，谁就得
+被所有人依赖。</p>
+<p>附录回到起点：v0.80 到 v1.4 的迁移对照。那里会看到这两个包是怎么
+从别处拆出来的——先有重复，才有抽取。</p>
+<hr>
+<h2 id="sec-52-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema/src/compiler.ts</code></td>
+<td>593</td>
+<td>schema → 闭包：四条快路、<code>bareType</code>、三元组、<code>RESTART</code></td>
+</tr>
+<tr>
+<td><code>schema/src/coerce.ts</code></td>
+<td>556</td>
+<td>三遍转换、copy-on-write、重入栈与 <code>cuts</code></td>
+</tr>
+<tr>
+<td><code>schema/src/checks.ts</code></td>
+<td>451</td>
+<td>闭包原语：<code>and</code>、<code>declaredObject</code>、<code>tagged</code>、<code>leafOk</code></td>
+</tr>
+<tr>
+<td><code>schema/src/explain.ts</code></td>
+<td>390</td>
+<td>失败时才走的那一遍，<code>memo</code> 防指数</td>
+</tr>
+<tr>
+<td><code>schema/src/annotations.ts</code></td>
+<td>208</td>
+<td><code>unevaluatedProperties</code> 的注解追踪</td>
+</tr>
+<tr>
+<td><code>schema/src/resolver.ts</code></td>
+<td>203</td>
+<td><code>$ref</code> / <code>$id</code> / <code>$anchor</code>，<code>.invalid</code> base</td>
+</tr>
+<tr>
+<td><code>schema/src/builders.ts</code></td>
+<td>200</td>
+<td><code>obj()</code> / <code>str()</code> / <code>opt()</code>，<code>STATIC</code> brand 与 <code>Static&lt;S&gt;</code></td>
+</tr>
+<tr>
+<td><code>schema/src/validator.ts</code></td>
+<td>93</td>
+<td><code>compile()</code>、<code>Validator</code>、<code>CoercingValidator.parse</code></td>
+</tr>
+<tr>
+<td><code>schema/src/typebox-static.ts</code></td>
+<td>76</td>
+<td>读 TypeBox 的 <code>'~kind'</code>，不 import TypeBox</td>
+</tr>
+<tr>
+<td><code>schema/src/formats/</code></td>
+<td>1,682</td>
+<td>21 种 format（可选入口）</td>
+</tr>
+<tr>
+<td><code>schema/test/conformance.test.ts</code></td>
+<td>51</td>
+<td>官方套件 4,213 条 + 9 条 <code>it.fails</code></td>
+</tr>
+<tr>
+<td><code>telemetry/src/index.ts</code></td>
+<td>465</td>
+<td>契约 + 类型推导 + <code>createTypedSpanStarter</code></td>
+</tr>
+<tr>
+<td><code>telemetry/src/memory.ts</code></td>
+<td>463</td>
+<td>内存实现与查询侧快照</td>
+</tr>
+<tr>
+<td><code>telemetry/src/metrics.ts</code></td>
+<td>145</td>
+<td><code>createTypedMetrics</code>、<code>cardinality</code> 收紧</td>
+</tr>
+<tr>
+<td><code>telemetry/src/noop.ts</code></td>
+<td>37</td>
+<td>冻结单例，四个空方法</td>
+</tr>
+<tr>
+<td><code>telemetry/src/testing/conformance.ts</code></td>
+<td>387</td>
+<td>与 runner 无关的一致性用例</td>
+</tr>
+<tr>
+<td><code>ai/src/utils/validation.ts</code></td>
+<td>70</td>
+<td>校验入口：WeakMap 缓存、<code>parse</code>、错误文本</td>
+</tr>
+<tr>
+<td><code>ai/src/api/constrained-sampling.ts</code></td>
+<td>335</td>
+<td>strict 方言：16 个关键字、optional→null、上限</td>
+</tr>
+<tr>
+<td><code>ai/src/telemetry.ts</code></td>
+<td>211</td>
+<td><code>pi.ai.*</code> 词表与 500 字符边界</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/telemetry.ts</code></td>
+<td>140</td>
+<td><code>pi.durable.*</code> 词表，content-free</td>
+</tr>
+<tr>
+<td><code>chord/src/telemetry-sqlite/index.ts</code></td>
+<td>363</td>
+<td>缓冲记录器：每秒 flush、容量丢弃、写坏即停</td>
+</tr>
+<tr>
+<td><code>chord/src/telemetry-sqlite/store.ts</code></td>
+<td>171</td>
+<td>JSON1 查询，布尔与 1 的区分</td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m14-tui.html"><span class="lbl">上一篇</span>终端渲染 —— 一个 spinner 只该写 99 个字节</a>
+      <a class="next" href="appendix-migration.html"><span class="lbl">下一篇</span>附录 —— v0.80 → v1.4 迁移对照</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-问题-一份-schema-五个读者" class="">一、问题：一份 schema，五个读者</a><a href="#sec-2-1-1-为什么不用-ajv-不用-zod" class="lv3">1.1 为什么不用 ajv、不用 zod</a><a href="#sec-3-1-2-决定-三个关键字集合" class="lv3">1.2 决定：三个关键字集合</a><a href="#sec-4-二-编译-从-schema-到闭包" class="">二、编译：从 schema 到闭包</a><a href="#sec-5-2-1-错误只在失败时才算" class="lv3">2.1 错误只在失败时才算</a><a href="#sec-6-2-2-两次编译-restart-哨兵" class="lv3">2.2 两次编译：RESTART 哨兵</a><a href="#sec-7-三-闭包怎么造出来" class="">三、闭包怎么造出来</a><a href="#sec-8-3-1-对象的专门化-一个三元组数组" class="lv3">3.1 对象的专门化：一个三元组数组</a><a href="#sec-9-3-2-分支-and-按数量专门化" class="lv3">3.2 分支：and() 按数量专门化</a><a href="#sec-10-3-3-标签联合-省掉的是指数" class="lv3">3.3 标签联合：省掉的是指数</a><a href="#sec-11-四-失败时才解释" class="">四、失败时才解释</a><a href="#sec-12-4-1-memo-一个必要但不显然的缓存" class="lv3">4.1 memo：一个必要但不显然的缓存</a><a href="#sec-13-五-类型-static-lt-s-gt-是怎么算出来的" class="">五、类型：Static&amp;lt;S&amp;gt; 是怎么算出来的</a><a href="#sec-14-5-1-代价-unknown-是一个诚实但难用的答案" class="lv3">5.1 代价：unknown 是一个诚实但难用的答案</a><a href="#sec-15-六-引用与不可信输入" class="">六、引用与不可信输入</a><a href="#sec-16-6-1-两个-draft-的差异藏在两行里" class="lv3">6.1 两个 draft 的差异藏在两行里</a><a href="#sec-17-七-coerce-模型的三个坏习惯" class="">七、coerce：模型的三个坏习惯</a><a href="#sec-18-7-1-两个反无限循环的护栏" class="lv3">7.1 两个反无限循环的护栏</a><a href="#sec-19-7-2-一个可以跑的最小验证" class="lv3">7.2 一个可以跑的最小验证</a><a href="#sec-20-7-3-出口改写-入口还原" class="lv3">7.3 出口改写，入口还原</a><a href="#sec-21-八-第五种解释-provider-的-strict-方言" class="">八、第五种解释：provider 的 strict 方言</a><a href="#sec-22-8-1-一份黑名单-十六个关键字" class="lv3">8.1 一份黑名单，十六个关键字</a><a href="#sec-23-8-2-全部改写只有三行" class="lv3">8.2 全部改写只有三行</a><a href="#sec-24-8-3-为什么必须先-structuredclone" class="lv3">8.3 为什么必须先 structuredClone</a><a href="#sec-25-8-4-provider-的上限被写成了常量" class="lv3">8.4 provider 的上限被写成了常量</a><a href="#sec-26-九-遥测-schema-唯一一个不校验的类型" class="">九、遥测 schema：唯一一个不校验的类型</a><a href="#sec-27-9-1-同一份声明-两条命运" class="lv3">9.1 同一份声明，两条命运</a><a href="#sec-28-9-2-重名是类型错误-不是运行时错误" class="lv3">9.2 重名是类型错误，不是运行时错误</a><a href="#sec-29-十-只记形状-不记内容" class="">十、只记形状，不记内容</a><a href="#sec-30-10-1-一个内容块的四个数字" class="lv3">10.1 一个内容块的四个数字</a><a href="#sec-31-10-2-高基数进-span-低基数才进指标" class="lv3">10.2 高基数进 span，低基数才进指标</a><a href="#sec-32-10-3-500-字符是一条硬边界" class="lv3">10.3 500 字符是一条硬边界</a><a href="#sec-33-10-4-一个声明了但从不读取的字段" class="lv3">10.4 一个声明了但从不读取的字段</a><a href="#sec-34-十一-契约与实现分离" class="">十一、契约与实现分离</a><a href="#sec-35-11-1-两个实现-两种时间观" class="lv3">11.1 两个实现，两种时间观</a><a href="#sec-36-11-2-一条会静默丢数据的路径" class="lv3">11.2 一条会静默丢数据的路径</a><a href="#sec-37-11-3-conformance-把-quot-两个实现-quot-变成-quo" class="lv3">11.3 conformance：把&amp;quot;两个实现&amp;quot;变成&amp;quot;同一份用例&amp;quot;</a><a href="#sec-38-十二-两条完整链路" class="">十二、两条完整链路</a><a href="#sec-39-12-1-值-从声明到-handler" class="lv3">12.1 值：从声明到 handler</a><a href="#sec-40-12-2-旁路-从调用到日志" class="lv3">12.2 旁路：从调用到日志</a><a href="#sec-41-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-42-十四-自己动手验证" class="">十四、自己动手验证</a><a href="#sec-43-实验-1-官方套件-4-213-条用例" class="lv3">实验 1：官方套件，4,213 条用例</a><a href="#sec-44-实验-2-三遍-coerce-各自独立" class="lv3">实验 2：三遍 coerce 各自独立</a><a href="#sec-45-实验-3-ref-的两种脾气" class="lv3">实验 3：$ref 的两种脾气</a><a href="#sec-46-实验-4-同一份一致性用例-两个-adapter" class="lv3">实验 4：同一份一致性用例，两个 adapter</a><a href="#sec-47-实验-5-没有-eval" class="lv3">实验 5：没有 eval</a><a href="#sec-48-十五-收束" class="">十五、收束</a><a href="#sec-49-15-1-三个可迁移的方法" class="lv3">15.1 三个可迁移的方法</a><a href="#sec-50-15-2-这章的边界" class="lv3">15.2 这章的边界</a><a href="#sec-51-15-3-最后一章" class="lv3">15.3 最后一章</a><a href="#sec-52-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开篇 —— 为什么 Pi-Agent 值得你花时间 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="active">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M01</div>
+      <h1>开篇 —— 为什么 Pi-Agent 值得你花时间</h1>
+      <div class="module-meta">7,100 字 · 含 145 行代码 · 约 34 分钟</div>
+    </header>
+    <p>先看 README 的第一句话：</p>
+<blockquote>
+<p>Pi is a minimal, extensible agent harness that you can make your own.</p>
+</blockquote>
+<p>&quot;minimal&quot;和&quot;extensible&quot;这两个词经常一起出现，但很少同时成立。极简的东西通常定死，可扩展的东西通常臃肿。Pi 的说法是：内核做小，把复杂度赶到外围，外围全部可替换。</p>
+<p>这句话是不是真的，不用看宣传，看行数就行。</p>
+<hr>
+<h2 id="sec-1-一-仓库自报的数字-互相打架">一、仓库自报的数字，互相打架</h2>
+<p><code>pi-main/pi-main</code> 是 v1.4.0 的完整 monorepo。从根目录数一遍：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"># 只数 packages/*/src 下的 .ts，排除 test / dist</span><span class="ln">find packages -path '*/src/*' -name '*.ts' | wc -l        # 920</span><span class="ln">find packages -path '*/src/*' -name '*.ts' -exec cat {} + | wc -l   # 228,895</span></code></pre></div>
+<p>920 个文件，22.9 万行 TypeScript。这个体量谈不上&quot;minimal&quot;。</p>
+<p>但按包拆开，分布是这样的（数据源 <code>docs/source-index.md</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th style="text-align:right">行数</th>
+<th style="text-align:right">占比</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent</code></td>
+<td style="text-align:right">77,614</td>
+<td style="text-align:right">33.9%</td>
+<td>交互式 CLI，主力</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td style="text-align:right">50,101</td>
+<td style="text-align:right">21.9%</td>
+<td>热重载插件宿主</td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td style="text-align:right">33,722</td>
+<td style="text-align:right">14.7%</td>
+<td>可持久化运行时</td>
+</tr>
+<tr>
+<td><code>ai</code></td>
+<td style="text-align:right">28,551</td>
+<td style="text-align:right">12.5%</td>
+<td>多 provider 统一层</td>
+</tr>
+<tr>
+<td><code>tui</code></td>
+<td style="text-align:right">19,971</td>
+<td style="text-align:right">8.7%</td>
+<td>终端差分渲染</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td style="text-align:right">4,608</td>
+<td style="text-align:right">2.0%</td>
+<td>类型契约</td>
+</tr>
+<tr>
+<td><code>mcp</code></td>
+<td style="text-align:right">3,305</td>
+<td style="text-align:right">1.4%</td>
+<td>外部工具协议</td>
+</tr>
+<tr>
+<td><code>codemode</code></td>
+<td style="text-align:right">3,034</td>
+<td style="text-align:right">1.3%</td>
+<td>沙箱脚本执行</td>
+</tr>
+<tr>
+<td><strong><code>agent</code></strong></td>
+<td style="text-align:right"><strong>2,559</strong></td>
+<td style="text-align:right"><strong>1.1%</strong></td>
+<td><strong>无状态内核</strong></td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td style="text-align:right">2,398</td>
+<td style="text-align:right">1.0%</td>
+<td>环境抽象</td>
+</tr>
+<tr>
+<td><code>telemetry</code></td>
+<td style="text-align:right">1,580</td>
+<td style="text-align:right">0.7%</td>
+<td>遥测契约</td>
+</tr>
+<tr>
+<td><code>evals</code></td>
+<td style="text-align:right">1,452</td>
+<td style="text-align:right">0.6%</td>
+<td>评测工具</td>
+</tr>
+</tbody>
+</table>
+<p>内核 <code>agent</code> 只占 1.1%。剩下 98.9% 全是它的外围。</p>
+<p>这就是&quot;极简&quot;的第一个含义：<strong>不是整个项目小，是核心小</strong>。<code>agent</code> 包 6 个文件：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">agent-loop.ts   960   两层循环</span><span class="ln">agent.ts        624   有状态外壳</span><span class="ln">types.ts        552   全部类型</span><span class="ln">proxy.ts        396   代理流函数</span><span class="ln">stream-fn.ts     21   默认流函数注册</span><span class="ln">index.ts          5   桶文件</span></code></pre></div>
+<p><code>index.ts</code> 只有 5 行，因为它是纯桶（barrel）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./agent.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./agent-loop.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./proxy.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> { setDefaultStreamFn } <span class="tok-kw">from</span> <span class="tok-str">"./stream-fn.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span></code></pre></div>
+<p>这 5 行里没有一行是逻辑，但它告诉你一件事：<strong>这个包的对外契约全部收敛在 5 个模块里</strong>。读 <code>agent</code> 不需要跳来跳去，四个文件加起来 2,553 行，一下午能读完。</p>
+<p>而这 2,553 行要支撑的是 226,336 行的外围——<strong>内外比 1 : 88</strong>。</p>
+<h3 id="sec-2-1-1-但真实行数还要多一倍">1.1 但真实行数还要多一倍</h3>
+<p>上面那个 22.9 万只是 &quot;.ts 文件里的源码&quot;。把 <code>test/</code> 目录也算进去，整个仓库是这样的：</p>
+<table>
+<thead>
+<tr>
+<th>分类</th>
+<th style="text-align:right">文件数</th>
+<th style="text-align:right">行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/</code> 源码</td>
+<td style="text-align:right">927</td>
+<td style="text-align:right">229,029</td>
+</tr>
+<tr>
+<td><code>test/</code> 测试</td>
+<td style="text-align:right">1,148</td>
+<td style="text-align:right"><strong>288,596</strong></td>
+</tr>
+<tr>
+<td>其余（examples / scripts / 配置）</td>
+<td style="text-align:right">191</td>
+<td style="text-align:right">22,262</td>
+</tr>
+<tr>
+<td>合计</td>
+<td style="text-align:right">2,266</td>
+<td style="text-align:right">539,887</td>
+</tr>
+</tbody>
+</table>
+<p>三个数字值得停下来看。</p>
+<p><strong>一，测试行数比源码多 26%。</strong> 288,596 vs 229,029。而且<strong>文件数</strong>更极端：2,266 个 <code>.ts</code> 里，1,148 个是测试，占 50.7%——随便拎一个文件名出来，一半概率是 <code>.test.ts</code>。</p>
+<p><strong>二，内核的测试比例最高。</strong> <code>agent</code> 包 7 个源文件 2,587 行，配 8 个测试文件 4,206 行，比例 <strong>1 : 1.63</strong>。拆开看：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">agent-loop.ts         960  ←—→  agent-loop.test.ts  2,234</span><span class="ln">agent.ts              624  ←—→  agent.test.ts       1,229</span><span class="ln">types.ts              552</span><span class="ln">proxy.ts              396  ←—→  proxy.test.ts         171</span><span class="ln">stream-fn.ts           21</span><span class="ln">index.ts                5</span></code></pre></div>
+<p><code>agent-loop.ts</code> 一个文件配了 <strong>2.3 倍行数</strong>的测试。全包测试占比 63%，是 12 个包里最高的。</p>
+<p><strong>三，这不是反例，是代价的转移。</strong> &quot;极简内核&quot;并不是真的简单——它是把复杂度从&quot;代码分支&quot;挤到了&quot;状态组合&quot;。960 行里塞了两个循环、五条退出路径、五个可变状态、三种恢复层，可能的状态组合远超 960 行能容下的显式分支。于是余量只能写在测试里：每个边界条件单独一个 case。</p>
+<p>所以&quot;极简&quot;的完整定义是：<strong>源码小，测试大，文档厚</strong>。三者加起来才是真实成本。本书只讲源码那一块，但你必须知道另外两块存在——否则会低估改一行代码的风险。</p>
+<p>顺带一个阅读提示：全书引用的行号、体量、比例，<strong>默认都不含 <code>test/</code> 与 <code>dist/</code></strong>。看到与你自己数的对不上，先检查这两个目录。</p>
+<hr>
+<h2 id="sec-3-二-它刻意不做的四件事">二、它刻意不做的四件事</h2>
+<p>判断一个框架的设计意图，看 README 承认不做什么，比看它标榜做什么更准。Pi 的 README 里明写了四处&quot;不做&quot;。</p>
+<p><strong>一，不做 sub-agent。</strong> README 原话：</p>
+<blockquote>
+<p>Pi ships with powerful defaults but skips features like sub-agents and plan mode.</p>
+</blockquote>
+<p>子代理（一个 agent 派生另一个 agent 跑子任务）是很多 agent 框架的核心卖点。Pi 不做，让你&quot;让 Pi 自己搭&quot;或者装个包。理由不难猜：子代理一旦进内核，内核就要管调度、管预算、管结果合并——<code>agent-loop.ts</code> 会从 960 行涨到 3,000 行。</p>
+<p><strong>二，不做 plan mode。</strong> 同上。计划模式本质是&quot;先生成一份计划再逐步执行&quot;，这属于工作流，不是循环语义。</p>
+<p><strong>三，不做权限系统。</strong> README 有一整节 <code>Permissions &amp; Containerization</code>：</p>
+<blockquote>
+<p>Pi does not include a built-in permission system for restricting filesystem, process, network, or credential access. By default, it runs with the permissions of the user and process that launched it.</p>
+</blockquote>
+<p>这不是疏忽，是明确的选择。要边界就去容器化，README 给了三种模式（Gondolin 微VM / Docker / OpenShell）。内核里只有一个 <code>beforeToolCall</code> 钩子（<code>agent-loop.ts:718</code>），谁想加审批就在那挂。</p>
+<p><strong>四，没有 orchestrator。</strong> 旧版教程里有一个 <code>packages/orchestrator/</code> 和 <code>@earendil-works/pi-orchestrator</code>，负责多 agent 编排。v1.4.0 已经整个删掉了。</p>
+<p>四个&quot;不做&quot;指向同一个结论：<strong>凡是&quot;策略&quot;的东西全部外置，内核只保留&quot;机制&quot;</strong>。这是 <code>agent</code> 能停在 2,559 行的唯一原因。</p>
+<p>而且每个&quot;不做&quot;都留了替代路径，不是关上门：</p>
+<table>
+<thead>
+<tr>
+<th>内核不做</th>
+<th>你想要时怎么办</th>
+<th>出口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sub-agent</td>
+<td>扩展注册一个工具，工具内部用 SDK 再起一个 session</td>
+<td>扩展机制 + SDK</td>
+</tr>
+<tr>
+<td>plan mode</td>
+<td>写成 prompt template，或用 slash command 触发</td>
+<td><code>prompt-templates.md</code> / <code>slash-commands.md</code></td>
+</tr>
+<tr>
+<td>权限系统</td>
+<td>在 <code>beforeToolCall</code> 钩子上挂审批，或整进程容器化</td>
+<td>钩子 + <code>containerization.md</code></td>
+</tr>
+<tr>
+<td>多 agent 编排</td>
+<td>自己写，或用 <code>env</code> 把 agent 部署到远端</td>
+<td>应用层</td>
+</tr>
+</tbody>
+</table>
+<p>这张表是本书反复出现的模式：<strong>内核对每个需求都给一个&quot;你自己写&quot;的出口，而不是一个开关</strong>。代价是你得写代码，好处是内核永远不膨胀。</p>
+<hr>
+<h2 id="sec-4-三-readme-公示-7-个包-仓库里有-12-个">三、README 公示 7 个包，仓库里有 12 个</h2>
+<p>README 的 <code>## Packages</code> 表格列了 7 个包：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">@earendil-works/chord</span><span class="ln">@earendil-works/pi-telemetry</span><span class="ln">@earendil-works/pi-ai</span><span class="ln">@earendil-works/pi-durable</span><span class="ln">@earendil-works/pi-agent-core</span><span class="ln">@earendil-works/pi-coding-agent</span><span class="ln">@earendil-works/pi-tui</span></code></pre></div>
+<p>而 <code>packages/</code> 下实际有 12 个目录，全部 version <code>1.4.0</code>：</p>
+<table>
+<thead>
+<tr>
+<th>目录</th>
+<th>npm 名</th>
+<th style="text-align:center">README 公示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent</code></td>
+<td><code>@earendil-works/pi-agent-core</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>ai</code></td>
+<td><code>@earendil-works/pi-ai</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td><code>@earendil-works/chord</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>coding-agent</code></td>
+<td><code>@earendil-works/pi-coding-agent</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td><code>@earendil-works/pi-durable</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>telemetry</code></td>
+<td><code>@earendil-works/pi-telemetry</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>tui</code></td>
+<td><code>@earendil-works/pi-tui</code></td>
+<td style="text-align:center">✅</td>
+</tr>
+<tr>
+<td><code>codemode</code></td>
+<td><code>@earendil-works/pi-codemode</code></td>
+<td style="text-align:center">❌</td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td><code>@earendil-works/pi-env</code></td>
+<td style="text-align:center">❌</td>
+</tr>
+<tr>
+<td><code>evals</code></td>
+<td><code>@earendil-works/pi-evals</code></td>
+<td style="text-align:center">❌</td>
+</tr>
+<tr>
+<td><code>mcp</code></td>
+<td><code>@earendil-works/pi-mcp</code></td>
+<td style="text-align:center">❌</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td><code>@earendil-works/pi-schema</code></td>
+<td style="text-align:center">❌</td>
+</tr>
+</tbody>
+</table>
+<p>差的 5 个不是&quot;忘了写&quot;。看名字就知道它们偏工具链：</p>
+<ul>
+<li><code>schema</code> —— 类型契约，<code>agent</code>、<code>ai</code>、<code>chord</code>、<code>durable</code> 都依赖它，但用户不直接用</li>
+<li><code>mcp</code> —— Model Context Protocol 接入，可选扩展</li>
+<li><code>codemode</code> —— 沙箱里执行模型写的脚本，可选能力</li>
+<li><code>env</code> —— 环境抽象，给 <code>chord</code>/<code>durable</code> 用</li>
+<li><code>evals</code> —— 评测，<code>npm run eval</code> 才用得上</li>
+</ul>
+<p><strong>公示的是&quot;用户会装的&quot;，隐藏的是&quot;内部零件&quot;</strong>。这个区分很有用：读源码时先判断一个包是&quot;面向用户&quot;还是&quot;面向兄弟包&quot;，读法完全不同——前者要看它的 CLI 和文档，后者只需看它的导出。</p>
+<hr>
+<h2 id="sec-5-四-build-顺序就是一张倒过来的依赖图">四、build 顺序就是一张倒过来的依赖图</h2>
+<p>根 <code>package.json</code> 的 <code>build</code> 脚本是一长串手写的 <code>cd</code>（<code>package.json:15</code>，原文是一行，这里按箭头折开）：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/telemetry &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../schema &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../chord &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../tui &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../codemode &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../mcp &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../ai &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../durable &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../env &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../agent &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../coding-agent &amp;&amp; npm run build</span></code></pre></div>
+<p>11 步，<code>evals</code> 不在里面（它是测试工具，构建时不参与）。注意 <code>build:offline</code> 是同一个序列，只把 <code>ai</code> 换成 <code>npm run build:offline</code>——因为它默认会去网络拉模型目录。</p>
+<p>为什么必须手写这个顺序而不能交给 <code>npm run build --workspaces</code>？因为 workspace 的构建顺序取决于拓扑排序，而这个仓库里存在<strong>不经过 npm 依赖声明的隐式依赖</strong>——比如 <code>coding-agent</code> 的构建脚本会去读 <code>tui</code> 产出的原生二进制。手写顺序是&quot;显式声明拓扑&quot;，代价是每次新增包都要记得改这一行。</p>
+<p>把每个包的 <code>dependencies</code> 拿出来，能得到真正的依赖图（数据源 <code>docs/source-index.json</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th>依赖的兄弟包</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>telemetry</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>tui</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>mcp</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>codemode</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td><code>schema</code>, <code>telemetry</code></td>
+</tr>
+<tr>
+<td><code>ai</code></td>
+<td><code>schema</code>, <code>telemetry</code></td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td><code>chord</code>, <code>ai</code>, <code>codemode</code>, <code>schema</code>, <code>telemetry</code></td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td><code>chord</code>, <code>durable</code></td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td><code>ai</code>, <code>schema</code></td>
+</tr>
+<tr>
+<td><code>coding-agent</code></td>
+<td><code>agent-core</code>, <code>ai</code>, <code>codemode</code>, <code>mcp</code>, <code>tui</code></td>
+</tr>
+<tr>
+<td><code>evals</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>三个观察。</p>
+<p><strong>第一，5 个包零依赖。</strong> <code>telemetry</code> <code>schema</code> <code>tui</code> <code>mcp</code> <code>codemode</code> 谁也不依赖，所以它们排在最前面，也最容易被单独复用。<code>tui</code> 甚至可以脱离 Pi 当通用终端 UI 库用。</p>
+<p><strong>第二，<code>agent</code> 只依赖 <code>ai</code> 和 <code>schema</code>。</strong> 它不知道 <code>coding-agent</code> 存在，不知道 <code>durable</code> 存在，更不知道 <code>tui</code>。这是内核能做小的结构保证——<strong>依赖少，能看见的东西就少</strong>。</p>
+<p>整个依赖声明就这么三行（<code>packages/agent/package.json:25-28</code>）：</p>
+<div class="code-block" data-lang="json">
+<div class="code-head"><span class="lang">json</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-str">"dependencies"</span>: {</span><span class="ln">	<span class="tok-str">"@earendil-works/pi-ai"</span>: <span class="tok-str">"1.4.0"</span>,</span><span class="ln">	<span class="tok-str">"@earendil-works/pi-schema"</span>: <span class="tok-str">"1.4.0"</span></span><span class="ln">}</span></code></pre></div>
+<p>两个版本号全是写死的 <code>1.4.0</code>，没有 <code>^</code>。</p>
+<p>锁版本是 monorepo 的常见选择，但&quot;所有包同一个版本号&quot;要更狠一点：它消除了&quot;A 依赖 pi-ai@1.2、B 依赖 pi-ai@1.4&quot;这类幽灵问题，代价是任何包升版都得全体一起升。看一眼升版脚本就知道（<code>package.json:42</code>）：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">npm version patch --workspaces --no-git-tag-version \</span><span class="ln">  --no-workspaces-update &amp;&amp; node scripts/sync-versions.js</span></code></pre></div>
+<p><code>--workspaces</code> 一次改 12 个 <code>package.json</code>，<code>sync-versions.js</code> 再扫一遍把漏网的内部依赖版本同步。两条命令省不了：前者改 <code>version</code> 字段，后者改内部 <code>dependencies</code> 里引用的版本号。</p>
+<p><strong>第三，<code>coding-agent</code> 不依赖 <code>durable</code>。</strong> 这条最反直觉：一般会以为会话管理在 <code>durable</code>，CLI 自然要依赖它。事实是 <code>coding-agent</code> 有自己的 <code>src/core/session-manager.ts</code>，<code>durable</code> 是一套<strong>平行</strong>的运行时，给需要崩溃恢复的场景用。</p>
+<p>也就是说仓库里有两套&quot;会话&quot;实现。这个设计取舍留到 M10、M11 再算账，现在只需要记住：<strong>依赖图里缺席的箭头，往往比存在的箭头更能说明架构意图</strong>。</p>
+<p>还有一条边值得记住：<code>env</code> 依赖 <code>chord</code> + <code>durable</code>。看它的包描述就明白了——</p>
+<blockquote>
+<p>Remote execution environments for Pi Durable: a small daemon deployed over SSH
+and its ExecutionEnv client</p>
+</blockquote>
+<p><code>env</code> 不是&quot;环境变量管理&quot;，是<strong>把 <code>durable</code> 的 agent 部署到远端机器上跑</strong>的客户端加守护进程。一条 SSH 连接，两端各跑一个 <code>durable</code>。所以它必然同时依赖 <code>chord</code>（它用 chord 的 link 做通信）和 <code>durable</code>（它要在远端跑的就是这个运行时）。</p>
+<p>这种&quot;包名看不出来、看描述才明白&quot;的情况在 12 个包里出现了三次：<code>env</code>（不是环境变量）、<code>chord</code>（不是音乐或和弦，是<strong>协议</strong>）、<code>schema</code>（不是数据库 schema，是 JSON Schema 编译器）。</p>
+<hr>
+<h2 id="sec-6-五-五个入口-一套机制">五、五个入口，一套机制</h2>
+<p><code>packages/coding-agent/docs/how-pi-works.md</code> 里有一句话，把整个仓库的骨架说完了：</p>
+<blockquote>
+<p>All interfaces use the same agent and session mechanisms.</p>
+</blockquote>
+<p>Pi 有五种用法，共用同一套内核：</p>
+<table>
+<thead>
+<tr>
+<th>入口</th>
+<th>怎么用</th>
+<th>输出形态</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>交互模式</td>
+<td><code>pi</code></td>
+<td>终端界面</td>
+<td>人坐在前面敲</td>
+</tr>
+<tr>
+<td>print 模式</td>
+<td><code>pi -p &quot;...&quot;</code></td>
+<td>最终回复纯文本</td>
+<td>shell 里 <code>$(pi -p ...)</code></td>
+</tr>
+<tr>
+<td>JSON 模式</td>
+<td><code>pi --json</code></td>
+<td>一行一个事件的 JSONL</td>
+<td>喂给别的程序解析</td>
+</tr>
+<tr>
+<td>RPC 模式</td>
+<td>stdin 收 JSONL 命令</td>
+<td>stdout 吐响应与事件</td>
+<td>编辑器插件、IDE</td>
+</tr>
+<tr>
+<td>SDK</td>
+<td><code>import</code> 一个类，进程内调用</td>
+<td>JS 对象</td>
+<td>自己写产品</td>
+</tr>
+</tbody>
+</table>
+<p>五条路的字节流完全不同——ANSI 转义序列、纯文本、JSONL、管道、函数调用——但往下走两层就汇到一起：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">交互 ─┐</span><span class="ln">print ─┤</span><span class="ln">JSON ─┼→ 事件订阅 → agent-loop → stream(model, context, options)</span><span class="ln">RPC ─┤</span><span class="ln">SDK ─┘                              ↑</span><span class="ln">                          七个 provider 在这里被抹平</span></code></pre></div>
+<p>这就是&quot;极简&quot;的第二个含义：<strong>内核不知道有几个入口</strong>。它只做一件事——产出一串事件；谁消费、怎么渲染、要不要序列化成 JSON，它全不管。</p>
+<p>反过来说，五种入口的代码<strong>一行都不在 <code>agent</code> 包里</strong>。它们全在 <code>coding-agent</code>（77,614 行）里。这解释了内外比为什么是 1 : 88：五个外壳就吃掉了一大半外围。</p>
+<hr>
+<h2 id="sec-7-六-二十行跑起一个-agent-然后拆开看">六、二十行跑起一个 agent，然后拆开看</h2>
+<p>先跑通，再拆开。</p>
+<p><code>@earendil-works/pi-coding-agent</code> 提供 SDK，可以把整个 Pi 当成一个库装进你自己的进程：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { createAgentSession } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> { session } = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSession</span>();</span><span class="ln"></span><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">	<span class="tok-kw">await</span> session.<span class="tok-fn">prompt</span>(<span class="tok-str">"What files are in the current directory?"</span>);</span><span class="ln">	console.<span class="tok-fn">log</span>(session.<span class="tok-fn">getLastAssistantText</span>());</span><span class="ln">} <span class="tok-kw">finally</span> {</span><span class="ln">	session.<span class="tok-fn">dispose</span>();</span><span class="ln">}</span></code></pre></div>
+<p>十行。它用的是当前工作目录、已发现的资源、已保存的配置和已登录的凭据——所以运行前先 <code>pi</code> 一次把 <code>/login</code> 做完。</p>
+<p>这段代码里没有任何循环。循环在里面。<code>await session.prompt(...)</code> 要等到整轮跑完才 resolve，中间可能经历了五次模型请求和十二次工具调用，你在外面看不见。</p>
+<p>想把中间过程看清楚，就订阅事件（订阅必须在 <code>prompt</code> 之前）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">session.<span class="tok-fn">subscribe</span>((event) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"turn_end"</span>) {</span><span class="ln">		console.<span class="tok-fn">log</span>(<span class="tok-str">`第 ${event.turnIndex} 轮结束，`</span> +</span><span class="ln">			<span class="tok-str">`工具调用 ${event.toolResults.length} 个`</span>);</span><span class="ln">	}</span><span class="ln">});</span></code></pre></div>
+<p>这几行是本书的入口：<strong>所有后面要讲的机制，都是为了让你能预测这串事件长什么样</strong>。</p>
+<p>现在把全链路摊开，后面每章负责其中一段。</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">你敲一行字</span><span class="ln">  ↓</span><span class="ln">① 变成 UserMessage，追加进 session 的一条 entry</span><span class="ln">  ↓                              coding-agent/core/session-manager.ts</span><span class="ln">② 装配 context：</span><span class="ln">   system prompt（基础指令 + 发现的上下文文件 + 工具说明 + skill 描述）</span><span class="ln">   + 当前活跃分支的历史</span><span class="ln">  ↓                              coding-agent/core/system-prompt.ts</span><span class="ln">③ prepareRequest 钩子：</span><span class="ln">   允许改模型、改思考等级、追加消息</span><span class="ln">  ↓                              agent/src/agent-loop.ts</span><span class="ln">④ 发给 provider，流式回来</span><span class="ln">  ↓                              ai/src/providers/*.ts</span><span class="ln">⑤ assistant 消息落进 transcript（text / thinking / toolCall）</span><span class="ln">  ↓                              agent/src/agent-loop.ts</span><span class="ln">⑥ 有 toolCall → 分派给 8 个内置工具</span><span class="ln">  ↓                              coding-agent/core/tools/*.ts</span><span class="ln">⑦ toolResult 追加进 transcript</span><span class="ln">  ↓</span><span class="ln">⑧ 还有工具或还有排队消息 → 回④，否则进⑨</span><span class="ln">  ↓</span><span class="ln">⑨ turn_end → agent_end</span></code></pre></div>
+<p>九站。其中③⑤⑧在 <code>agent</code> 的 960 行里，④在 <code>ai</code> 的 28,551 行里，①②⑥在 <code>coding-agent</code> 里。</p>
+<p>这条链上有一处设计值得提前点出来：<strong><code>session.systemPrompt</code> 是只读的，但它会变</strong>。SDK 文档原话是，它返回&quot;当前生效的系统提示词，含尚未发给模型的变更&quot;——也就是说提示词的变更是<strong>先声明、后生效</strong>，工具集的增删也是先告诉模型再换。这不是细节，这是全书反复出现的那条主线：<strong>变量只增不改，变更即追加</strong>。</p>
+<p>到这儿你已经能把这一百来行代码对应到具体文件。但那是「看懂」。
+下一节先解决「跑起来」——你不能改一个自己启动不了的东西。</p>
+<hr>
+<h2 id="sec-8-七-把仓库跑起来">七、把仓库跑起来</h2>
+<p>§六 那二十行代码跑在别人装好的 npm 包上。你要改的是这份源码本身，
+所以得先让它在你的机器上启动。</p>
+<p>这是全书唯一一节不读代码的内容。但跳过它，后面每一章的「实验」都会停在
+「你应该能看到」。</p>
+<h3 id="sec-9-7-1-四步-每步一个判据">7.1 四步，每步一个判据</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>做什么</th>
+<th>判据</th>
+<th>本机实测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>node -v</code></td>
+<td>≥ <code>v22.19.0</code></td>
+<td><code>v24.12.0</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td>数包</td>
+<td>12 个包，version 全 <code>1.4.0</code></td>
+<td>12 个</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>npm install</code></td>
+<td>出现指向 <code>packages/*</code> 的软链</td>
+<td>13 条</td>
+</tr>
+<tr>
+<td>3</td>
+<td>直接跑 <code>src</code></td>
+<td>打印 <code>1.4.0</code></td>
+<td><code>1.4.0</code></td>
+</tr>
+</tbody>
+</table>
+<p>第 0 步的门槛不是随手定的。根 <code>package.json:68-70</code> 写着
+<code>&quot;node&quot;: &quot;&gt;=22.19.0&quot;</code>。Node 从 22.x 起能直接执行 <code>.ts</code>：把类型剥掉，
+当普通 JS 跑。Pi 就是靠这个做到「不 build 也能跑 src」。版本不够时
+第 3 步会直接失败，你不必去怀疑自己改错了代码。</p>
+<p>第 1 步有个副作用值得记住：<code>packages/</code> 下我数到 12 个目录，
+但 build 链上只有 11 个。<code>evals</code> 不在链上，它由 <code>package.json:34</code>
+那条 <code>npm run eval</code> 单独调用。</p>
+<p>第 2 步的判据不是「装完没报错」，而是「软链建没建」。npm 的 workspace
+机制会在 <code>node_modules/@earendil-works/</code> 下给每个包建一条符号链接，
+指回 <code>packages/</code> 里的源码目录。本机实测：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi-ai           -&gt; packages\ai</span><span class="ln">pi-agent-core   -&gt; packages\agent</span><span class="ln">pi-coding-agent -&gt; packages\coding-agent</span></code></pre></div>
+<p>软链一多，就说明 workspace 被正确识别、第三方依赖也落盘了。</p>
+<h3 id="sec-10-7-2-那条长命令-三个词">7.2 那条长命令，三个词</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node --import \</span><span class="ln">  ./packages/coding-agent/src/experimental/source-resolver.ts \</span><span class="ln">  packages/coding-agent/src/cli.ts --version</span></code></pre></div>
+<p>PowerShell 不认行尾反斜杠，写一行即可。仓库自己也是这么调的，
+见 <code>pi-test.ps1:61-64</code>——它多了一步：把路径转成 <code>file://</code> URL，
+因为 <code>--import</code> 要的是模块说明符，不是 Windows 路径。</p>
+<p>三个词：</p>
+<ul>
+<li><code>--import</code>：跑主文件之前先加载一个模块。只影响本次进程。</li>
+<li><code>source-resolver.ts</code>：把 <code>@earendil-works/pi-ai</code> 这种包名改指到
+<code>packages/ai/src/index.ts</code>，靠的就是 <code>tsconfig.json</code> 里那张
+<code>paths</code> 表（<code>tsconfig.json</code> 共 67 行，<code>@earendil-works/*</code> 占了大部分）。</li>
+<li><code>cli.ts</code>：真正的入口。</li>
+</ul>
+<p>不加 <code>--import</code> 会怎样？本机实测（路径省略了前缀）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Error [ERR_MODULE_NOT_FOUND]: Cannot find module</span><span class="ln">'…\node_modules\@earendil-works\pi-ai\dist\index.js'</span><span class="ln">imported from …\packages\coding-agent\src\main.ts</span></code></pre></div>
+<p>注意路径里的 <code>dist</code>。<code>node_modules/@earendil-works/pi-ai</code> 是软链，
+它 <code>package.json</code> 的 <code>exports</code> 指向 <code>dist/index.js</code>；没 build 过，
+<code>dist</code> 不存在，于是报「找不到模块」。</p>
+<p><code>source-resolver.ts:6-8</code> 的注释把这件事说得很直白：</p>
+<blockquote>
+<p>Node strips TypeScript natively, but it does not apply the workspace source
+aliases from tsconfig.json. Internal source processes preload this resolver so
+they cannot silently fall through to stale package dist files.</p>
+</blockquote>
+<p>最后半句才是重点：<strong>silently fall through to stale package dist</strong>。
+等你 build 过一次，<code>dist/</code> 就有了；这时候忘了 <code>--import</code>，它不报错，
+而是安静地跑上一次 build 的旧代码。你以为改了没生效，其实是
+你改的那个文件根本没被加载。</p>
+<h3 id="sec-11-7-3-改一行-看到变化">7.3 改一行，看到变化</h3>
+<p>验证「跑的是源码」只有一个办法：改它。</p>
+<p>打开 <code>packages/coding-agent/src/main.ts:646-649</code>，把第 647 行改成：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`${VERSION} (edited src)`</span>);</span></code></pre></div>
+<p>重跑 7.2 那条命令。本机实测输出：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">1.4.0 (edited src)</span></code></pre></div>
+<p>改回来再跑，输出回到 <code>1.4.0</code>。这一来一回证明三件事：跑的是 <code>src</code>、
+改完立即生效、不用 build。这就是这个仓库日常开发的样子。</p>
+<h3 id="sec-12-7-4-另外两条路-build-与-test">7.4 另外两条路：build 与 test</h3>
+<p>改 <code>src</code> 之外还有一条正式路，也是发布用的：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">npm run build</span></code></pre></div>
+<p><code>package.json:15</code> 把 11 个包串成一条 <code>cd</code> 链，顺序我照原样抄：
+<code>telemetry → schema → chord → tui → codemode → mcp → ai → durable →</code>
+<code>env → agent → coding-agent</code>。产物落在
+<code>packages/coding-agent/dist/bundle/cli.js</code>，也正是
+<code>packages/coding-agent/package.json</code> 里 <code>bin.pi</code> 指的那个文件。
+build 过之后，<code>pi</code> 这个命令跑的就是它。</p>
+<p>测试是 vitest（同一个 <code>package.json</code> 的 <code>test</code> 是 <code>vitest --run</code>）：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">npm test --workspace @earendil-works/pi-coding-agent</span></code></pre></div>
+<p><strong>这两条本机没跑成</strong>，原因不在代码：<code>npm run build</code> 要用
+<code>typescript</code> / <code>vitest</code> / <code>esbuild</code> 的平台二进制，都在 devDependencies 里，
+而这台机器装不上它们（下一小节有真实报错）。按本书的规矩，「没跑过」
+就不写「应该会输出」。</p>
+<h3 id="sec-13-7-5-装依赖-四个坑-本机全踩了">7.5 装依赖：四个坑，本机全踩了</h3>
+<p><code>npm install</code> 是这一节唯一的失败点。四次尝试的真实报错：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>做法</th>
+<th>报错</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>默认配置</td>
+<td><code>ENOTFOUND nexus.devops.csvw.com</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>换 npmjs 官方源</td>
+<td><code>ECONNRESET</code>（大包，重试 3 次耗尽）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>加长重试与超时</td>
+<td><code>ENOTEMPTY</code> / <code>EPERM</code>（Windows 文件锁）</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>--omit=dev --ignore-scripts</code></td>
+<td>✅ <code>added 130 packages in 7m</code></td>
+</tr>
+</tbody>
+</table>
+<p>四条对策，按顺序试：</p>
+<ol>
+<li><strong>先看一眼源。</strong> <code>npm config get registry</code>。很多公司机器默认指向内网
+Nexus，离开内网就 <code>ENOTFOUND</code>。报错里出现公司域名时，加
+<code>--registry=https://registry.npmjs.org</code>。</li>
+<li><strong><code>ECONNRESET</code> 不是你的错。</strong> 几百 KB 的元数据能过、几十 MB 的
+tarball 过不去。本机折在 <code>wrangler</code>、<code>workerd</code>、<code>vitest</code>、
+<code>@esbuild/win32-x64</code> 这几个上。加大重试有用，但不保证。</li>
+<li><strong><code>ENOTEMPTY</code> 是文件锁。</strong> 上一次失败的残留目录被 node 进程占着。
+删掉 <code>node_modules</code> 重装；删不干净就关掉终端再开。</li>
+<li><strong>postinstall 里还套着 <code>npm install</code>。</strong>
+<code>packages/coding-agent/examples/extensions/with-deps</code> 是个带本地依赖的
+workspace，<code>esbuild</code> 也会在 postinstall 里再抓一次平台二进制。
+两条都会把整个 install 挂住——本机就卡在 <code>node install.js</code> 上二十多分钟
+没有输出。<code>--ignore-scripts</code> 跳过它们。</li>
+</ol>
+<p><strong>装完还差一步。</strong> <code>packages/ai/src/providers/data/</code> 是被 gitignore 的
+生成产物，干净的 clone 里没有它。而 42 个 <code>*.models.ts</code> 每个都在顶层
+<code>import</code> 一个 JSON（<code>amazon-bedrock.models.ts:1-4</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// This file is auto-generated by scripts/generate-models.ts</span></span><span class="ln"><span class="tok-kw">import</span> values <span class="tok-kw">from</span> <span class="tok-str">"./data/amazon-bedrock.json"</span> with { <span class="tok-kw">type</span>: <span class="tok-str">"json"</span> };</span></code></pre></div>
+<p>缺了它，第 3 步报的不是「少个数据文件」，而是更前面一句
+<code>Cannot find module …/providers/data/amazon-bedrock.json</code>。补法：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">npm run generate:models</span></code></pre></div>
+<p>它会去抓 <code>models.dev</code> 的模型目录（<code>catalog/sources/index.ts:72-76</code>）。
+<strong>没有外网就跑不通</strong>，本机实测 <code>Failed to fetch models.dev catalog</code>。
+退路是去掉 <code>--strict</code> 直接跑 <code>node catalog/generate.ts</code>：抓不到的源退化成
+空，文件能生成，但模型列表是残的——够你跑 <code>--version</code>、够你读代码，
+不够你真的跟模型对上一次话。</p>
+<blockquote>
+<p>这条也顺带解释了 §五 那张「五个入口」表：不管从哪个入口进，
+都要先把这堆 JSON 读进内存。没有它们，五个入口一个都开不了门。</p>
+</blockquote>
+<p>改到这一步，剩下的问题才有意义：为什么同一件事（发请求、收结果）会被切成
+这么多个包；这一刀切在哪，为什么切在这儿。</p>
+<hr>
+<h2 id="sec-14-八-那-22-万行到底在补什么">八、那 22 万行到底在补什么</h2>
+<p>内核只做一件事：给定上下文，驱动&quot;模型 ↔ 工具&quot;的循环。它不管的事有六类，对应六个大包。</p>
+<table>
+<thead>
+<tr>
+<th>缺什么</th>
+<th>谁补</th>
+<th style="text-align:right">行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>各家 provider 的协议差异</td>
+<td><code>ai</code></td>
+<td style="text-align:right">28,551</td>
+</tr>
+<tr>
+<td>终端怎么画得快</td>
+<td><code>tui</code></td>
+<td style="text-align:right">19,971</td>
+</tr>
+<tr>
+<td>会话怎么存、怎么恢复</td>
+<td><code>durable</code></td>
+<td style="text-align:right">33,722</td>
+</tr>
+<tr>
+<td>工具怎么安全地并发改文件</td>
+<td><code>coding-agent</code></td>
+<td style="text-align:right">77,614</td>
+</tr>
+<tr>
+<td>插件怎么热更新</td>
+<td><code>chord</code></td>
+<td style="text-align:right">50,101</td>
+</tr>
+<tr>
+<td>怎么接外部 MCP server</td>
+<td><code>mcp</code></td>
+<td style="text-align:right">3,305</td>
+</tr>
+</tbody>
+</table>
+<p>按顺序说。</p>
+<p><strong><code>ai</code>（28,551 行）</strong> —— 7 家 provider 各有一套事件格式、错误码、工具调用协议、thinking 参数。<code>ai</code> 把它们归一成一件事：<code>stream(model, context, options)</code> 返回一个事件流，事件类型固定 12 种。这套归一层之所以占 12.5%，是因为协议适配天然啰嗦——一个 provider 一个文件，每个文件几百到两千行。</p>
+<p><strong><code>tui</code>（19,971 行）</strong> —— 终端渲染不是 <code>console.log</code>。要处理宽字符、ANSI 转义、光标定位、双缓冲差分。Pi 的 TUI 能做到&quot;改一个字符只发一个字符的字节量&quot;，靠的就是这 2 万行。</p>
+<p><strong><code>durable</code>（33,722 行）</strong> —— 名字容易误解成&quot;会话存储包&quot;。它有 <code>harness/</code>（25 文件）、<code>scheduler.ts</code>（2,999 行）、<code>tool.ts</code>（1,098 行）、<code>generation.ts</code>（1,148 行），是一个<strong>完整的可持久化 agent 运行时</strong>。存只是它的副作用，&quot;中断后从断点继续&quot;才是目的。</p>
+<p><code>durable/src/</code> 的顶层目录把它暴露得很彻底：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">harness/    25 文件   运行时主体（scheduler / tool / generation）</span><span class="ln">session/     7 文件   会话与事务</span><span class="ln">storage/     多后端    jsonl / sqlite / memory / indexeddb / store</span><span class="ln">codemode/             沙箱执行</span><span class="ln">tools/                内置工具</span><span class="ln">tool-search/          工具检索</span><span class="ln">images/  env/  testing/</span><span class="ln">tasks.ts  documents.ts  entries.ts  timers.ts  search.ts</span></code></pre></div>
+<p>最后那五个根层 <code>.ts</code> 是信号：一个包如果只有存储，不会有 <code>scheduler</code>（调度）和 <code>timers</code>（定时器）。这两个词出现在哪里，哪里就有&quot;时间&quot;——而&quot;时间&quot;是 agent 运行时最难持久化的东西。</p>
+<p><strong><code>coding-agent</code>（77,614 行）</strong> —— 占三分之一，因为它是产品。CLI 参数、交互模式、命令系统、8 个内置工具、扩展加载、Skills、主题、RPC 服务……所有&quot;用户能感知到的东西&quot;都在这里。</p>
+<p><strong><code>chord</code>（50,101 行）</strong> —— 第二大的包，也是最容易被忽略的。它是个通用插件宿主：contract 契约、replicated state、JSON link 上的 RPC、热重载。它和 agent 没有必然关系，是个独立产品，被 <code>durable</code> 和 <code>env</code> 复用。</p>
+<p><code>chord/src/</code> 有 29 个顶层文件加 7 个子目录，名字能拼出一套完整机制：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">contract.ts  declare.ts  schema.ts      ← 契约与声明</span><span class="ln">host.ts  cell.ts  node.ts  cluster.ts    ← 宿主与节点</span><span class="ln">link.ts  connection.ts  websocket.ts     ← 传输</span><span class="ln">state.ts  delta.ts  registry.ts  watch.ts ← 复制状态</span><span class="ln">reload.ts  loader.ts  manager.ts          ← 热重载</span></code></pre></div>
+<p>注意 <code>delta.ts</code> 和 <code>reload.ts</code> 同时存在。前者说明状态变更以<strong>增量</strong>传播，后者说明代码可以在不重启进程的情况下被替换。这两件事能同时成立，才叫&quot;热重载的插件宿主&quot;。</p>
+<p><strong><code>mcp</code> + <code>codemode</code>（6,339 行）</strong> —— 两条扩展路线。<code>mcp</code> 接外部工具服务器，<code>codemode</code> 让模型写脚本在沙箱里跑。都是可选能力，加起来只占 2.8%。</p>
+<p>对比一下就很清楚：<strong>78% 的代码在处理&quot;和模型无关的事&quot;</strong>——UI、存储、插件、协议、并发。真正的 agent 逻辑只有 1.1%。</p>
+<p>再补三个&quot;只有读代码才知道&quot;的细节，它们能校准你对每个包的预期。</p>
+<p><strong><code>schema</code> 不用 <code>eval</code>。</strong> 包描述写得很具体：</p>
+<blockquote>
+<p>JSON Schema validation without eval: drafts 2020-12 and 7, compiled into
+plain closures</p>
+</blockquote>
+<p>大多数 JSON Schema 校验库在运行时拼字符串再 <code>eval</code>，或者解释执行 schema 树。<code>schema</code> 的做法是把 schema <strong>编译成一组普通闭包</strong>。为什么值得单独立包？因为工具参数校验在 agent 里是热路径——每次工具调用都要跑一遍，它必须快且能跑在受限环境里。</p>
+<p><strong><code>codemode</code> 的权限边界只有一条。</strong></p>
+<blockquote>
+<p>Sandboxed JavaScript execution where the only capability is calling injected tools</p>
+</blockquote>
+<p>&quot;唯一能力就是调注入的工具&quot;——沙箱里连 <code>fetch</code> 都没有，模型写的脚本能碰到的只有你主动注入的那几个函数。这比&quot;禁掉危险 API&quot;的黑名单思路可靠得多。</p>
+<p><strong><code>coding-agent</code> 的 <code>tools/</code> 目录有 16 个文件，但只有 8 个工具。</strong></p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">真工具：bash  powershell  read  write  edit  find  grep  ls</span><span class="ln">配套件：file-mutation-queue  output-accumulator  truncate</span><span class="ln">        path-utils  render-utils  edit-diff  tool-definition-wrapper  index</span></code></pre></div>
+<p><strong>每个工具配一个配套件</strong>，比例 1 : 1。这不是冗余，是这 8 个工具能安全并发的全部原因——<code>file-mutation-queue</code> 管同一个文件的写冲突，<code>output-accumulator</code> 管流式输出别撑爆内存，<code>truncate</code> 管输出长度上限。M05 会把这三件事拆开讲。</p>
+<hr>
+<h2 id="sec-15-九-这本书怎么读">九、这本书怎么读</h2>
+<p>15 章分四部分，按&quot;离内核的距离&quot;排。</p>
+<p><strong>Part A · 全景（M01–M02）</strong> —— 就是你现在读的这章，加上下一章的十二包地图。目标：拿到一张能定位任何代码的图。</p>
+<p><strong>Part B · 内核（M03–M07）</strong> —— <code>agent</code> 包的四个文件 + <code>ai</code> 的归一层 + <code>coding-agent</code> 的工具和消息。这五章是全书密度最高的部分，<code>agent-loop.ts</code> 那 960 行会被拆到不能再拆。</p>
+<p><strong>Part C · 上下文工程（M08–M10）</strong> —— 系统提示词怎么拼、超长对话怎么压、会话怎么存和恢复。这三章回答&quot;模型凭什么知道得这么多&quot;。</p>
+<p><strong>Part D · 盲区（M11–M15）</strong> —— <code>durable</code>、<code>chord</code>、<code>mcp</code>+<code>codemode</code>、<code>tui</code>、<code>schema</code>+<code>telemetry</code>。这五个包旧教程完全没讲，占仓库 44% 的代码。</p>
+<p>读法建议：</p>
+<ul>
+<li>想改 Pi 的行为 → 读 Part B 的钩子章节（M03 第七节），别动内核</li>
+<li>想接新 provider → 读 M04</li>
+<li>想写扩展 → 读 M07</li>
+<li>想知道为什么 Pi 卡住不恢复 → 读 M10、M11</li>
+<li>想抄它的 UI → 读 M14</li>
+</ul>
+<p>每章结尾都有「自己动手验证」和「工程暗坑」，前者给能跑的命令，后者只写真踩过的坑。</p>
+<h3 id="sec-16-9-1-十六条任务-五个里程碑">9.1 十六条任务，五个里程碑</h3>
+<p>书是分五批写完的，每批有硬判据。列在这儿，你可以用它检查我有没有偷工：</p>
+<table>
+<thead>
+<tr>
+<th>批次</th>
+<th>章节</th>
+<th>判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M2</td>
+<td>M01–M02 + 附录</td>
+<td>Part A 全景闭环</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>M03–M07</td>
+<td>Part B 内核闭环</td>
+</tr>
+<tr>
+<td>M4</td>
+<td>M08–M10</td>
+<td>Part C 上下文工程闭环</td>
+</tr>
+<tr>
+<td>M5</td>
+<td>M11–M15</td>
+<td>Part D 盲区闭环</td>
+</tr>
+<tr>
+<td>M6</td>
+<td>站点收尾</td>
+<td>构建通过、0 失效引用</td>
+</tr>
+</tbody>
+</table>
+<p>&quot;闭环&quot;的具体含义是：该部分的每一章都能独立回答一个问题，且章与章之间的指针都对得上。比如 Part B 结束后，你应该能从&quot;我敲了一行字&quot;一直讲到&quot;toolResult 写回 transcript&quot;，中间不需要跳出去查。</p>
+<h3 id="sec-17-9-2-三条不同的读法">9.2 三条不同的读法</h3>
+<p>同一本书，三类人应该走不一样的路。</p>
+<p><strong>路径一：24 小时速通（只想用）。</strong> M01 → M02 → M05（工具）→ M07（扩展）。四章，约三小时。目标：知道扩展能改什么、工具怎么加、系统提示词里的话从哪来。剩下的以后用到再查。</p>
+<p><strong>路径二：一周读通（想改内核）。</strong> 按顺序读 Part A 和 Part B，七章。重点在 M03：那章把 960 行拆成了两层循环、十三条事件、七种 stopReason。读完你应该能预测任意一段对话的事件序列。</p>
+<p><strong>路径三：只查盲区（已熟悉旧版）。</strong> M03 第六节（stopReason 的变化）+ M10 + M11。这三块是 v0.80 到 v1.4 变化最大的地方，旧教程在这里基本全错。其余章节的差异属于&quot;路径变了、结论没变&quot;。</p>
+<p>三条路有一个共同的起点：先搞清楚哪一块代码属于哪一层。这就是下一章。</p>
+<hr>
+<h2 id="sec-18-十-自己动手验证">十、自己动手验证</h2>
+<p><strong>实验 1：自己数一遍行数。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-main/pi-main</span><span class="ln">for d in packages/*/; do</span><span class="ln">  n=$(find "$d" -path '*/src/*' -name '*.ts' ! -name '*.test.ts' | wc -l)</span><span class="ln">  l=$(find "$d" -path '*/src/*' -name '*.ts' ! -name '*.test.ts' \</span><span class="ln">      -exec cat {} + 2&gt;/dev/null | wc -l)</span><span class="ln">  echo "$(basename $d) $n $l"</span><span class="ln">done | sort -k3 -rn</span></code></pre></div>
+<p>如果数字和上表对不上，先检查两件事：有没有把 <code>dist/</code> 算进去，有没有把 <code>*.test.ts</code> 算进去。这两个是行数统计最大的污染源。</p>
+<p><strong>实验 2：验证依赖图里缺席的那条边。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -r "pi-durable" packages/coding-agent/src --include=*.ts | head</span></code></pre></div>
+<p>应该一条都没有。再试试：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -r "pi-durable" packages/env/package.json packages/durable/package.json</span></code></pre></div>
+<p><code>env</code> 依赖 <code>durable</code>，<code>coding-agent</code> 不依赖。这两个事实放在一起，才看得清&quot;会话&quot;在这个项目里被实现了几次。</p>
+<p><strong>实验 3：找到内核真正的入口。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">wc -l packages/agent/src/*.ts</span><span class="ln">cat packages/agent/src/index.ts</span></code></pre></div>
+<p>6 个文件，<code>index.ts</code> 5 行。然后读 <code>packages/agent/package.json</code> 的 <code>dependencies</code>——只有两个。<strong>一个包的可信边界，就是它的 dependencies 加它的导出。</strong></p>
+<p><strong>实验 4：验证测试比源码多。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/agent</span><span class="ln">wc -l src/*.ts | tail -1        # 源码</span><span class="ln">wc -l test/*.ts | tail -1       # 测试</span></code></pre></div>
+<p>应该是 2,587 对 4,206（含 <code>test/utils/</code> 下的 3 个辅助文件）。单独看最大的那个：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">wc -l src/agent-loop.ts test/agent-loop.test.ts</span><span class="ln"># 960 test/agent-loop.test.ts</span><span class="ln"># 2234 total</span></code></pre></div>
+<p><strong>实验 5：跑一次 print 模式。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -p "列出当前目录的文件数量，只回答数字"</span><span class="ln">pi --json -p "同样的问题" | head -3</span></code></pre></div>
+<p>第一条输出一句话，第二条输出三行 JSONL。同一个内核，两种外壳——这就是第五节那张表的最小验证。注意第一条要先把 <code>/login</code> 做完。</p>
+<p><strong>实验 6：找一下内核自带的示例。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ls packages/agent/examples/mcp-codemode/</span></code></pre></div>
+<p>两个文件：<code>main.ts</code> 和 <code>tools.ts</code>。一个 1.1% 的内核包，示例却是&quot;用 MCP 接工具 + 用 codemode 执行&quot;——这两个能力都属于外围包。这反过来证明了一件事：<strong>内核只认工具接口，不关心工具从哪来</strong>。</p>
+<hr>
+<h2 id="sec-19-十一-读这份仓库的六个坑">十一、读这份仓库的六个坑</h2>
+<p><strong>1. README 和代码不同步，以代码为准。</strong></p>
+<p>7 包 vs 12 包只是最明显的一处。更细的：<code>workspaces</code> 里写着 <code>apps/*</code>，但仓库根本没有 <code>apps/</code> 目录——那是留给下游示例或历史遗留的 glob。<code>package.json:6-11</code> 里还有三条指向 <code>packages/coding-agent/examples/extensions/*</code> 的 workspace，那些是扩展示例，不是产品包。</p>
+<p>判断&quot;哪些是产品包&quot;的经验规则：看 <code>packages/</code> 下有没有 <code>package.json</code>，且 <code>private</code> 不为 true。</p>
+<p><strong>2. <code>wc -l</code> 的口径不统一。</strong></p>
+<p><code>wc -l</code> 数的是换行符数量。文件末尾没有换行时，会少算 1。PowerShell 的 <code>(Get-Content x).Count</code> 又不一样——它不数末尾空行。</p>
+<p>实测：<code>agent-loop.ts</code> 用 PowerShell 数是 959，用 <code>split('\n')</code> 数是 960。<strong>全书统一用后者</strong>（和 <code>scripts/fact-check.mjs</code> 一致）。差了这 1 行，行号引用就会在边界上翻车。</p>
+<p><strong>3. 别指望从 <code>agent/src/index.ts</code> 找到 harness。</strong></p>
+<p>旧教程说过&quot;<code>agent</code> 包导出 harness / session / compaction&quot;。v1.4.0 的 <code>index.ts</code> 只有 5 行，导出 <code>agent</code>、<code>agent-loop</code>、<code>proxy</code>、<code>stream-fn</code>、<code>types</code>。harness 早就搬到 <code>durable/src/harness/</code> 了。</p>
+<p>这条是旧教程读者最容易栽的地方——按旧路径找不到文件，会以为是教程写错了，其实是源码重构了。</p>
+<p><strong>4. <code>evals</code> 不在 build 里，但它在 <code>packages/</code> 下。</strong></p>
+<p>跑 <code>npm run build</code> 不会构建 <code>evals</code>，跑 <code>npm run check</code> 也不会 typecheck 它。它是独立工具，只在 <code>npm run eval</code> 时被 workspace 脚本调用。别把它当成&quot;第 13 个包&quot;去找它的构建产物。</p>
+<p><strong>5. 包名会骗人，<code>description</code> 不会。</strong></p>
+<p>前面已经踩过三次：<code>env</code> 不是环境变量，是远程执行环境；<code>chord</code> 不是音乐，是插件协议宿主；<code>schema</code> 不是数据库，是 JSON Schema 编译器。判断一个包干什么，<strong>只有两处可信：<code>description</code> 和 <code>src/</code> 里的文件名</strong>。README 的表格和目录名都可能滞后。</p>
+<p><strong>6. 行号会漂，漂的方式很隐蔽。</strong></p>
+<p>上游 <code>main</code> 分支持续演进，你在 GitHub 上点开的文件和本地快照未必是同一版。更阴的是&quot;文件还在，内容已换&quot;——比如 <code>tools/read.ts</code> 从 275 行重写成 224 行，旧教程引的 <code>read.ts:275</code> 直接越界。</p>
+<p>所以本书所有引用都基于本仓库副本的 v1.4.0，并且有一条命令可以验证：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node scripts/fact-check.mjs</span></code></pre></div>
+<p>它会扫全书所有 <code>文件:行号</code> 引用，检查文件存不存在、行号越不越界，结果写进 <code>docs/fact-check.md</code>。</p>
+<hr>
+<h2 id="sec-20-十二-三个可以带走的方法">十二、三个可以带走的方法</h2>
+<p><strong>方法一：用体量分布定位权重。</strong></p>
+<p>一个 22 万行的仓库，读什么取决于&quot;哪里是重点&quot;。体量分布就是权重图：<code>coding-agent</code> 占 33.9%，说明它是产品主体；<code>agent</code> 占 1.1%，说明它是稳定内核。</p>
+<p>反过来说也成立：<strong>如果一个 1% 的包你读不懂，那你读 33% 的包只会更糊涂</strong>。先读内核，再读外围。</p>
+<p><strong>方法二：用 build 顺序反推隐式依赖。</strong></p>
+<p><code>dependencies</code> 只记录显式的包依赖，构建脚本的顺序才暴露真实约束。这个仓库里 <code>tui</code> 在 <code>coding-agent</code> 前面，<code>schema</code> 在 <code>chord</code> 前面——这些都是&quot;不写进 dependencies 也必须先构建&quot;的隐式边。</p>
+<p>读任何 monorepo，先看根 <code>build</code> 脚本的 <code>cd</code> 链，比看 12 个 <code>package.json</code> 快得多。</p>
+<p><strong>方法三：把&quot;不做&quot;当成设计文档。</strong></p>
+<p>README 承认的四件不做的事（sub-agent、plan mode、权限系统、orchestrator），拼起来正好是内核的边界。<strong>框架的能力上限由它做什么决定，它的可维护性由它不做什么决定。</strong></p>
+<p>Pi 全部四个&quot;不做&quot;，都指向同一个动作：把策略推到钩子外面。</p>
+<hr>
+<h2 id="sec-21-十三-本书的引用口径">十三、本书的引用口径</h2>
+<p>上一节提到了行号会漂。这一节把&quot;怎么保证不漂&quot;说清楚，因为它直接决定了你能不能用书里的坐标去源码里跳。</p>
+<p><strong>一，版本锁定。</strong> 全书基于 <code>pi-main/pi-main</code> 这份 v1.4.0 副本。验证方式一行：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">for p in packages/*/package.json; do</span><span class="ln">  node -p "require('./$p').version"</span><span class="ln">done | sort -u</span></code></pre></div>
+<p>应该只输出一行 <code>1.4.0</code>。如果出现了第二个版本号，说明你手上的快照不是同一次发布。</p>
+<p><strong>二，行号口径。</strong> 统一用 <code>split('\n').length</code>，不用 <code>wc -l</code>，也不用 PowerShell 的 <code>(Get-Content x).Count</code>。三个工具数同一个文件会差 1–2 行，在边界行上就会误判。</p>
+<p><strong>三，引用写法。</strong> 正文里出现 <code>packages/agent/src/agent-loop.ts:342-372</code> 这种形式，意思是&quot;这个文件第 342 到 372 行&quot;。单行写成 <code>:412</code>。如果代码被改写省略，块内用 <code>// …</code> 标记，并在块首写上 <code>文件:起-止行</code>。</p>
+<p><strong>四，自动校验。</strong> 每次批量交付前跑：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node scripts/fact-check.mjs        # 扫全部引用</span></code></pre></div>
+<p>它报三类问题：文件不存在、行号越界、命中废弃路径（比如 <code>packages/agent/src/harness/</code>）。<strong>第三类最重要</strong>——它专治&quot;文件还在但东西搬走了&quot;。</p>
+<p>现在你已经有了地图、有了坐标、有了验证手段。</p>
+<hr>
+<h2 id="sec-22-下一步">下一步</h2>
+<p>十二个包的体量和依赖都清楚了，但还不知道它们怎么分层——<code>ai</code> 和 <code>agent</code> 的边界画在哪？<code>coding-agent</code> 为什么不依赖 <code>durable</code>？<code>chord</code> 凭什么被 <code>durable</code> 依赖？</p>
+<p>下一章把 12 个包摊开成一张三层架构图，每个箭头都带出处，并给出一个判据：给定一个文件路径，三步之内能说出它属于哪一层。</p>
+<hr>
+<h2 id="sec-23-源码索引">源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>package.json</code></td>
+<td>76</td>
+<td>workspaces <code>:5-12</code>、build 顺序 <code>:15</code></td>
+</tr>
+<tr>
+<td><code>README.md</code></td>
+<td>—</td>
+<td>定位声明、Packages 表、权限声明</td>
+</tr>
+<tr>
+<td><code>packages/agent/package.json</code></td>
+<td>51</td>
+<td>两个依赖</td>
+</tr>
+<tr>
+<td><code>packages/agent/src/index.ts</code></td>
+<td>5</td>
+<td>全部导出</td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>960</td>
+<td>内核体量</td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent.ts</code></td>
+<td>624</td>
+<td>有状态外壳体量</td>
+</tr>
+<tr>
+<td><code>packages/agent/test/agent-loop.test.ts</code></td>
+<td>2,234</td>
+<td>测试与源码的比例</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/how-pi-works.md</code></td>
+<td>—</td>
+<td>五个入口共用一套机制</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/sdk.md</code></td>
+<td>—</td>
+<td>十行 SDK 示例</td>
+</tr>
+<tr>
+<td><code>pi-test.ps1</code></td>
+<td>68</td>
+<td>仓库自己的启动封装 <code>:61-64</code></td>
+</tr>
+<tr>
+<td><code>tsconfig.json</code></td>
+<td>67</td>
+<td><code>paths</code> 表，source-resolver 的根据</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/experimental/source-resolver.ts</code></td>
+<td>86</td>
+<td>源码别名解析，关键注释 <code>:6-8</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/main.ts</code></td>
+<td>1,010</td>
+<td><code>--version</code> 分支 <code>:646-649</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/package.json</code></td>
+<td>—</td>
+<td><code>bin.pi</code> / <code>test</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/providers/amazon-bedrock.models.ts</code></td>
+<td>14</td>
+<td>生成产物，顶层 import JSON <code>:1-4</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/catalog/sources/index.ts</code></td>
+<td>96</td>
+<td>抄 models.dev <code>:72-76</code></td>
+</tr>
+<tr>
+<td><code>docs/source-index.md</code></td>
+<td>—</td>
+<td>12 包行数分布</td>
+</tr>
+<tr>
+<td><code>docs/source-index.json</code></td>
+<td>—</td>
+<td>包依赖图</td>
+</tr>
+<tr>
+<td><code>scripts/fact-check.mjs</code></td>
+<td>—</td>
+<td>引用校验</td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <span></span>
+      <a class="next" href="m02-package-map.html"><span class="lbl">下一篇</span>三层架构 —— 十二个包各自站在哪一层</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-本书的引用口径" class="">十三、本书的引用口径</a><a href="#sec-22-下一步" class="">下一步</a><a href="#sec-23-源码索引" class="">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>上下文装配 —— 八节提示词，一条目录链 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="active">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M08</div>
+      <h1>上下文装配 —— 八节提示词，一条目录链</h1>
+      <div class="module-meta">8,400 字 · 含 533 行代码 · 约 42 分钟</div>
+    </header>
+    <p>M06 讲消息系统时，最后落在 <code>SystemMessage</code> 的一个字段上：
+<code>sections: Record&lt;string, string | null&gt;</code>。当时只说了它的语义——
+&quot;每一节可以单独替换，<code>null</code> 表示删掉这一节&quot;——没说这些节从哪来。</p>
+<p>M07 讲事件驱动时，<code>turn_end</code> 的 boundary 能往会话里追加条目，
+<code>before_agent_start</code> 能改系统提示词。也没说改完落到哪。</p>
+<p>两个悬念指向同一个地方：<strong>模型看到的那一大坨提示词，
+是谁、在什么时候、用哪些材料拼出来的？</strong></p>
+<p>答案是 <code>packages/coding-agent/src/core/system-prompt.ts</code>。
+这个文件只有 229 行，核心函数 <code>buildSystemPromptSections</code> 占 65 行，
+产物是<strong>八个键值对</strong>，不是一段字符串。</p>
+<p>这一章拆这个函数，以及喂养它的三个加载器。</p>
+<hr>
+<h2 id="sec-1-一-为什么提示词不能是写死的一段">一、为什么提示词不能是写死的一段</h2>
+<h3 id="sec-2-1-1-一段常量字符串-三个改不动的点">1.1 一段常量字符串，三个改不动的点</h3>
+<p>最朴素的实现是：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 反面教材，Pi 没有这么写</span></span><span class="ln"><span class="tok-kw">const</span> SYSTEM_PROMPT = <span class="tok-str">`You are a coding assistant.</span></span><span class="ln"><span class="tok-str">- read: Read a file</span></span><span class="ln"><span class="tok-str">- bash: Execute a command</span></span><span class="ln"><span class="tok-str">...`</span>;</span></code></pre></div>
+<p>三种情况立刻卡住：</p>
+<ul>
+<li><strong>工具集变了</strong>。默认四个工具（<code>read</code> <code>bash</code> <code>edit</code> <code>write</code>），
+但用户可以用 <code>--tools</code> 换成十个，或者 MCP 动态注册一批。
+工具列表在提示词里，就得跟着变。</li>
+<li><strong>目录变了</strong>。同一份 pi，在 <code>/repo/a</code> 和 <code>/repo/b</code> 下启动，
+cwd 不同、<code>AGENTS.md</code> 不同、<code>skills/</code> 不同。</li>
+<li><strong>用户想加一句话</strong>。没有地方可加，除非改源码。</li>
+</ul>
+<p>这三种需求的共性：<strong>提示词的内容取决于运行期环境</strong>。
+写死的字符串和运行期环境是矛盾的。</p>
+<h3 id="sec-3-1-2-一次请求只能有一段-system">1.2 一次请求只能有一段 system</h3>
+<p>那&quot;拼成三段 system 消息&quot;行不行？</p>
+<p>不行。绝大多数 chat API 只接受一个 system 角色，或者只认
+&quot;消息数组最前面那一条&quot;。Pi 在 <code>ai/src/utils/text.ts</code> 里专门写了
+两个函数处理这件事：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/utils/transcript.ts:47-50</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">getInitialSystemMessage</span>(</span><span class="ln">	messages: TranscriptMessages,</span><span class="ln">): SystemMessage | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">const</span> first = messages[<span class="tok-num">0</span>];</span><span class="ln">	<span class="tok-kw">return</span> first &amp;&amp; <span class="tok-fn">isSystemMessage</span>(first) ? first : <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p>以及 <code>collapseSystemMessages</code>（:108-112）——把散落的 system 消息
+重放合并成一条，放在最前面。</p>
+<p>所以真实约束是：<strong>一条 system 消息，装下所有内容</strong>。
+既然只能一条，那内部就必须是结构化的——这就是 <code>sections</code>。</p>
+<h3 id="sec-4-1-3-结论-提示词要-quot-可寻址-quot">1.3 结论：提示词要&quot;可寻址&quot;</h3>
+<p>把提示词拆成命名小节，换来四件事：</p>
+<ol>
+<li><strong>独立替换</strong>。改 <code>cwd</code> 不用重发 <code>project_context</code>。</li>
+<li><strong>可增量下发</strong>。只发变了的节（§七）。</li>
+<li><strong>可被扩展改写</strong>。扩展能拿到 <code>systemPromptOptions.sections</code>
+直接改某一节（<code>docs/extensions.md:657</code>）。</li>
+<li><strong>可 diff</strong>。两次提示词的差异是一个 map，不是两坨文本。</li>
+</ol>
+<p>代价也直接：<strong>多了一层间接</strong>。你读代码时永远看不到
+&quot;完整提示词长什么样&quot;，得在脑子里拼。这一章大部分篇幅都在拼它。</p>
+<hr>
+<h2 id="sec-5-二-八节-一个真源">二、八节，一个真源</h2>
+<h3 id="sec-6-2-1-顺序与来源">2.1 顺序与来源</h3>
+<p><code>buildSystemPromptSections</code>（<code>system-prompt.ts:128-191</code>）按代码顺序
+往一个普通对象里塞键。JS 对象的字符串键按插入顺序枚举，
+所以<strong>写入顺序就是最终顺序</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>节名</th>
+<th>内容</th>
+<th>何时出现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>preamble</code></td>
+<td>角色定位一句话</td>
+<td>总是</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>tools</code></td>
+<td>每行 <code>- name: 一句话描述</code></td>
+<td>无 <code>customPrompt</code> 时</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>rules</code></td>
+<td>每行 <code>- 一条规则</code></td>
+<td>无 <code>customPrompt</code> 时</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>docs</code></td>
+<td>pi 自身文档路径</td>
+<td>无 <code>customPrompt</code> 时</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>addendum</code></td>
+<td><code>APPEND_SYSTEM.md</code> 的内容</td>
+<td>非空时</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>project_context</code></td>
+<td><code>AGENTS.md</code> 链</td>
+<td>至少一个文件时</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>skills</code></td>
+<td><code>&lt;available_skills&gt;</code> 清单</td>
+<td>有技能且有读取工具时</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>cwd</code></td>
+<td>工作目录（正斜杠）</td>
+<td>总是</td>
+</tr>
+<tr>
+<td>9+</td>
+<td>自定义</td>
+<td>扩展传入的 <code>sections</code></td>
+<td>逐个非空时</td>
+</tr>
+</tbody>
+</table>
+<p>九行，但第 9 行是&quot;零到多个&quot;。<strong>八节是骨架，自定义节是挂在末尾的</strong>。</p>
+<p><code>preamble</code> 的默认值是一句话（:155-156）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">promptSections.preamble =</span><span class="ln">	<span class="tok-str">"You are a coding assistant running inside pi, a coding agent harness. "</span> +</span><span class="ln">	<span class="tok-str">"Help users inspect files, run commands, and modify code."</span>;</span></code></pre></div>
+<p>而 <code>tools</code> 的收尾有点意思（:157-160）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> visibleTools = declaredTools.<span class="tok-fn">filter</span>((name) =&gt; !!toolSnippets[name]);</span><span class="ln"><span class="tok-kw">const</span> tools =</span><span class="ln">	visibleTools.length &gt; <span class="tok-num">0</span></span><span class="ln">		? visibleTools.<span class="tok-kw">map</span>((name) =&gt; <span class="tok-str">`- ${name}: ${toolSnippets[name]}`</span>).<span class="tok-fn">join</span>(<span class="tok-str">"\n"</span>)</span><span class="ln">		: <span class="tok-str">"(none)"</span>;</span><span class="ln">promptSections.tools = <span class="tok-str">`${tools}\n\nAdditional tools may be available.`</span>;</span></code></pre></div>
+<p><strong>&quot;Additional tools may be available&quot; 是恒定尾巴</strong>。
+因为声明给模型的工具集，和实际能调用的工具集，不是同一个集合——
+<code>codemode</code> 和 <code>deferred</code> 暴露的工具能被别的工具通过
+<code>ctx.executeTool()</code> 调到，但不声明（见 M05）。这句话是提前打补丁，
+避免模型因为&quot;列表里没有&quot;就断言&quot;我做不到&quot;。</p>
+<h3 id="sec-7-2-2-只有-preamble-不带标签">2.2 只有 preamble 不带标签</h3>
+<p>拼完键值对，还有一步包装（:187-190）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> sections: SystemPromptSections = { preamble: promptSections.preamble };</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, content] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(promptSections)) {</span><span class="ln">	<span class="tok-kw">if</span> (name !== <span class="tok-str">"preamble"</span>) sections[name] = <span class="tok-str">`&lt;${name}&gt;\n${content}\n&lt;/${name}&gt;`</span>;</span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> sections;</span></code></pre></div>
+<p><strong><code>preamble</code> 是唯一裸露的</strong>，其余全部包成 <code>&lt;名字&gt;</code> 标签。
+渲染出来是这样：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">You are a coding assistant running inside pi, ...</span><span class="ln"></span><span class="ln">&lt;tools&gt;</span><span class="ln">- read: Read a file from the workspace</span><span class="ln">- bash: Execute a shell command</span><span class="ln">...</span><span class="ln"></span><span class="ln">Additional tools may be available.</span><span class="ln">&lt;/tools&gt;</span><span class="ln"></span><span class="ln">&lt;rules&gt;</span><span class="ln">- Use bash for file operations like ls, rg, find</span><span class="ln">- Be concise in your responses</span><span class="ln">&lt;/rules&gt;</span><span class="ln">...</span><span class="ln">&lt;cwd&gt;</span><span class="ln">/repo/packages/coding-agent</span><span class="ln">&lt;/cwd&gt;</span></code></pre></div>
+<p>为什么只有第一节不包？因为它是提示词的&quot;开头&quot;。
+XML 标签的价值是<strong>给模型一个可以回头对号的锚点</strong>——
+后面 <code>renderSystemMessageUpdate</code> 会说
+&quot;Updated system prompt section <code>tools</code>&quot;，模型得知道
+<code>tools</code> 指的是哪一块。第一节没有歧义，不需要名字。</p>
+<h3 id="sec-8-2-3-节的命名是被校验的">2.3 节的命名是被校验的</h3>
+<p>自定义节名要先过一道闸（:144-148）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> Object.<span class="tok-fn">keys</span>(customSections)) {</span><span class="ln">	<span class="tok-kw">if</span> (!SYSTEM_PROMPT_SECTION_NAME.<span class="tok-fn">test</span>(name) || name === <span class="tok-str">"preamble"</span>) {</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`Invalid system prompt section name: ${name}`</span>);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p><code>SYSTEM_PROMPT_SECTION_NAME = /^[a-z][a-z0-9_-]*$/</code>（:58）。</p>
+<p>三条限制各有理由：</p>
+<ul>
+<li><strong>小写开头</strong>。XML 标签名习惯，也避免和 TypeScript 类型混淆。</li>
+<li><strong>不允许空格和中文</strong>。标签名会进入提示词文本，也会成为
+<code>sections</code> 的 JSON 键。带空格的名字在 <code>\</code>&lt;${name}&gt;`` 里
+会生成非法标签。</li>
+<li><strong><code>preamble</code> 保留</strong>。这是硬编码的&quot;第一节&quot;，如果允许扩展写，
+就会出现两个 <code>preamble</code>——后写的覆盖先写的，且没人知道。</li>
+</ul>
+<p>注意这是 <code>throw</code>，不是 <code>console.warn</code>。<strong>名字写错会让整个
+构建流程崩掉</strong>，而不是静默丢掉一节。这个选择是对的：
+一节静默消失，比一个异常难排查一百倍。</p>
+<h3 id="sec-9-2-4-空节不写-而不是写空">2.4 空节不写，而不是写空</h3>
+<p>三个地方用了同一个模式：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (appendSystemPrompt) promptSections.addendum = appendSystemPrompt;   <span class="tok-com">// :171</span></span><span class="ln"><span class="tok-kw">if</span> (contextFiles.length &gt; <span class="tok-num">0</span>) promptSections.project_context = ...;      <span class="tok-com">// :172</span></span><span class="ln"><span class="tok-kw">if</span> (skillsPrompt) promptSections.skills = skillsPrompt;                 <span class="tok-com">// :180</span></span></code></pre></div>
+<p><strong>不存在 = 不出现</strong>，而不是&quot;出现但为空&quot;。</p>
+<p>差别很大。如果 <code>addendum</code> 恒存在只是空串，那提示词里会多一行
+<code>&lt;addendum&gt;&lt;/addendum&gt;</code>——几十 token 的纯噪音，每一轮都付。
+而且 <code>diffSystemPromptSections</code> 会因为 <code>&quot;&quot; !== undefined</code> 一直判定
+&quot;变了&quot;，产生无效 patch。</p>
+<p><code>skills</code> 那一段还多覆盖了一层：<code>formatSkillsForPrompt</code> 在
+<code>visibleSkills.length === 0</code> 时返回 <code>&quot;&quot;</code>（<code>skills.ts:361-363</code>），
+所以 <code>:179</code> 的 <code>.trim()</code> 和 <code>:180</code> 的 <code>if</code> 是两个独立的闸门——
+一个过滤&quot;没有可见技能&quot;，一个过滤&quot;格式化的结果是空白&quot;。</p>
+<hr>
+<h2 id="sec-10-三-四种材料怎么进来">三、四种材料怎么进来</h2>
+<p><code>BuildSystemPromptOptions</code> 有十三个字段（:9-37）。分四组。</p>
+<h3 id="sec-11-3-1-工具集-selected-与-hidden">3.1 工具集：selected 与 hidden</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/system-prompt.ts:150</span></span><span class="ln"><span class="tok-kw">const</span> declaredTools = selectedTools.<span class="tok-fn">filter</span>((name) =&gt; !hiddenTools.<span class="tok-fn">includes</span>(name));</span></code></pre></div>
+<p>两个数组，一个减法。<code>selectedTools</code> 是&quot;激活的工具&quot;，
+<code>hiddenTools</code> 是&quot;激活但声明要藏起来&quot;的工具。</p>
+<p>为什么会有&quot;激活但藏起来&quot;？看 <code>hiddenTools</code> 的注释（:16-19）：</p>
+<blockquote>
+<p>Selected tools whose declarations requests leave out (<code>prepareLoadout</code>
+hidden declarations). They are reachable only through another tool.</p>
+</blockquote>
+<p>场景：某个工具需要被 <code>tool_search</code> 或 codemode 脚本调用，
+但不该出现在模型的工具列表里（列表太长会稀释注意力，
+或者这个工具只服务于另一个工具）。它仍然注册、仍然可执行，
+只是请求里不声明。</p>
+<p><code>hiddenTools</code> 从哪来？<code>_applyToolLoadout</code>
+（<code>agent-session.ts:1614-1661</code>）里跑每个工具的 <code>prepareLoadout</code> 钩子，
+收集 <code>changes.hiddenDeclarations</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/agent-session.ts:1637-1652</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> { definition, sourceInfo } <span class="tok-kw">of</span> hooks) {</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">const</span> changes = definition.prepareLoadout?.(loadout);</span><span class="ln">		<span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, description] <span class="tok-kw">of</span></span><span class="ln">			Object.<span class="tok-fn">entries</span>(changes?.descriptions ?? {})) {</span><span class="ln">			descriptions.<span class="tok-kw">set</span>(name, description);</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> changes?.hiddenDeclarations ?? []) hidden.<span class="tok-fn">add</span>(name);</span><span class="ln">	} <span class="tok-kw">catch</span> (error) {</span><span class="ln">		<span class="tok-kw">this</span>._extensionRunner.<span class="tok-fn">emitError</span>({ ... });</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>这段代码同时给出两个信息：</p>
+<ol>
+<li><strong><code>prepareLoadout</code> 能改描述</strong>（<code>descriptions</code>），不只是隐藏。</li>
+<li><strong>钩子抛错只上报不改流程</strong>。<code>emitError</code> 后继续下一个钩子。
+对比 <code>buildSystemPromptSections</code> 里非法节名直接 <code>throw</code>——
+同样是&quot;用户写错了&quot;，一个容错一个不容错。区别在于：
+节名写错是<strong>结构性</strong>错误（会破坏协议），
+加载钩子报错是<strong>业务性</strong>错误（最多描述不理想）。</li>
+</ol>
+<p><code>declaredTools</code> 一路传下去，影响三处：<code>tools</code> 节、
+<code>rules</code> 节（§3.3）、<code>skills</code> 节的 <code>fileReadTool</code>（§5.3）。
+<strong>改一个数组，三节同步变</strong>——这就是&quot;一个真源&quot;。</p>
+<h3 id="sec-12-3-2-一句话描述与规则子弹">3.2 一句话描述与规则子弹</h3>
+<p>两个 map：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>形状</th>
+<th>落到哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>toolSnippets</code></td>
+<td><code>Record&lt;string, string&gt;</code></td>
+<td><code>tools</code> 节，每行一个</td>
+</tr>
+<tr>
+<td><code>toolGuidelines</code></td>
+<td><code>Record&lt;string, string[]&gt;</code></td>
+<td><code>rules</code> 节，每个一条</td>
+</tr>
+</tbody>
+</table>
+<p>它们由工具定义自己声明，在 <code>_rebuildSystemPrompt</code>
+（<code>agent-session.ts:1741-1767</code>）里被收集：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> toolSnippets: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span>&gt; = {};</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> <span class="tok-kw">this</span>._toolRegistry.<span class="tok-fn">keys</span>()) {</span><span class="ln">	<span class="tok-kw">const</span> snippet = <span class="tok-kw">this</span>._toolPromptSnippets.<span class="tok-kw">get</span>(name);</span><span class="ln">	<span class="tok-com">// Tools without a snippet are not listed.</span></span><span class="ln">	<span class="tok-kw">if</span> (snippet) toolSnippets[name] = snippet;</span><span class="ln">}</span></code></pre></div>
+<p>注意 <code>for</code> 遍历的是 <code>this._toolRegistry.keys()</code>，<strong>整个注册表</strong>，
+不是&quot;激活的工具&quot;。<code>selectedTools</code> 才是激活的那部分，
+它在后面 <code>:1762</code> 才传进来。两个集合的交集，就是 <code>visibleTools</code>
+（<code>system-prompt.ts:157</code>）。</p>
+<p>所以一个工具要出现在提示词里，得同时满足：
+<strong>注册了、激活了、没被隐藏、有一句话描述</strong>。四个条件缺一不可。
+缺最后一个就静默消失（注释：&quot;Tools without a snippet are not listed&quot;）。</p>
+<p><code>_toolPromptSnippets</code> 的来源在注册工具时处理，
+<code>_normalizePromptSnippet</code>（<code>:1717-1724</code>）会把它压成一行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">_normalizePromptSnippet</span>(text: <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span>): <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">if</span> (!text) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">const</span> oneLine = text</span><span class="ln">		.<span class="tok-fn">replace</span>(/[\r\n]+/g, <span class="tok-str">" "</span>)</span><span class="ln">		.<span class="tok-fn">replace</span>(/\s+/g, <span class="tok-str">" "</span>)</span><span class="ln">		.<span class="tok-fn">trim</span>();</span><span class="ln">	<span class="tok-kw">return</span> oneLine.length &gt; <span class="tok-num">0</span> ? oneLine : <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p><strong>换行被压成空格</strong>。因为一个 snippet 只占一行，
+如果它含换行，<code>tools</code> 节的结构就乱了——模型会以为那是两条工具。</p>
+<h3 id="sec-13-3-3-规则的三段式">3.3 规则的三段式</h3>
+<p><code>buildRules</code>（<code>system-prompt.ts:88-125</code>）比看起来复杂。它按顺序灌三段：</p>
+<p><strong>第一段，条件规则</strong>（:108-116）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> hasBash = selectedTools.<span class="tok-fn">includes</span>(<span class="tok-str">"bash"</span>);</span><span class="ln"><span class="tok-kw">const</span> hasPowerShell = selectedTools.<span class="tok-fn">includes</span>(<span class="tok-str">"powershell"</span>);</span><span class="ln"><span class="tok-kw">const</span> hasGrep = selectedTools.<span class="tok-fn">includes</span>(<span class="tok-str">"grep"</span>);</span><span class="ln"><span class="tok-kw">const</span> hasFind = selectedTools.<span class="tok-fn">includes</span>(<span class="tok-str">"find"</span>);</span><span class="ln"><span class="tok-kw">const</span> hasLs = selectedTools.<span class="tok-fn">includes</span>(<span class="tok-str">"ls"</span>);</span><span class="ln"></span><span class="ln"><span class="tok-kw">if</span> ((hasBash || hasPowerShell) &amp;&amp; !hasGrep &amp;&amp; !hasFind &amp;&amp; !hasLs) {</span><span class="ln">	<span class="tok-kw">if</span> (hasBash &amp;&amp; hasPowerShell) {</span><span class="ln">		<span class="tok-fn">addRule</span>(</span><span class="ln">			<span class="tok-str">"Use bash or PowerShell for file operations like listing,"</span> +</span><span class="ln">				<span class="tok-str">" searching, and finding files"</span>,</span><span class="ln">		);</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (hasPowerShell) {</span><span class="ln">		<span class="tok-fn">addRule</span>(</span><span class="ln">			<span class="tok-str">"Use PowerShell for file operations like listing,"</span> +</span><span class="ln">				<span class="tok-str">" searching, and finding files"</span>,</span><span class="ln">		);</span><span class="ln">	} <span class="tok-kw">else</span> {</span><span class="ln">		<span class="tok-fn">addRule</span>(<span class="tok-str">"Use bash for file operations like ls, rg, find"</span>);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>条件很窄：<strong>有 shell，但没有专用的文件工具</strong>。
+这时候必须告诉模型&quot;用 shell 干这些活&quot;，否则它会因为
+&quot;没有 grep 工具&quot;而放弃搜索。有 <code>grep</code> 工具时这条不出现——
+免得模型明明有专工具还去 <code>grep -r</code>。</p>
+<p>三种措辞对应三种工具组合，Windows 上 bash 和 PowerShell
+都可能有，所以并列。</p>
+<p><strong>第二段，工具自己的规则</strong>（:118-121）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> selectedTools) {</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> rule <span class="tok-kw">of</span> toolGuidelines[name] ?? []) <span class="tok-fn">addRule</span>(rule);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> rule <span class="tok-kw">of</span> promptGuidelines) <span class="tok-fn">addRule</span>(rule);</span></code></pre></div>
+<p>遍历顺序是 <code>selectedTools</code> 的顺序，不是插入顺序。
+所以工具顺序稳定 → 规则顺序稳定 → 提示词字节稳定 → 缓存命中。
+M04 讲过 <code>timestamp: 0</code> 的同一个动机。</p>
+<p><strong>第三段，两条固定规则</strong>（:122-123）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">addRule</span>(<span class="tok-str">"Be concise in your responses"</span>);</span><span class="ln"><span class="tok-fn">addRule</span>(<span class="tok-str">"Show file paths clearly when working with files"</span>);</span></code></pre></div>
+<p><code>Be concise</code> 放在最后，因为提示词末尾对输出的影响更强——
+这是 prompt engineering 的常识，Pi 用<strong>固定两条</strong>兜住风格底线。</p>
+<p>三段共用一个 <code>seen</code> 去重（:94-100）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> seen = <span class="tok-kw">new</span> Set&lt;<span class="tok-kw">string</span>&gt;();</span><span class="ln"><span class="tok-kw">const</span> addRule = (rule: <span class="tok-kw">string</span>): <span class="tok-kw">void</span> =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> normalized = rule.<span class="tok-fn">trim</span>();</span><span class="ln">	<span class="tok-kw">if</span> (!normalized || seen.<span class="tok-fn">has</span>(normalized)) <span class="tok-kw">return</span>;</span><span class="ln">	seen.<span class="tok-fn">add</span>(normalized);</span><span class="ln">	rules.<span class="tok-fn">push</span>(normalized);</span><span class="ln">};</span></code></pre></div>
+<p><strong>先来的赢</strong>。如果某个工具的 guideline 也是
+<code>&quot;Be concise in your responses&quot;</code>，那固定那两条就没机会加。
+这个优先级顺序是有意的：<strong>具体工具的规则比通用风格更该保留</strong>。</p>
+<p><code>normalized</code> 是 <code>trim()</code> 后的值，所以 <code>&quot; Be concise &quot;</code> 和
+<code>&quot;Be concise&quot;</code> 会判重。但 <code>&quot;be concise&quot;</code>（小写）不会——
+<code>Set</code> 是大小写敏感的。这是个小缺口，实际不会踩到，
+因为规则都是源码里手写的。</p>
+<h3 id="sec-14-3-4-三个-quot-整段替换-quot-语义完全不同">3.4 三个&quot;整段替换&quot;，语义完全不同</h3>
+<p>这是本章最容易混的地方。三个字段名字都像&quot;换掉提示词&quot;：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>从哪来</th>
+<th>换掉什么</th>
+<th>其他节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>customPrompt</code></td>
+<td><code>.pi/SYSTEM.md</code>、<code>--system-prompt</code></td>
+<td>只换 <code>preamble</code></td>
+<td><strong>照常生成</strong></td>
+</tr>
+<tr>
+<td><code>appendSystemPrompt</code></td>
+<td><code>.pi/APPEND_SYSTEM.md</code>、<code>--append-system-prompt</code></td>
+<td>不换，只加 <code>addendum</code></td>
+<td>照常生成</td>
+</tr>
+<tr>
+<td><code>forceSystemPrompt</code></td>
+<td><code>before_agent_start</code> 返回 <code>systemPrompt</code></td>
+<td>全部</td>
+<td><strong>一个都不生成</strong></td>
+</tr>
+</tbody>
+</table>
+<p><code>customPrompt</code> 的代码路径在 <code>:152-169</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (customPrompt) {</span><span class="ln">	promptSections.preamble = customPrompt;</span><span class="ln">} <span class="tok-kw">else</span> {</span><span class="ln">	promptSections.preamble = <span class="tok-str">"You are a coding assistant running inside pi, ..."</span>;</span><span class="ln">	<span class="tok-com">// tools / rules / docs 三节全在这里面</span></span><span class="ln">}</span></code></pre></div>
+<p><strong><code>if</code> 和 <code>else</code> 的边界就是三节的存在与否</strong>。
+自定义提示词只替换了 preamble，<code>tools</code> / <code>rules</code> / <code>docs</code>
+三节<strong>不会生成</strong>。这不是笔误——看 docs 的说法
+（<code>docs/configuration.md:19</code>）：&quot;Replaces Pi's default system prompt&quot;。
+整段默认提示词（含工具列表）就是那三节 + preamble。</p>
+<p>所以写 <code>.pi/SYSTEM.md</code> 是个危险动作：<strong>工具列表消失</strong>。
+模型还看得见请求里的工具声明（那是 <code>tools</code> 字段，不是文本），
+但看不见一句话描述了。想保留，就写 <code>APPEND_SYSTEM.md</code>——
+它只加 <code>addendum</code>，什么都不删。</p>
+<p><code>forceSystemPrompt</code> 走了完全不同的路（:198-204）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">buildSystemPromptState</span>(input: BuildSystemPromptOptions): {</span><span class="ln">	content: <span class="tok-kw">string</span>;</span><span class="ln">	sections?: SystemPromptSections;</span><span class="ln">} {</span><span class="ln">	<span class="tok-kw">if</span> (input.forceSystemPrompt !== <span class="tok-kw">undefined</span>) {</span><span class="ln">		<span class="tok-kw">return</span> { content: input.forceSystemPrompt };</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> { content: <span class="tok-str">""</span>, sections: <span class="tok-fn">buildSystemPromptSections</span>(input) };</span><span class="ln">}</span></code></pre></div>
+<p>两种状态，互斥：</p>
+<ul>
+<li><strong>有 forced</strong>：<code>content</code> 是全文，<code>sections</code> 是 <code>undefined</code>。
+这个提示词对你的代码是<strong>不透明</strong>的——你拿到一坨字符串，
+没有结构可 diff。</li>
+<li><strong>无 forced</strong>：<code>content</code> 是空串，全部信息在 <code>sections</code> 里。</li>
+</ul>
+<p>注意 <code>!== undefined</code> 而不是 <code>if (input.forceSystemPrompt)</code>。
+空串 <code>&quot;&quot;</code> 也是合法的强制提示词（&quot;我就要一个空提示词&quot;），
+用真值判断会把它当成&quot;没设置&quot;。这种边界在生成式代码里很常见。</p>
+<p><code>buildSystemPrompt</code> 最后统一渲染成文本（:207-209）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">buildSystemPrompt</span>(input: BuildSystemPromptOptions): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">getSystemMessageText</span>({</span><span class="ln">		role: <span class="tok-str">"system"</span>,</span><span class="ln">		...<span class="tok-fn">buildSystemPromptState</span>(input),</span><span class="ln">		timestamp: <span class="tok-num">0</span>,</span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p><code>timestamp: 0</code>，且注释写着&quot;rendered exactly as the transcript's
+system message replays it&quot;。<strong>渲染路径和重放路径必须用同一个函数</strong>，
+否则 <code>session.systemPrompt</code>（给人看）和 provider 收到的提示词
+会不一样，而测试断言就靠这个相等（<code>system-prompt-updates.test.ts:181</code>）。</p>
+<h3 id="sec-15-3-5-自定义节-扩展的入口">3.5 自定义节：扩展的入口</h3>
+<p><code>options.sections</code> 是 <code>Record&lt;string, string&gt;</code>，最后被逐个塞进去：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/system-prompt.ts:183-185</span></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, content] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(customSections)) {</span><span class="ln">	<span class="tok-kw">if</span> (content) promptSections[name] = content;</span><span class="ln">}</span></code></pre></div>
+<p>这里的 <code>if (content)</code> 又是&quot;空则不写&quot;。而且它在 <code>cwd</code> 之后——
+<strong>自定义节永远在最后</strong>，位置由用户代码决定不了。
+这是有意的：核心节位置固定，扩展节追加。否则一节插到
+<code>preamble</code> 前面，模型的第一印象就乱了。</p>
+<p>扩展怎么改这些节？<code>before_agent_start</code> 能拿到
+<code>event.systemPromptOptions</code>（<code>docs/extensions.md:628-640</code>），
+其中 <code>.sections</code> 是<strong>可变对象</strong>。改完不用返回什么——
+Pi 会在下一轮 diff 时发现变化并生成 patch。</p>
+<p>这条路径的官方措辞很值得抄下来（<code>docs/extensions.md:657</code>）：</p>
+<blockquote>
+<p>Prefer changing <code>sections</code>, <code>selectedTools</code>, or <code>promptGuidelines</code>:
+Pi diffs the resulting prompt sections against what the model already
+has and appends one system message patching only the changed sections.</p>
+</blockquote>
+<hr>
+<h2 id="sec-16-四-agents-md-链-从-cwd-往上爬">四、AGENTS.md 链：从 cwd 往上爬</h2>
+<p><code>project_context</code> 节的内容来自 <code>ResourceLoader</code>。
+核心函数是 <code>loadProjectContextFiles</code>（<code>resource-loader.ts:260-302</code>）。</p>
+<h3 id="sec-17-4-1-五个候选名-命中即停">4.1 五个候选名，命中即停</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/resource-loader.ts:212-231</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">loadContextFileFromDir</span>(</span><span class="ln">	dir: <span class="tok-kw">string</span>,</span><span class="ln">): { path: <span class="tok-kw">string</span>; content: <span class="tok-kw">string</span> } | <span class="tok-kw">null</span> {</span><span class="ln">	<span class="tok-kw">const</span> candidates = [</span><span class="ln">		<span class="tok-str">"AGENTS.override.md"</span>,</span><span class="ln">		<span class="tok-str">"AGENTS.md"</span>,</span><span class="ln">		<span class="tok-str">"AGENTS.MD"</span>,</span><span class="ln">		<span class="tok-str">"CLAUDE.md"</span>,</span><span class="ln">		<span class="tok-str">"CLAUDE.MD"</span>,</span><span class="ln">	];</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> filename <span class="tok-kw">of</span> candidates) {</span><span class="ln">		<span class="tok-kw">const</span> filePath = <span class="tok-fn">join</span>(dir, filename);</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-fn">existsSync</span>(filePath)) {</span><span class="ln">			<span class="tok-kw">try</span> {</span><span class="ln">				<span class="tok-kw">if</span> (!<span class="tok-fn">statSync</span>(filePath).<span class="tok-fn">isFile</span>()) <span class="tok-kw">continue</span>;</span><span class="ln">				<span class="tok-kw">return</span> {</span><span class="ln">					path: filePath,</span><span class="ln">					content: <span class="tok-fn">stripBom</span>(<span class="tok-fn">readFileSync</span>(filePath, <span class="tok-str">"utf-8"</span>)),</span><span class="ln">				};</span><span class="ln">			} <span class="tok-kw">catch</span> (error) {</span><span class="ln">				console.<span class="tok-fn">error</span>(</span><span class="ln">					chalk.<span class="tok-fn">yellow</span>(<span class="tok-str">`Warning: Could not read ${filePath}: ${error}`</span>),</span><span class="ln">				);</span><span class="ln">			}</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">null</span>;</span><span class="ln">}</span></code></pre></div>
+<p>五个名字，<strong>一个目录只取一个</strong>，按顺序第一个存在的赢。</p>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>文件名</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>AGENTS.override.md</code></td>
+<td>临时覆盖，通常 gitignore</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>AGENTS.md</code></td>
+<td>主用名</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>AGENTS.MD</code></td>
+<td>大小写变体（Linux 大小写敏感）</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>CLAUDE.md</code></td>
+<td>兼容 Claude Code 生态</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>CLAUDE.MD</code></td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<p><code>override</code> 在最前，是给&quot;我改一下但不想动原文件&quot;的场景。
+两个大小写变体并列，因为 macOS/Windows 大小写不敏感，
+Linux 敏感——只写一个会在某些系统上失效。</p>
+<p><code>stripBom</code> 值得停一下。Windows 上编辑器容易在 UTF-8 文件开头
+写 BOM（<code>EF BB BF</code>），读进来是个 <code>\uFEFF</code> 字符。
+它进提示词就是不可见但存在的垃圾。<code>stripBom</code> 在读取时剥掉。</p>
+<p><code>existsSync</code> 和 <code>statSync</code> 之间还有一层 <code>isFile()</code> 检查：
+同名目录会被跳过，继续看下一个候选。<code>catch</code> 里只
+<code>console.error</code> 不抛出——<strong>一个读不了的 AGENTS.md 不该让 agent 起不来</strong>。</p>
+<h3 id="sec-18-4-2-三段装配顺序">4.2 三段装配顺序</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/resource-loader.ts:267-299（节选）</span></span><span class="ln"><span class="tok-kw">const</span> contextFiles: Array&lt;{ path: <span class="tok-kw">string</span>; content: <span class="tok-kw">string</span> }&gt; = [];</span><span class="ln"><span class="tok-kw">const</span> seenPaths = <span class="tok-kw">new</span> Set&lt;<span class="tok-kw">string</span>&gt;();</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> globalContext = <span class="tok-fn">loadContextFileFromDir</span>(resolvedAgentDir);</span><span class="ln"><span class="tok-kw">if</span> (globalContext) {</span><span class="ln">	contextFiles.<span class="tok-fn">push</span>(globalContext);</span><span class="ln">	seenPaths.<span class="tok-fn">add</span>(globalContext.path);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> ancestorContextFiles = [];</span><span class="ln"><span class="tok-kw">const</span> shadowedContextFile = <span class="tok-fn">findShadowedContextFile</span>(resolvedCwd);</span><span class="ln"><span class="tok-kw">let</span> currentDir = resolvedCwd;</span><span class="ln"><span class="tok-kw">while</span> (<span class="tok-kw">true</span>) {</span><span class="ln">	<span class="tok-kw">const</span> contextFile = <span class="tok-fn">loadContextFileFromDir</span>(currentDir);</span><span class="ln">	<span class="tok-com">// ...</span></span><span class="ln">	<span class="tok-kw">if</span> (contextFile &amp;&amp; !isShadowed &amp;&amp; !seenPaths.<span class="tok-fn">has</span>(contextFile.path)) {</span><span class="ln">		ancestorContextFiles.<span class="tok-fn">unshift</span>(contextFile);</span><span class="ln">		seenPaths.<span class="tok-fn">add</span>(contextFile.path);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">const</span> parentDir = <span class="tok-fn">dirname</span>(currentDir);</span><span class="ln">	<span class="tok-kw">if</span> (parentDir === currentDir) <span class="tok-kw">break</span>;</span><span class="ln">	currentDir = parentDir;</span><span class="ln">}</span><span class="ln"></span><span class="ln">contextFiles.<span class="tok-fn">push</span>(...ancestorContextFiles);</span></code></pre></div>
+<p>三件事：</p>
+<ol>
+<li><strong>全局文件先压入 <code>contextFiles</code></strong>。
+<code>resolvedAgentDir</code> 通常是 <code>~/.pi</code>——用户级规范，跨项目共享。</li>
+<li><strong>祖先链爬到根</strong>。<code>currentDir</code> 从 cwd 开始，每次 <code>dirname</code>，
+到 <code>parentDir === currentDir</code> 停（<code>/</code> 或 <code>C:\</code> 的 dirname 是自己）。</li>
+<li><strong>用 <code>unshift</code> 而不是 <code>push</code></strong>。这是本节最巧的一行。</li>
+</ol>
+<p>为什么 <code>unshift</code>？因为循环是<strong>从内往外</strong>走的：
+先 cwd，再父目录，再祖父……如果 <code>push</code>，顺序就是
+&quot;最具体 → 最通用&quot;。<code>unshift</code> 把它翻过来，变成
+&quot;最通用 → 最具体&quot;，然后整体追加在全局文件之后。</p>
+<p>最终顺序：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">~/.pi/AGENTS.md            ← 全局（用户级）</span><span class="ln">/repo/AGENTS.md            ← 最外层（最通用）</span><span class="ln">/repo/packages/AGENTS.md   ← 中间</span><span class="ln">/repo/packages/agent/AGENTS.md  ← cwd（最具体）</span></code></pre></div>
+<p><strong>读起来像一本分层规范手册：先总则，后细则</strong>。
+这也符合模型的阅读习惯——前面的内容权重高，
+把通用规则放前面、特例放后面，冲突时后文更容易被理解成&quot;例外&quot;。</p>
+<p><code>seenPaths</code> 解决一个具体问题：全局目录可能就在祖先链上。
+比如 <code>~/.pi</code> 是 cwd 的某个祖先的子目录，或者 <code>agentDir</code>
+被配成项目内的路径。没去重的话，同一份规范会进提示词两次——
+浪费 token，还让模型以为&quot;这条规则被强调了&quot;。</p>
+<h3 id="sec-19-4-3-worktree-遮蔽-一个很窄但真实的坑">4.3 worktree 遮蔽：一个很窄但真实的坑</h3>
+<p><code>findShadowedContextFile</code>（:242-258）只有十几行，但它的存在
+说明有人真的踩过。场景：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">/repo/AGENTS.md              ← 主仓库的规范</span><span class="ln">/repo/.git/worktrees/feat/   ← git worktree 的元数据</span><span class="ln">/repo-feat/AGENTS.md         ← worktree 自己的副本</span></code></pre></div>
+<p>用 <code>git worktree add /repo-feat</code> 建一个同级的 worktree。
+在 <code>/repo-feat</code> 里启动 pi，祖先链会往上爬到 <code>/</code>，
+<strong>碰不到 <code>/repo/AGENTS.md</code></strong>（它们是兄弟目录）。
+所以 worktree 里要有一份自己的 <code>AGENTS.md</code>——通常是指向主仓库的
+符号链接，或者一份拷贝。</p>
+<p>问题来了：如果 cwd 在 <code>/repo-feat/sub/dir</code>，祖先链会往上走
+<code>/repo-feat/sub</code> → <code>/repo-feat</code> → <code>/</code>。<code>/repo-feat/AGENTS.md</code>
+被收进来一次。这没问题。</p>
+<p>但如果是<strong>嵌套 worktree</strong>（worktree 在主仓库目录内部），
+祖先链就会同时碰到 worktree 的副本和主仓库的原件——
+<strong>同一份逻辑规范被应用两次</strong>。</p>
+<p><code>findShadowedContextFile</code> 的判断（:245-257）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> gitPaths = <span class="tok-fn">findGitPaths</span>(cwd);</span><span class="ln"><span class="tok-kw">if</span> (!gitPaths) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">const</span> commonGitDir = <span class="tok-fn">canonicalizePath</span>(gitPaths.commonGitDir);</span><span class="ln"><span class="tok-kw">const</span> worktreeRoot = <span class="tok-fn">canonicalizePath</span>(gitPaths.repoDir);</span><span class="ln"><span class="tok-kw">const</span> mainRepoRoot = <span class="tok-fn">dirname</span>(commonGitDir);</span><span class="ln"><span class="tok-com">// False for an ordinary repo, where the two are the same dir, and for a</span></span><span class="ln"><span class="tok-com">// sibling worktree (`git worktree add ../feat`), whose main repo is not an</span></span><span class="ln"><span class="tok-com">// ancestor.</span></span><span class="ln"><span class="tok-kw">if</span> (</span><span class="ln">	!<span class="tok-fn">isPathWithin</span>(mainRepoRoot, worktreeRoot) ||</span><span class="ln">	<span class="tok-fn">pathsEqual</span>(worktreeRoot, mainRepoRoot)</span><span class="ln">) {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}</span><span class="ln"><span class="tok-com">// dirname of the common git dir is the main worktree root only when that dir</span></span><span class="ln"><span class="tok-com">// is itself checked out from the same repo. ...</span></span><span class="ln"><span class="tok-kw">const</span> mainGitDir = <span class="tok-fn">canonicalizePath</span>(<span class="tok-fn">join</span>(mainRepoRoot, <span class="tok-str">".git"</span>));</span><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-fn">pathsEqual</span>(mainGitDir, commonGitDir)) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">const</span> worktreeContextFile = <span class="tok-fn">loadContextFileFromDir</span>(worktreeRoot);</span><span class="ln"><span class="tok-kw">if</span> (!worktreeContextFile) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">return</span> <span class="tok-fn">join</span>(mainRepoRoot, <span class="tok-fn">basename</span>(worktreeContextFile.path));</span></code></pre></div>
+<p>三道闸，缺一不可：</p>
+<ol>
+<li><strong>不是普通仓库</strong>（<code>worktreeRoot !== mainRepoRoot</code>）。</li>
+<li><strong>主仓库是 worktree 的祖先</strong>（<code>isPathWithin</code>）。兄弟 worktree
+返回 <code>undefined</code>，走正常继承。</li>
+<li><strong><code>mainRepoRoot/.git</code> 就是 <code>commonGitDir</code></strong>。
+排掉 bare 布局（<code>proj/.bare</code> + <code>proj/main</code>）和 submodule
+（gitdir 落在 <code>.git/modules</code> 下）。这两种情况下
+<code>dirname(commonGitDir)</code> 只是个&quot;装东西的目录&quot;，不代表工作树。</li>
+</ol>
+<p>三道过后，返回&quot;主仓库里那个同名文件&quot;的路径。
+<code>loadProjectContextFiles</code> 用它比对（:285-288）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> isShadowed =</span><span class="ln">	shadowedContextFile !== <span class="tok-kw">undefined</span> &amp;&amp;</span><span class="ln">	contextFile !== <span class="tok-kw">null</span> &amp;&amp;</span><span class="ln">	<span class="tok-fn">pathsEqual</span>(</span><span class="ln">		<span class="tok-fn">join</span>(<span class="tok-fn">canonicalizePath</span>(currentDir), <span class="tok-fn">basename</span>(contextFile.path)),</span><span class="ln">		shadowedContextFile,</span><span class="ln">	);</span></code></pre></div>
+<p>注意比对的是<strong>目录的 realpath + 文件名</strong>，不是文件自己的 realpath。
+原因写在注释里（:283-284）：</p>
+<blockquote>
+<p>a worktree AGENTS.md that symlinks to the main repo's file resolves to
+the shadowed path itself</p>
+</blockquote>
+<p>如果 worktree 的 <code>AGENTS.md</code> 是指向主仓库文件的符号链接，
+<code>canonicalizePath(文件)</code> 会直接等于 <code>shadowedContextFile</code>——
+无论如何都会被认为是&quot;遮蔽的&quot;，于是 worktree 那份被丢掉，
+主仓库那份也没进（因为是兄弟目录）。<strong>结果是一份都没有</strong>。
+所以必须用&quot;目录 realpath + 文件名&quot;做比较，还原出这个文件
+在<strong>逻辑上</strong>的身份。</p>
+<p>这一小段代码有 8 行注释、3 个提前返回，是整章&quot;防御性
+编程&quot;的极端样本。它处理的场景可能一年遇到一次，
+但遇到时没有它就是一小时的困惑。</p>
+<h3 id="sec-20-4-4-xml-包装-路径是元数据">4.4 XML 包装：路径是元数据</h3>
+<p>找到文件后，<code>renderProjectContext</code>（<code>system-prompt.ts:79-86</code>）
+把它们包成 <code>&lt;project_instructions&gt;</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">renderProjectContext</span>(</span><span class="ln">	contextFiles: Array&lt;{ path: <span class="tok-kw">string</span>; content: <span class="tok-kw">string</span> }&gt;,</span><span class="ln">): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">return</span> [</span><span class="ln">		<span class="tok-str">"Project-specific instructions and guidelines:"</span>,</span><span class="ln">		...contextFiles.<span class="tok-kw">map</span>(</span><span class="ln">			({ path, content }) =&gt;</span><span class="ln">				<span class="tok-str">`&lt;project_instructions path="${path}"&gt;\n${content}\n`</span> +</span><span class="ln">				<span class="tok-str">`&lt;/project_instructions&gt;`</span>,</span><span class="ln">		),</span><span class="ln">	].<span class="tok-fn">join</span>(<span class="tok-str">"\n\n"</span>);</span><span class="ln">}</span></code></pre></div>
+<p>外层是 <code>project_context</code> 节（<code>&lt;project_context&gt;...&lt;/project_context&gt;</code>），
+内层每个文件一个 <code>project_instructions</code>，带 <code>path</code> 属性。</p>
+<p>三层嵌套，<code>path</code> 是关键：</p>
+<ul>
+<li><strong>让模型知道规范的范围</strong>。<code>/repo/AGENTS.md</code> 说的是整个仓库，
+<code>/repo/packages/agent/AGENTS.md</code> 说的是这个包。
+没有 <code>path</code>，模型无法判断&quot;这条规则对整个项目都成立，
+还是只对我现在改的这个包成立&quot;。</li>
+<li><strong>让模型能自己去看原文</strong>。看到路径不对，可以 <code>read</code> 完整文件。</li>
+<li><strong>让冲突可解释</strong>。两条规则打架时，<code>path</code> 决定了哪条更具体。</li>
+</ul>
+<p><code>path</code> 用的是<strong>绝对路径</strong>，且没做斜杠转换。对比 <code>cwd</code> 节
+（:182）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">promptSections.cwd = cwd.<span class="tok-fn">replace</span>(/\\/g, <span class="tok-str">"/"</span>);</span></code></pre></div>
+<p><code>cwd</code> 转正斜杠，<code>path</code> 不转。这个不一致是有理由的：
+<code>cwd</code> 是模型做路径解析的基准，必须和工具实现一致
+（工具在 Windows 上也接受正斜杠）；<code>path</code> 只是标注来源，
+原样保留更利于用户对照。</p>
+<p>代价是 Windows 上提示词里 <code>path=&quot;D:\repo\AGENTS.md&quot;</code>，
+反斜杠在 XML 属性里不需要转义（只有 <code>&quot;</code> <code>&lt;</code> <code>&amp;</code> 需要），
+所以不会出错，但读起来有点脏。<strong>这是已知的取舍，不是遗漏</strong>。</p>
+<hr>
+<h2 id="sec-21-五-skills-清单进提示词-正文后读">五、Skills：清单进提示词，正文后读</h2>
+<p>Skills 是&quot;项目特定的操作指南&quot;。每个技能是一个 <code>SKILL.md</code> 文件，
+可能几千字——全塞进系统提示词是灾难。所以只放清单。</p>
+<h3 id="sec-22-5-1-发现规则-四种情形">5.1 发现规则：四种情形</h3>
+<p><code>loadSkillsFromDirInternal</code>（<code>skills.ts:173-275</code>）是个递归函数，
+第一次调用 <code>includeRootFiles = true</code>，递归时传 <code>false</code>。</p>
+<p><strong>情形一：目录里就有 <code>SKILL.md</code></strong>（:194-221）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> entry <span class="tok-kw">of</span> entries) {</span><span class="ln">	<span class="tok-kw">if</span> (entry.name !== <span class="tok-str">"SKILL.md"</span>) <span class="tok-kw">continue</span>;</span><span class="ln">	<span class="tok-kw">const</span> fullPath = <span class="tok-fn">join</span>(dir, entry.name);</span><span class="ln">	<span class="tok-com">// ... 处理符号链接 ...</span></span><span class="ln">	<span class="tok-kw">const</span> relPath = <span class="tok-fn">toPosixPath</span>(<span class="tok-fn">relative</span>(root, fullPath));</span><span class="ln">	<span class="tok-kw">if</span> (!isFile || ig.<span class="tok-fn">ignores</span>(relPath)) <span class="tok-kw">continue</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">const</span> result = <span class="tok-fn">loadSkillFromFile</span>(fullPath, source);</span><span class="ln">	<span class="tok-kw">if</span> (result.skill) skills.<span class="tok-fn">push</span>(result.skill);</span><span class="ln">	diagnostics.<span class="tok-fn">push</span>(...result.diagnostics);</span><span class="ln">	<span class="tok-kw">return</span> { skills, diagnostics };   <span class="tok-com">// ← 注意这里直接返回</span></span><span class="ln">}</span></code></pre></div>
+<p><code>return</code> 在 <code>for</code> 里——<strong>找到一个 <code>SKILL.md</code> 就停，不再往下走</strong>。
+这个目录被当成&quot;一个技能的根&quot;，不做递归。</p>
+<p>这三个判断的语义是：<strong>看到 SKILL.md，这个目录就归它了</strong>。
+下面的子目录不再扫描。所以技能目录里可以放任意多文件
+（脚本、模板、示例），不会被误判成技能。</p>
+<p><strong>情形二：无 <code>SKILL.md</code>，根目录直系 <code>.md</code> 也是技能</strong>（:262-271）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (!isFile || !includeRootFiles || !entry.name.<span class="tok-fn">endsWith</span>(<span class="tok-str">".md"</span>)) {</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> result = <span class="tok-fn">loadSkillFromFile</span>(fullPath, source);</span></code></pre></div>
+<p><code>includeRootFiles</code> 只在顶层是 <code>true</code>。也就是说：
+<code>.pi/skills/foo.md</code> 是一个技能，但
+<code>.pi/skills/group/foo.md</code> 不是（递归时传 <code>false</code>）。
+这避免了&quot;子目录里的 README 被当技能&quot;。</p>
+<p><strong>情形三：递归找子目录的 <code>SKILL.md</code></strong>（:255-259）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (isDirectory) {</span><span class="ln">	<span class="tok-kw">const</span> subResult = <span class="tok-fn">loadSkillsFromDirInternal</span>(fullPath, source, <span class="tok-kw">false</span>, ig, root);</span><span class="ln">	skills.<span class="tok-fn">push</span>(...subResult.skills);</span><span class="ln">	diagnostics.<span class="tok-fn">push</span>(...subResult.diagnostics);</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p><strong>情形四：跳过点目录和 <code>node_modules</code></strong>（:224-231）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (entry.name.<span class="tok-fn">startsWith</span>(<span class="tok-str">"."</span>)) <span class="tok-kw">continue</span>;</span><span class="ln"><span class="tok-com">// Skip node_modules to avoid scanning dependencies</span></span><span class="ln"><span class="tok-kw">if</span> (entry.name === <span class="tok-str">"node_modules"</span>) <span class="tok-kw">continue</span>;</span></code></pre></div>
+<p><code>node_modules</code> 单独一条注释，因为它是真实痛点：
+<code>skills/</code> 下如果有个包依赖，里面有几十个 <code>SKILL.md</code>，
+一次扫描就是几千次 <code>stat</code>。</p>
+<p>还有一层 <code>.gitignore</code> 支持（<code>IGNORE_FILE_NAMES = [&quot;.gitignore&quot;, &quot;.ignore&quot;, &quot;.fdignore&quot;]</code>，:16）。<code>addIgnoreRules</code>（:47）在每层
+目录读这三个文件，<code>prefixIgnorePattern</code>（:24）把模式加上
+相对前缀——这样嵌套的 <code>.gitignore</code> 也能正确作用到子树。</p>
+<p>顺带解决一个坑：符号链接。三处都处理了
+（:202-208、:238-247），<code>statSync</code> 可能抛错（断链），
+<code>catch</code> 后 <code>continue</code>。<strong>断链不该让整次加载失败</strong>。</p>
+<h3 id="sec-23-5-2-两道校验">5.2 两道校验</h3>
+<p><code>loadSkillFromFile</code>（:277+）读 frontmatter，然后过两个校验函数。</p>
+<p><code>validateName</code>（:92-115）：</p>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>上限/模式</th>
+<th>违反时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>长度</td>
+<td>≤ 64 字符</td>
+<td>报错</td>
+</tr>
+<tr>
+<td>字符集</td>
+<td><code>/^[a-z0-9-]+$/</code></td>
+<td>报错</td>
+</tr>
+<tr>
+<td>首尾</td>
+<td>不能是 <code>-</code></td>
+<td>报错</td>
+</tr>
+<tr>
+<td>连续</td>
+<td>不能有 <code>--</code></td>
+<td>报错</td>
+</tr>
+</tbody>
+</table>
+<p><code>validateDescription</code>（:117-134）：必填，≤ 1024 字符。</p>
+<p>两条上限都不是随手定的。名字要在 XML 标签内容里出现
+（<code>&lt;name&gt;...&lt;/name&gt;</code>），64 字符足够，也避免模型看到超长名字
+把它当成一段描述。1024 是描述的字数上限——描述会完整进提示词，
+十个技能就是一万字，<strong>这就是清单本身也要有预算的原因</strong>。</p>
+<p>校验失败不会抛异常，而是返回 <code>diagnostics</code>（<code>skills.ts</code> 的类型是
+<code>ResourceDiagnostic</code>），技能被丢弃（<code>result.skill</code> 为 <code>null</code>）。
+这和系统提示词节名的 <code>throw</code> 又相反：</p>
+<ul>
+<li>节名错 → <strong>崩</strong>。因为节名是协议的一部分。</li>
+<li>技能名错 → <strong>丢</strong>。因为技能是可选资源，丢一个不致命。</li>
+</ul>
+<h3 id="sec-24-5-3-xml-与三态-filereadtool">5.3 XML 与三态 <code>fileReadTool</code></h3>
+<p><code>formatSkillsForPrompt</code>（<code>skills.ts:358-388</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">formatSkillsForPrompt</span>(</span><span class="ln">	skills: Skill[],</span><span class="ln">	fileReadTool: <span class="tok-str">"read"</span> | <span class="tok-str">"bash"</span> | <span class="tok-str">"indirect"</span> = <span class="tok-str">"read"</span>,</span><span class="ln">): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">const</span> visibleSkills = skills.<span class="tok-fn">filter</span>((s) =&gt; !s.disableModelInvocation);</span><span class="ln">	<span class="tok-kw">if</span> (visibleSkills.length === <span class="tok-num">0</span>) <span class="tok-kw">return</span> <span class="tok-str">""</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">const</span> lines = [</span><span class="ln">		<span class="tok-str">"\n\nThe following skills provide specialized instructions"</span> +</span><span class="ln">			<span class="tok-str">" for specific tasks."</span>,</span><span class="ln">		fileReadTool === <span class="tok-str">"read"</span></span><span class="ln">			? <span class="tok-str">"Use the read tool to load a skill's file when the task"</span> +</span><span class="ln">				<span class="tok-str">" matches its description."</span></span><span class="ln">			: fileReadTool === <span class="tok-str">"bash"</span></span><span class="ln">				? <span class="tok-str">"Use bash to load a skill's file when the task"</span> +</span><span class="ln">					<span class="tok-str">" matches its description."</span></span><span class="ln">				: <span class="tok-str">"Load a skill's file when the task matches its description."</span>,</span><span class="ln">		<span class="tok-str">"Resolve relative paths against the skill's directory (parent of"</span> +</span><span class="ln">			<span class="tok-str">" SKILL.md). Use absolute paths in tool calls."</span>,</span><span class="ln">		<span class="tok-str">""</span>,</span><span class="ln">		<span class="tok-str">"&lt;available_skills&gt;"</span>,</span><span class="ln">	];</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> skill <span class="tok-kw">of</span> visibleSkills) {</span><span class="ln">		lines.<span class="tok-fn">push</span>(<span class="tok-str">"  &lt;skill&gt;"</span>);</span><span class="ln">		lines.<span class="tok-fn">push</span>(<span class="tok-str">`    &lt;name&gt;${escapeXml(skill.name)}&lt;/name&gt;`</span>);</span><span class="ln">		lines.<span class="tok-fn">push</span>(<span class="tok-str">`    &lt;description&gt;${escapeXml(skill.description)}&lt;/description&gt;`</span>);</span><span class="ln">		lines.<span class="tok-fn">push</span>(<span class="tok-str">`    &lt;location&gt;${escapeXml(skill.filePath)}&lt;/location&gt;`</span>);</span><span class="ln">		lines.<span class="tok-fn">push</span>(<span class="tok-str">"  &lt;/skill&gt;"</span>);</span><span class="ln">	}</span><span class="ln">	lines.<span class="tok-fn">push</span>(<span class="tok-str">"&lt;/available_skills&gt;"</span>);</span><span class="ln">	<span class="tok-kw">return</span> lines.<span class="tok-fn">join</span>(<span class="tok-str">"\n"</span>);</span><span class="ln">}</span></code></pre></div>
+<p>三句引导语，<strong>只有中间那句随工具变</strong>。这是懒加载契约的全部文本，
+三行说清四件事：清单存在、用什么读、相对路径相对于谁、
+工具调用里要用绝对路径。</p>
+<p>最后一句（&quot;Use absolute paths in tool calls&quot;）很实在。
+<code>location</code> 给的是绝对路径，但模型容易把技能目录当 cwd 去拼相对路径。</p>
+<p><code>fileReadTool</code> 三态的决策在 <code>system-prompt.ts:174-181</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// A hidden reader is still reachable through another tool, so skills stay</span></span><span class="ln"><span class="tok-com">// but the hint names no tool.</span></span><span class="ln"><span class="tok-kw">const</span> readers = [<span class="tok-str">"read"</span>, <span class="tok-str">"bash"</span>] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span><span class="ln"><span class="tok-kw">const</span> skillFileReadTool =</span><span class="ln">	readers.<span class="tok-fn">find</span>((tool) =&gt; declaredTools.<span class="tok-fn">includes</span>(tool)) ??</span><span class="ln">	(readers.<span class="tok-fn">some</span>((tool) =&gt; selectedTools.<span class="tok-fn">includes</span>(tool)) ? <span class="tok-str">"indirect"</span> : <span class="tok-kw">undefined</span>);</span><span class="ln"><span class="tok-kw">if</span> (skillFileReadTool &amp;&amp; skills.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	<span class="tok-kw">const</span> skillsPrompt = <span class="tok-fn">formatSkillsForPrompt</span>(skills, skillFileReadTool).<span class="tok-fn">trim</span>();</span><span class="ln">	<span class="tok-kw">if</span> (skillsPrompt) promptSections.skills = skillsPrompt;</span><span class="ln">}</span></code></pre></div>
+<p>三种结果：</p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th><code>fileReadTool</code></th>
+<th>提示词措辞</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read</code> 或 <code>bash</code> 已声明</td>
+<td><code>&quot;read&quot;</code> / <code>&quot;bash&quot;</code></td>
+<td>点名那个工具</td>
+</tr>
+<tr>
+<td>两者都被 <code>hiddenTools</code> 藏了</td>
+<td><code>&quot;indirect&quot;</code></td>
+<td>不提工具名</td>
+</tr>
+<tr>
+<td>两者都不在 <code>selectedTools</code></td>
+<td><code>undefined</code></td>
+<td><strong>整节不写</strong></td>
+</tr>
+</tbody>
+</table>
+<p>第二态是关键。<code>declaredTools</code> 是减法后的集合，<code>selectedTools</code>
+是减法前的。两者都查，才能区分&quot;藏了&quot;和&quot;没有&quot;。
+藏了说明还能通过别的工具调到，所以技能列表有用但工具名不能说——
+说了模型会调一个不存在的工具。</p>
+<p>第三态直接不写技能节。<strong>没有读取工具，技能清单就是纯噪音</strong>：
+模型知道有技能，但没有任何办法读到。</p>
+<p><code>escapeXml</code>（:390-397）转五个字符（<code>&amp;</code> <code>&lt;</code> <code>&gt;</code> <code>&quot;</code> <code>'</code>），
+顺序有讲究：<code>&amp;</code> 必须第一个转，否则后面的 <code>&amp;lt;</code> 会被二次转义成
+<code>&amp;amp;lt;</code>。这是所有 XML 转义函数的共同陷阱。</p>
+<h3 id="sec-25-5-4-disablemodelinvocation">5.4 <code>disableModelInvocation</code></h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> visibleSkills = skills.<span class="tok-fn">filter</span>((s) =&gt; !s.disableModelInvocation);</span></code></pre></div>
+<p>一个布尔字段，把技能从提示词里排除，但技能仍然加载着
+（能被用户手动 <code>/skill-name</code> 触发）。</p>
+<p>这是&quot;给人用&quot;和&quot;给模型用&quot;的分野。有些技能是危险操作
+（<code>deploy</code>、<code>force-push</code>），不该让模型自己决定什么时候调用。
+关闭 <code>modelInvocation</code> 后，模型看不到它，也就不会自己触发。</p>
+<p><strong>这是上下文工程里最便宜的降权手段</strong>：不改代码、
+不改行为，只是让它不出现在提示词里。</p>
+<hr>
+<h2 id="sec-26-六-prompt-templates-另一条入口">六、Prompt templates：另一条入口</h2>
+<p>Prompt templates 不进系统提示词，但和它共用一套&quot;发现 → 解析 → 替换&quot;
+的思路，而且经常和 <code>AGENTS.md</code> 放同一个目录（<code>.pi/prompts/</code>），
+所以放在这一章。</p>
+<h3 id="sec-27-6-1-解析-bash-风格的引号">6.1 解析：bash 风格的引号</h3>
+<p><code>parseCommandArgs</code>（<code>prompt-templates.ts:25-61</code>）逐字符扫：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> current = <span class="tok-str">""</span>;</span><span class="ln"><span class="tok-com">// Tracks whether a token has started, so quoted empty strings ("") are</span></span><span class="ln"><span class="tok-com">// kept as arguments</span></span><span class="ln"><span class="tok-kw">let</span> hasToken = <span class="tok-kw">false</span>;</span><span class="ln"><span class="tok-kw">let</span> inQuote: <span class="tok-kw">string</span> | <span class="tok-kw">null</span> = <span class="tok-kw">null</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = <span class="tok-num">0</span>; i &lt; argsString.length; i++) {</span><span class="ln">	<span class="tok-kw">const</span> char = argsString[i];</span><span class="ln">	<span class="tok-kw">if</span> (inQuote) {</span><span class="ln">		<span class="tok-kw">if</span> (char === inQuote) inQuote = <span class="tok-kw">null</span>;</span><span class="ln">		<span class="tok-kw">else</span> current += char;</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (char === <span class="tok-str">'"'</span> || char === <span class="tok-str">"'"</span>) {</span><span class="ln">		inQuote = char;</span><span class="ln">		hasToken = <span class="tok-kw">true</span>;</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (/\s/.<span class="tok-fn">test</span>(char)) {</span><span class="ln">		<span class="tok-kw">if</span> (hasToken) {</span><span class="ln">			args.<span class="tok-fn">push</span>(current);</span><span class="ln">			current = <span class="tok-str">""</span>;</span><span class="ln">			hasToken = <span class="tok-kw">false</span>;</span><span class="ln">		}</span><span class="ln">	} <span class="tok-kw">else</span> {</span><span class="ln">		current += char;</span><span class="ln">		hasToken = <span class="tok-kw">true</span>;</span><span class="ln">	}</span><span class="ln">}</span><span class="ln"><span class="tok-kw">if</span> (hasToken) args.<span class="tok-fn">push</span>(current);</span></code></pre></div>
+<p><code>hasToken</code> 这个变量存在的唯一理由：<strong>保留 <code>&quot;&quot;</code> 空串参数</strong>。</p>
+<p>没有它，<code>/cmd &quot;&quot;</code> 会解析成零个参数——因为引号内没字符，
+<code>current</code> 是空串，遇到空白时 <code>if (hasToken)</code> 为假，直接跳过。
+后果是 <code>$1</code> 变成 <code>undefined</code>，模板里的默认值逻辑就误判了。</p>
+<p><code>inQuote</code> 不转义反斜杠。所以 <code>&quot;a\&quot;b&quot;</code> 会解析成
+<code>a\</code> 然后遇到 <code>&quot;</code> 结束引号，再 <code>b&quot;</code>。<strong>这是有意的简化</strong>：
+prompt template 的参数是自然语言，不是 shell 脚本，
+支持转义反而增加误用空间。</p>
+<h3 id="sec-28-6-2-六种占位符">6.2 六种占位符</h3>
+<p><code>substituteArgs</code>（:76-108）用一个正则处理全部：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> ARG_PATTERN = <span class="tok-kw">new</span> <span class="tok-fn">RegExp</span>(</span><span class="ln">	[</span><span class="ln">		<span class="tok-str">"\\$\\{(\\d+|ARGUMENTS|@):-([^}]*)\\}"</span>,</span><span class="ln">		<span class="tok-str">"\\$\\{@:(\\d+)(?::(\\d+))?\\}"</span>,</span><span class="ln">		<span class="tok-str">"\\$(ARGUMENTS|@|\\d+)"</span>,</span><span class="ln">	].<span class="tok-fn">join</span>(<span class="tok-str">"|"</span>),</span><span class="ln">	<span class="tok-str">"g"</span>,</span><span class="ln">);</span></code></pre></div>
+<p>拆开看是三组选择，对应六种写法：</p>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$1</code> <code>$2</code></td>
+<td>第 N 个位置参数（1-based）</td>
+</tr>
+<tr>
+<td><code>$@</code></td>
+<td>全部参数，空格连接</td>
+</tr>
+<tr>
+<td><code>$ARGUMENTS</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>${N:-默认}</code></td>
+<td>第 N 个，缺失或空时用默认</td>
+</tr>
+<tr>
+<td><code>${@:N}</code></td>
+<td>从第 N 个到末尾（bash 切片）</td>
+</tr>
+<tr>
+<td><code>${@:N:L}</code></td>
+<td>从第 N 个起取 L 个</td>
+</tr>
+</tbody>
+</table>
+<p><code>${@:N}</code> 有个边界处理（:89-91）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> start = <span class="tok-fn">parseInt</span>(sliceStart, <span class="tok-num">10</span>) - <span class="tok-num">1</span>;</span><span class="ln"><span class="tok-com">// Treat 0 as 1 (bash convention: args start at 1)</span></span><span class="ln"><span class="tok-kw">if</span> (start &lt; <span class="tok-num">0</span>) start = <span class="tok-num">0</span>;</span></code></pre></div>
+<p><code>${@:0}</code> 会被当成 <code>${@:1}</code>。bash 里 <code>${@:0}</code> 其实是含 <code>$0</code> 的，
+这里不支持 <code>$0</code>，退化成&quot;从头开始&quot;是合理的妥协。</p>
+<p><code>${@:N:L}</code> 的 <code>L</code> 边界由 <code>Array.prototype.slice</code> 天然处理——
+超出长度就取到末尾。不需要额外判断。</p>
+<p>${N:-默认}` 的&quot;空&quot;判断（:82-86）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (defaultTarget) {</span><span class="ln">	<span class="tok-kw">const</span> value =</span><span class="ln">		defaultTarget === <span class="tok-str">"@"</span> || defaultTarget === <span class="tok-str">"ARGUMENTS"</span></span><span class="ln">			? allArgs</span><span class="ln">			: args[<span class="tok-fn">parseInt</span>(defaultTarget, <span class="tok-num">10</span>) - <span class="tok-num">1</span>];</span><span class="ln">	<span class="tok-kw">return</span> value ? value : defaultValue;</span><span class="ln">}</span></code></pre></div>
+<p><code>value ?</code> 而不是 <code>value !== undefined ?</code>。所以传了空串
+<code>/cmd &quot;&quot;</code> 也会走默认值——<strong>空串等于没传</strong>。这和 <code>hasToken</code>
+的设计有张力：解析层费劲保留空串，替换层把它当&quot;没传&quot;。</p>
+<p>实际使用中这是对的：用户按回车得到一个空参数，
+希望的是&quot;用默认值&quot;，不是&quot;替换成空&quot;。</p>
+<h3 id="sec-29-6-3-三条边界">6.3 三条边界</h3>
+<p><strong>边界一：不递归</strong>。注释写得很直白（:73-74）：</p>
+<blockquote>
+<p>Replacement happens on the template string only. Argument and default
+values containing patterns like <code>$1</code>, <code>$@</code>, or <code>$ARGUMENTS</code> are NOT
+recursively substituted.</p>
+</blockquote>
+<p><code>String.replace</code> 带 <code>g</code> 只扫一遍。如果参数里含 <code>$1</code>，
+它会原样留在输出里。<strong>这是安全默认</strong>：递归替换意味着
+用户输入可以控制模板结构，是注入面。</p>
+<p><strong>边界二：只认 <code>/name</code> 开头</strong>（:309-313）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (!text.<span class="tok-fn">startsWith</span>(<span class="tok-str">"/"</span>)) <span class="tok-kw">return</span> text;</span><span class="ln"><span class="tok-kw">const</span> <span class="tok-kw">match</span> = text.<span class="tok-kw">match</span>(/^\/([^\s]+)(?:\s+([\s\S]*))?$/);</span><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-kw">match</span>) <span class="tok-kw">return</span> text;</span></code></pre></div>
+<p>模板名到第一个空白为止，之后全是参数字符串（<code>[\s\S]*</code> 支持多行）。
+不以 <code>/</code> 开头就直接返回原文——<strong>普通提示词不会被误解析</strong>。</p>
+<p><strong>边界三：名字必须精确匹配</strong>（:318-321）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> template = templates.<span class="tok-fn">find</span>((t) =&gt; t.name === templateName);</span><span class="ln"><span class="tok-kw">if</span> (template) {</span><span class="ln">	<span class="tok-kw">const</span> args = <span class="tok-fn">parseCommandArgs</span>(argsString);</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">substituteArgs</span>(template.content, args);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> text;</span></code></pre></div>
+<p><code>find</code> 不是模糊匹配，<code>===</code> 不是前缀。写错名字就原样发出去——
+模型会收到 <code>/revie w some file</code> 这种文本。<strong>没有&quot;你是不是想用 revie&quot;的提示</strong>。</p>
+<p>这是有意的：如果做模糊匹配，一个恰好以 <code>/</code> 开头的普通句子
+（比如路径 <code>/etc/hosts 是什么</code>）可能被误当成模板调用。
+宁可漏，不可错。</p>
+<hr>
+<h2 id="sec-30-七-增量-只发变了的那几节">七、增量：只发变了的那几节</h2>
+<p>到这里我们有了一个函数，能把当前环境算成八节。
+但它每轮都要被调用一次，而八节里通常只有一节会变。
+<strong>全量重发是浪费，也是缓存杀手</strong>。</p>
+<h3 id="sec-31-7-1-每轮都算-但只在变了时发">7.1 每轮都算，但只在变了时发</h3>
+<p><code>prepareNextTurnWithContext</code>（<code>agent-session.ts:920-947</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">this</span>.agent.prepareNextTurnWithContext = <span class="tok-kw">async</span> (turn, signal) =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> context = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_compactBeforeNextAssistantResponse</span>(turn.context);</span><span class="ln">	<span class="tok-kw">const</span> previousSnapshot = <span class="tok-kw">await</span> previousPrepareNextTurnWithContext?.(...);</span><span class="ln">	<span class="tok-kw">const</span> nextContext = previousSnapshot?.context ?? context;</span><span class="ln">	<span class="tok-kw">const</span> runOptions =</span><span class="ln">		<span class="tok-kw">this</span>._runSystemPromptOptions ?? <span class="tok-kw">this</span>._baseSystemPromptOptions;</span><span class="ln">	<span class="tok-kw">const</span> options = <span class="tok-fn">normalizeBuildSystemPromptOptions</span>({</span><span class="ln">		...runOptions,</span><span class="ln">		selectedTools: <span class="tok-kw">this</span>.<span class="tok-fn">getActiveToolNames</span>(),</span><span class="ln">		<span class="tok-com">// ... snippets / guidelines 合并</span></span><span class="ln">	});</span><span class="ln">	<span class="tok-kw">const</span> updateMessage = <span class="tok-kw">this</span>.<span class="tok-fn">_preparePromptAndToolLoadout</span>(</span><span class="ln">		options,</span><span class="ln">		nextContext.messages,</span><span class="ln">	);</span><span class="ln">	<span class="tok-com">// Keep session.systemPrompt and ctx.getSystemPrompt() in step with what</span></span><span class="ln">	<span class="tok-com">// the provider sees.</span></span><span class="ln">	<span class="tok-kw">this</span>._runSystemPromptOptions = options;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		...previousSnapshot,</span><span class="ln">		context: { ...nextContext, tools: <span class="tok-kw">this</span>.agent.state.tools.<span class="tok-fn">slice</span>() },</span><span class="ln">		messages: updateMessage</span><span class="ln">			? [...(previousSnapshot?.messages ?? []), updateMessage]</span><span class="ln">			: previousSnapshot?.messages,</span><span class="ln">		model: <span class="tok-kw">this</span>.agent.state.model,</span><span class="ln">		thinkingLevel: <span class="tok-kw">this</span>.agent.state.thinkingLevel,</span><span class="ln">	};</span><span class="ln">};</span></code></pre></div>
+<p>三个细节：</p>
+<ol>
+<li><strong><code>options</code> 每轮重建</strong>。<code>selectedTools</code> 从 <code>getActiveToolNames()</code> 取，
+不信任 <code>runOptions</code> 里的旧值——中间可能被扩展改过。</li>
+<li><strong><code>updateMessage</code> 可能为 <code>undefined</code></strong>。为 <code>undefined</code> 时
+<code>messages</code> 保持 <code>previousSnapshot?.messages</code>，什么都不加。</li>
+<li><strong><code>_runSystemPromptOptions</code> 被写回</strong>。目的是让
+<code>session.systemPrompt</code>（给人看）和 <code>ctx.getSystemPrompt()</code>
+（给扩展看）跟 provider 实际收到的一致。</li>
+</ol>
+<h3 id="sec-32-7-2-diffsystempromptsections-的两种输出">7.2 <code>diffSystemPromptSections</code> 的两种输出</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/system-prompt.ts:216-228</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">diffSystemPromptSections</span>(</span><span class="ln">	previous: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span> | <span class="tok-kw">null</span>&gt;,</span><span class="ln">	current: SystemPromptSections,</span><span class="ln">): Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span> | <span class="tok-kw">null</span>&gt; | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">const</span> patch: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span> | <span class="tok-kw">null</span>&gt; = {};</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, text] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(current)) {</span><span class="ln">		<span class="tok-kw">if</span> (previous[name] !== text) patch[name] = text;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> Object.<span class="tok-fn">keys</span>(previous)) {</span><span class="ln">		<span class="tok-kw">if</span> (current[name] === <span class="tok-kw">undefined</span>) patch[name] = <span class="tok-kw">null</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> Object.<span class="tok-fn">keys</span>(patch).length &gt; <span class="tok-num">0</span> ? patch : <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<p>两个循环，两种语义：</p>
+<ul>
+<li>第一循环：新值 ≠ 旧值 → <strong>这一节要更新</strong>（给新文本）。</li>
+<li>第二循环：旧有、新无 → <strong>这一节要删除</strong>（给 <code>null</code>）。</li>
+</ul>
+<p><code>null</code> 的含义直接接回 M06 的 <code>SystemMessage.sections</code>：
+重放时 <code>value === null</code> 就 <code>sections.delete(name)</code>
+（<code>ai/src/utils/transcript.ts:82-85</code>）。</p>
+<p><strong>&quot;删除&quot;必须显式表达</strong>。如果只是&quot;不在 patch 里&quot;，
+重放时那一节会原样留着——因为重放是<strong>累积</strong>的，
+不是替换。这是增量协议和全量协议最大的差别：
+全量协议里&quot;缺失&quot;就是&quot;没有&quot;，增量协议里&quot;缺失&quot;是&quot;没说&quot;。
+所以必须有 <code>null</code> 这个哨兵值。</p>
+<p>第三个 <code>return</code>：空 patch 返回 <code>undefined</code>，
+而不是 <code>{}</code>。调用方用真值判断（<code>sections ? {...} : undefined</code>），
+空对象 <code>{}</code> 是真值，会生成一条什么都不改的 system 消息——
+既浪费 token，又在会话记录里留下垃圾。<strong>空即无</strong>，这个约定
+在 <code>buildSystemPromptSections</code> 里已经用过三次（§2.4）。</p>
+<h3 id="sec-33-7-3-上一版从哪来">7.3 上一版从哪来</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/agent-session.ts:1786-1790</span></span><span class="ln"><span class="tok-kw">const</span> sections = <span class="tok-fn">diffSystemPromptSections</span>(</span><span class="ln">	<span class="tok-fn">getCurrentSystemMessage</span>(messages)?.sections ?? {},</span><span class="ln">	<span class="tok-fn">buildSystemPromptSections</span>(options),</span><span class="ln">);</span><span class="ln"><span class="tok-kw">return</span> sections</span><span class="ln">	? { role: <span class="tok-str">"system"</span>, content: <span class="tok-str">""</span>, sections, timestamp: Date.<span class="tok-fn">now</span>() }</span><span class="ln">	: <span class="tok-kw">undefined</span>;</span></code></pre></div>
+<p><code>previous</code> 不是&quot;上一轮我们算出来的那一份&quot;，而是
+<strong>从会话记录里重放出来的当前状态</strong>。这是关键设计：</p>
+<ul>
+<li>如果缓存&quot;上一次计算的 sections&quot;，就得自己维护状态，
+出错时会和真实对话分叉。</li>
+<li>从 <code>messages</code> 重放，<strong>真源永远是会话记录</strong>。
+即使进程重启、会话恢复、回退分支，重放结果都是对的。</li>
+</ul>
+<p>代价：每次 diff 都要扫一遍所有 system 消息。
+<code>getCurrentSystemMessage</code>（<code>transcript.ts:73-96</code>）确实是 O(n) 的：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> content: <span class="tok-kw">string</span>[] = [];</span><span class="ln"><span class="tok-kw">const</span> sections = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span>&gt;();</span><span class="ln"><span class="tok-kw">let</span> timestamp: <span class="tok-kw">number</span> | <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> messages) {</span><span class="ln">	<span class="tok-kw">if</span> (!<span class="tok-fn">isSystemMessage</span>(message)) <span class="tok-kw">continue</span>;</span><span class="ln">	timestamp ??= message.timestamp;</span><span class="ln">	<span class="tok-kw">const</span> text = <span class="tok-fn">contentText</span>(message.content);</span><span class="ln">	<span class="tok-kw">if</span> (text.length &gt; <span class="tok-num">0</span>) content.<span class="tok-fn">push</span>(text);</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, value] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(message.sections ?? {})) {</span><span class="ln">		<span class="tok-kw">if</span> (value === <span class="tok-kw">null</span>) sections.<span class="tok-kw">delete</span>(name);</span><span class="ln">		<span class="tok-kw">else</span> sections.<span class="tok-kw">set</span>(name, value);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p><strong>注意 <code>content</code> 和 <code>sections</code> 两套机制并存</strong>：
+<code>content</code> 是<strong>追加</strong>（<code>content.push</code>），<code>sections</code> 是<strong>patch</strong>
+（<code>set</code> / <code>delete</code>）。这也解释了为什么 <code>_preparePromptAndToolLoadout</code>
+返回的消息 <code>content: &quot;&quot;</code>——结构化提示词全走 <code>sections</code>，
+<code>content</code> 留给 <code>forceSystemPrompt</code> 那种不透明场景。</p>
+<p><code>timestamp ??= message.timestamp</code> 取第一条。
+后面 <code>? { role:&quot;system&quot;, ... }</code> 里的 <code>timestamp: Date.now()</code> 是<strong>新</strong>消息的
+时间戳，两者不冲突——重放时用的是第一条的。</p>
+<h3 id="sec-34-7-4-两条下行路线">7.4 两条下行路线</h3>
+<p>patch 生成后，交给 provider 层。<code>ai</code> 包在这里分叉：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/utils/transcript.ts:114-120</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">resolveTranscript</span>(</span><span class="ln">	context: TranscriptContext,</span><span class="ln">	supportsMidConvoSystemMessages: <span class="tok-kw">boolean</span> | <span class="tok-kw">undefined</span>,</span><span class="ln">): TranscriptContext {</span><span class="ln">	<span class="tok-kw">return</span> supportsMidConvoSystemMessages</span><span class="ln">		? context</span><span class="ln">		: <span class="tok-fn">collapseSystemMessages</span>(context);</span><span class="ln">}</span></code></pre></div>
+<p><strong>路线 A：模型接受中途 system 消息</strong>。
+patch 原样留在消息数组中间。渲染时
+（<code>ai/src/utils/text.ts:28-40</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">renderSystemMessageUpdate</span>(message: SystemMessage): <span class="tok-kw">string</span> {</span><span class="ln">	<span class="tok-kw">const</span> parts: <span class="tok-kw">string</span>[] = [];</span><span class="ln">	<span class="tok-kw">const</span> text = <span class="tok-fn">contentText</span>(message.content);</span><span class="ln">	<span class="tok-kw">if</span> (text.length &gt; <span class="tok-num">0</span>) parts.<span class="tok-fn">push</span>(text);</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, value] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(message.sections ?? {})) {</span><span class="ln">		parts.<span class="tok-fn">push</span>(</span><span class="ln">			value === <span class="tok-kw">null</span></span><span class="ln">				? <span class="tok-str">`Removed system prompt section "${name}".`</span></span><span class="ln">				: <span class="tok-str">`Updated system prompt section "${name}":\n\n${value}`</span>,</span><span class="ln">		);</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> parts.<span class="tok-fn">join</span>(<span class="tok-str">"\n\n"</span>);</span><span class="ln">}</span></code></pre></div>
+<p><code>null</code> 被渲染成一句自然语言 <code>Removed system prompt section &quot;x&quot;.</code>
+——<strong>模型没有 JSON patch 的概念，得翻译成人话</strong>。</p>
+<p>注释里那句&quot;This framing is request-time only and may change
+between versions&quot;（:26）很重要：这段措辞不是协议，是渲染细节。
+升级 pi 后模型看到的字样可能变，别在扩展里断言它。</p>
+<p><strong>路线 B：模型不支持</strong>。<code>collapseSystemMessages</code>
+（:108-112）把所有 system 消息重放合并成一条，放在最前面：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> head = <span class="tok-fn">getCurrentSystemMessage</span>(context.messages);</span><span class="ln"><span class="tok-kw">const</span> messages = context.messages.<span class="tok-fn">filter</span>((message) =&gt; message.role !== <span class="tok-str">"system"</span>);</span><span class="ln"><span class="tok-kw">return</span> { messages: head ? [head, ...messages] : messages } <span class="tok-kw">as</span> TranscriptContext;</span></code></pre></div>
+<p>这条路是<strong>全量</strong>的：合并后的头部包含完整八节。
+<code>docs/extensions.md:657</code> 说得准确：</p>
+<blockquote>
+<p>Models that accept system messages mid-conversation receive the patch
+in place and keep their cached prefix; other models get the replayed
+prompt as their system prompt, which is a cache miss once per change.</p>
+</blockquote>
+<p>哪些模型走 A？catalog 里显式标了 <code>supportsMidConvoSystemMessages: true</code>
+的：Anthropic、Azure、DeepSeek、Fireworks、GitHub Copilot、
+Kimi、Moonshot、OpenRouter、OpenCode 等
+（<code>ai/catalog/providers/*.ts</code> 逐个声明）。没在 catalog 里声明的模型
+兜底是 <code>?? false</code>（<code>openai-responses.ts:94</code>）——<strong>没标就当不支持</strong>。</p>
+<h3 id="sec-35-7-5-为什么这套设计省的是两笔钱">7.5 为什么这套设计省的是两笔钱</h3>
+<p><strong>第一笔：token</strong>。八节里通常只有 <code>cwd</code> 或某一节在变。
+全量重发是几千 token，patch 是几十 token。</p>
+<p><strong>第二笔：缓存</strong>。所有主流 provider 的 prompt cache 都按
+<strong>前缀匹配</strong>。系统提示词在最前面，它一变，后面全部失效。
+patch 走中途 system 消息时，前缀不动——缓存保住了。
+这也是为什么 <code>_rebuildSystemPrompt</code> 会保留工具顺序
+（<code>agent-session.ts:1611-1612</code> 的注释：&quot;Reordering the same names
+does not change the prompt (#11495)&quot;）。<strong>顺序变化 = 字节变化 = 缓存失效</strong>，
+哪怕语义完全一样。</p>
+<p>代价写在注释里：路线 B 是&quot;once per change&quot; 的 cache miss。
+所以&quot;支持中途 system&quot;这个能力，实际价值就是<strong>保住缓存</strong>。</p>
+<hr>
+<h2 id="sec-36-八-完整装配流程">八、完整装配流程</h2>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">启动 / reload</span><span class="ln">│</span><span class="ln">├─ ResourceLoader.reload()                    （resource-loader.ts:678-708）</span><span class="ln">│   ├─ loadProjectContextFiles()   → contextFiles[]</span><span class="ln">│   ├─ loadSkills()                → skills[]</span><span class="ln">│   ├─ discoverSystemPromptFile()  → customPrompt（.pi/SYSTEM.md）</span><span class="ln">│   └─ discoverAppend…()           → appendSystemPrompt</span><span class="ln">│</span><span class="ln">├─ 工具注册 → _toolPromptSnippets / _toolPromptGuidelines</span><span class="ln">│</span><span class="ln">└─ _rebuildSystemPrompt(toolNames)            （agent-session.ts:1741）</span><span class="ln">    └─ normalizeBuildSystemPromptOptions()    → _baseSystemPromptOptions</span><span class="ln"></span><span class="ln">每轮开头</span><span class="ln">│</span><span class="ln">└─ prepareNextTurnWithContext()               （agent-session.ts:920）</span><span class="ln">    ├─ selectedTools ← getActiveToolNames()</span><span class="ln">    ├─ _applyToolLoadout() → hiddenDeclarations → hiddenTools</span><span class="ln">    ├─ buildSystemPromptSections(options)     （system-prompt.ts:128）</span><span class="ln">    │   ├─ preamble        裸文本</span><span class="ln">    │   ├─ tools           ← selectedTools ∩ snippets</span><span class="ln">    │   ├─ rules           ← 条件规则 + guidelines + 固定两条</span><span class="ln">    │   ├─ docs            ← getDocsPath() 等</span><span class="ln">    │   ├─ addendum        ← APPEND_SYSTEM.md</span><span class="ln">    │   ├─ project_context ← AGENTS.md 链（服务端已排好序）</span><span class="ln">    │   ├─ skills          ← formatSkillsForPrompt()</span><span class="ln">    │   ├─ cwd             ← 反斜杠转正斜杠</span><span class="ln">    │   └─ 自定义节         ← options.sections</span><span class="ln">    ├─ diffSystemPromptSections(重放旧值, 新值)  → patch | undefined</span><span class="ln">    └─ patch 存在 → 追加 { role:"system", sections: patch }</span><span class="ln"></span><span class="ln">每次请求前（transformContext，按安装顺序 wrap）</span><span class="ln">│</span><span class="ln">├─ _installHiddenDeclarationsProjection()     （agent-session.ts:1808）</span><span class="ln">├─ _installAgentForcedPromptProjection()      （agent-session.ts:1828）</span><span class="ln">│     有 forceSystemPrompt → 全部 system 压成一条头，content=forced</span><span class="ln">│</span><span class="ln">└─ resolveTranscript(context, supportsMidConvo?)   （transcript.ts:115）</span><span class="ln">       ├─ true  → 每个 patch 渲染成 "Updated system prompt section"</span><span class="ln">       └─ false → collapseSystemMessages() 合并成一条完整头部</span></code></pre></div>
+<p>两个&quot;每轮&quot;和&quot;每次请求&quot;的区别值得说清：</p>
+<ul>
+<li><strong><code>prepareNextTurnWithContext</code> 每轮一次</strong>。一轮 = 一个 assistant
+回合（可能含多次工具调用）。它决定&quot;这轮要发什么 system 消息&quot;。</li>
+<li><strong><code>transformContext</code> 每次请求一次</strong>。一次请求 = 一次 LLM 调用。
+它做的是<strong>投影</strong>——把消息数组加工成 provider 能接受的样子，
+但不改会话记录。</li>
+</ul>
+<p>重试、溢出恢复、compaction 后重发，都会再走一遍 <code>transformContext</code>。
+这就是为什么它能修正&quot;会话记录里有、但这次请求不该带&quot;的东西。</p>
+<hr>
+<h2 id="sec-37-九-自己动手验证">九、自己动手验证</h2>
+<p>六个实验，都不需要改源码。</p>
+<p><strong>实验 1：打印完整提示词。</strong></p>
+<p>先写一个二十行的脚本，后面几个实验都复用它：</p>
+<div class="code-block" data-lang="js">
+<div class="code-head"><span class="lang">js</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// dump-prompt.mjs</span></span><span class="ln"><span class="tok-kw">import</span> { createAgentSession } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> args = process.argv.<span class="tok-fn">slice</span>(<span class="tok-num">2</span>);</span><span class="ln"><span class="tok-kw">const</span> { session } = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSession</span>({</span><span class="ln">	cwd: process.<span class="tok-fn">cwd</span>(),</span><span class="ln">	...(args.length &gt; <span class="tok-num">0</span> ? { tools: args } : {}),</span><span class="ln">});</span><span class="ln">console.<span class="tok-fn">log</span>(session.systemPrompt);</span><span class="ln">session.<span class="tok-fn">dispose</span>();</span></code></pre></div>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node dump-prompt.mjs &gt; prompt.txt</span></code></pre></div>
+<p><code>session.systemPrompt</code> 是只读属性（<code>agent-session.ts:1504-1507</code>）。
+按 <code>docs/sdk.md</code> 的说法，它返回&quot;当前有效提示词，
+含还没发给模型的变化&quot;。</p>
+<p>打开 <code>prompt.txt</code>，数一数有几对 <code>&lt;...&gt;</code> 标签，对照 §2.1 的表。</p>
+<p><strong>实验 2：验证&quot;空则不发&quot;。</strong></p>
+<p>在没有 <code>AGENTS.md</code> 的空目录里跑一次，<code>grep project_context</code>
+应该什么都没输出。然后：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">printf '# hi\n' &gt; AGENTS.md</span><span class="ln">node dump-prompt.mjs | grep -c project_context   # 1</span></code></pre></div>
+<p>再往父目录放一份 <code>AGENTS.md</code>，确认两段都出现，
+且根目录那段在前（§4.2 的 <code>unshift</code>）。</p>
+<p><strong>实验 3：验证 <code>customPrompt</code> 吃掉三节。</strong></p>
+<p>两条路效果一样——文件（<code>resource-loader.ts:1245-1258</code>）
+和参数（<code>cli/args.ts:121</code>）：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">mkdir -p .pi &amp;&amp; echo "You are a terse assistant." &gt; .pi/SYSTEM.md</span><span class="ln">node dump-prompt.mjs</span></code></pre></div>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi --system-prompt "You are a terse assistant."</span></code></pre></div>
+<p>预期：只剩自定义的 preamble + <code>cwd</code>（有技能时还有 <code>skills</code>）。
+<code>&lt;tools&gt;</code> <code>&lt;rules&gt;</code> <code>&lt;docs&gt;</code> 全部消失。删掉 <code>SYSTEM.md</code> 恢复。</p>
+<p>对照组：把同一句话写进 <code>.pi/APPEND_SYSTEM.md</code>，
+确认它变成 <code>&lt;addendum&gt;</code> 而三节都在。</p>
+<p><strong>实验 4：观察增量 patch。</strong></p>
+<p>在 <code>~/.pi/extensions/</code> 放一个每轮加一个自定义节的扩展：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// ~/.pi/extensions/tick.ts</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi) {</span><span class="ln">	<span class="tok-kw">let</span> n = <span class="tok-num">0</span>;</span><span class="ln">	pi.<span class="tok-fn">on</span>(<span class="tok-str">"before_agent_start"</span>, <span class="tok-kw">async</span> (event) =&gt; {</span><span class="ln">		n += <span class="tok-num">1</span>;</span><span class="ln">		event.systemPromptOptions.sections.tick = <span class="tok-str">`tick ${n}`</span>;</span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p><code>sections</code> 的值是<strong>裸内容</strong>——<code>buildSystemPromptSections</code>
+会自己包 <code>&lt;tick&gt;...&lt;/tick&gt;</code>（§2.2）。写 <code>&lt;tick&gt;tick 1&lt;/tick&gt;</code>
+会得到双层标签。</p>
+<p>跑三轮对话，用 <code>/export</code> 导出 JSONL
+（<code>core/slash-commands.ts:25</code>），翻到后面的 <code>system</code> 条目：
+应该只看到 <code>sections: { tick: &quot;tick 2&quot; }</code> 这种小 patch，
+而不是整段提示词。</p>
+<p>不想手搓扩展的话，直接读
+<code>coding-agent/test/system-prompt-updates.test.ts</code>——
+它就是这条链的官方断言，比任何文档都准。</p>
+<p><strong>实验 5：确认 provider 能力。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -rn "supportsMidConvoSystemMessages: true" \</span><span class="ln">  packages/ai/catalog/providers/</span></code></pre></div>
+<p>对着你正在用的 provider 查一遍。如果没标，
+<code>openai-responses.ts:94</code> 那类写法会兜底成 <code>false</code>，
+你就走 <code>collapseSystemMessages</code> 那条路——每变一次节，缓存全失效。</p>
+<p><strong>实验 6：验证 skills 的三种措辞。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">mkdir -p .pi/skills/demo</span><span class="ln">cat &gt; .pi/skills/demo/SKILL.md &lt;&lt;'EOF'</span><span class="ln">---</span><span class="ln">name: demo</span><span class="ln">description: A demo skill</span><span class="ln">---</span><span class="ln">Do the demo.</span><span class="ln">EOF</span><span class="ln">node dump-prompt.mjs | grep -A3 available_skills</span></code></pre></div>
+<p>然后换三组工具跑：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node dump-prompt.mjs read bash | grep "load a skill"</span><span class="ln">node dump-prompt.mjs bash      | grep "load a skill"</span><span class="ln">node dump-prompt.mjs grep      | grep -c available_skills</span></code></pre></div>
+<p>预期：第一次点名 <code>read</code>，第二次点名 <code>bash</code>，
+第三次是 <code>0</code>——<strong>整节消失</strong>（没有任何读取工具）。</p>
+<p>要看到 <code>indirect</code> 那种&quot;不提工具名&quot;的措辞，得让 <code>read</code> 和 <code>bash</code>
+都被 <code>prepareLoadout</code> 藏掉——<code>tool_search</code> 场景才会出现，
+手搓成本高，直接读 <code>system-prompt.ts:174-181</code> 更快。</p>
+<hr>
+<h2 id="sec-38-十-工程暗坑">十、工程暗坑</h2>
+<p><strong>1. <code>SYSTEM.md</code> 会静默吃掉工具列表。</strong>
+<code>if (customPrompt)</code> 的 <code>else</code> 分支包住了 <code>tools</code>/<code>rules</code>/<code>docs</code> 三节。
+写 <code>SYSTEM.md</code> 的直觉是&quot;换掉开头那句话&quot;，实际是
+&quot;换掉开头那句话 + 删掉三节&quot;。<strong>想追加就写 <code>APPEND_SYSTEM.md</code>。</strong></p>
+<p><strong>2. 节名写错会 <code>throw</code>，不是 warn。</strong>
+<code>buildSystemPromptSections</code> 在 <code>:146</code> 直接抛。
+如果扩展在 <code>before_agent_start</code> 里传了非法节名，
+<strong>整个 agent run 挂掉</strong>，而且错误信息只有
+<code>Invalid system prompt section name: xxx</code>——不看源码不知道规则是
+<code>/^[a-z][a-z0-9_-]*$/</code>。</p>
+<p><strong>3. <code>preamble</code> 是保留名。</strong>
+正则能过（<code>^[a-z]</code> 开头），但被额外排除。
+写了会得到同一个异常，而错误信息看起来像&quot;名字格式不对&quot;。</p>
+<p><strong>4. 工具顺序变化会让缓存失效。</strong>
+<code>_applyToolLoadout</code> 特意保留&quot;仍在激活的旧工具顺序，新工具追加在尾部&quot;
+（:1611-1616），注释提到 issue #11495。
+如果你在扩展里 <code>setActiveTools</code> 每次都传一个新排序，
+提示词会字节级变化，<code>tools</code> 和 <code>rules</code> 两节都会被 diff 成&quot;变了&quot;。</p>
+<p><strong>5. <code>hiddenTools</code> 查了两遍，漏一个就打脸。</strong>
+<code>declaredTools</code> 减掉隐藏的（:150），但 <code>skills</code> 的判定还单独查了
+<code>selectedTools</code>（:177）。如果你新增一处&quot;从工具列表里减东西&quot;的逻辑，
+<strong>只改 <code>declaredTools</code> 不够</strong>——<code>skillFileReadTool</code> 会误判成
+&quot;根本没这个工具&quot;，而不是&quot;藏了&quot;。</p>
+<p><strong>6. <code>cwd</code> 转正斜杠，<code>project_instructions path</code> 不转。</strong>
+Windows 上同一个提示词里两种斜杠并存。如果你的扩展按
+<code>path=&quot;...&quot;</code> 做正则匹配，得同时兼容 <code>\</code> 和 <code>/</code>。</p>
+<p><strong>7. <code>AGENTS.override.md</code> 排第一，但没人告诉你它不该提交。</strong>
+它不带 <code>.gitignore</code> 条目。团队里一个人提交了它的&quot;临时&quot;版本，
+所有人的规范就被覆盖了，而且<strong>没有任何提示</strong>——
+<code>loadContextFileFromDir</code> 找到第一个就返回。</p>
+<p><strong>8. <code>getCurrentSystemMessage</code> 只看 <code>role === &quot;system&quot;</code> 的消息。</strong>
+如果 compaction 之后 system 消息被重排到中间，
+重放仍然会捡到（<code>for</code> 遍历全部）。但如果你在扩展里
+把 system 消息<strong>删掉</strong>，重放结果里就没有 <code>sections</code> 了——
+<code>previous</code> 变成 <code>{}</code>，下一轮会<strong>全量重发</strong>。
+删 system 消息的代价是一次缓存失效。</p>
+<p><strong>9. 路线 B 是静默的降级。</strong>
+<code>resolveTranscript</code> 走 <code>collapseSystemMessages</code> 时，
+<strong>没有任何日志</strong>。你只能通过&quot;token 用量突然涨了&quot;或
+&quot;缓存命中率掉了&quot;察觉。要确认，看 provider 配置里
+<code>supportsMidConvoSystemMessages</code> 的实际值。</p>
+<p><strong>10. <code>renderSystemMessageUpdate</code> 的措辞会变。</strong>
+<code>text.ts:26</code> 的注释明确说&quot;This framing is request-time only
+and may change between versions&quot;。
+<strong>不要在扩展或测试里断言 <code>Updated system prompt section</code> 这个前缀。</strong></p>
+<p><strong>11. <code>substituteArgs</code> 不递归，是安全特性不是缺陷。</strong>
+如果你的模板需要&quot;参数里再含占位符&quot;，只能自己调两次。
+设计者选的是&quot;不让用户输入控制模板结构&quot;。</p>
+<p><strong>12. <code>parseCommandArgs</code> 不支持 <code>\&quot;</code> 转义。</strong>
+参数里要带双引号只能换单引号包裹。反过来同理。</p>
+<p><strong>13. skills 递归找到第一个 <code>SKILL.md</code> 就 <code>return</code>。</strong>
+一个目录里有 <code>SKILL.md</code>，它的所有子目录都不再扫描。
+想把多个技能放一个父目录，<strong>每个技能必须一个子目录</strong>，
+且父目录不能有自己的 <code>SKILL.md</code>。</p>
+<hr>
+<h2 id="sec-39-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
+<h3 id="sec-40-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot">方法一：把可变提示词拆成&quot;命名段 + 增量 patch&quot;</h3>
+<p>Pi 的 <code>SystemMessage.sections</code> 本质是一个 <strong>CRDT 的极简版</strong>：
+每段独立，<code>null</code> 表示删除，重放是累积的。</p>
+<p>这个模式的适用条件很明确：</p>
+<ul>
+<li>提示词里有<strong>独立变化的部分</strong>（工具列表、项目规范、目录）</li>
+<li>请求频率高（每轮都发，所以增量有收益）</li>
+<li>provider 支持前缀缓存</li>
+</ul>
+<p>不满足第三条时，收益只剩 token 量，仍值得做；
+不满足第一条时（整段都在变），增量协议完全是负担。</p>
+<p>注意 Pi 处理了<strong>协议层的分叉</strong>：模型不支持中途 system 消息时，
+用 <code>collapseSystemMessages</code> 退化成全量。<strong>能力探测 + 降级路径</strong>
+是这类优化必须配套的东西，否则你在某些 provider 上会拿到
+更差的结果（多了一堆 &quot;Updated ...&quot; 文本，还丢了缓存）。</p>
+<h3 id="sec-41-方法二-分层的上下文文件-用-quot-具体度-quot-排序">方法二：分层的上下文文件，用&quot;具体度&quot;排序</h3>
+<p><code>AGENTS.md</code> 链的排序（全局 → 根 → ... → cwd）不是随意的：
+<strong>越具体的越靠后</strong>。理由有三层：</p>
+<ol>
+<li><strong>后文覆盖前文</strong>。模型的注意力对近处内容更强，
+冲突时&quot;后面的&quot;更容易被当成修正。</li>
+<li><strong>读者心智模型</strong>。&quot;总则 → 细则&quot;是人类读规范的方式。</li>
+<li><strong>可预测性</strong>。用户知道自己在 cwd 写的规则一定生效，
+不用猜先后。</li>
+</ol>
+<p>配套的两个机制也值得抄：<strong><code>seenPaths</code> 去重</strong>（同一文件不进两次）、
+<strong><code>override</code> 文件名</strong>（临时覆盖不动原文件）。</p>
+<p>如果要再加一层，我建议加&quot;作用域标注&quot;——Pi 用的是
+<code>&lt;project_instructions path=&quot;...&quot;&gt;</code>。<strong>让每条规范带来源</strong>，
+比让模型猜&quot;这条是谁定的&quot;好得多。</p>
+<h3 id="sec-42-方法三-清单进提示词-正文靠工具拉">方法三：清单进提示词，正文靠工具拉</h3>
+<p>Skills 的核心是<strong>把上下文加载变成一次工具调用</strong>。</p>
+<p>对比两种极端：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>全量塞进提示词</th>
+<th>只放清单</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>token</td>
+<td>预付全部</td>
+<td>用时才付</td>
+</tr>
+<tr>
+<td>命中率</td>
+<td>大部分无关</td>
+<td>精准</td>
+</tr>
+<tr>
+<td>模型主动性</td>
+<td>无</td>
+<td>需要判断</td>
+</tr>
+<tr>
+<td>失败模式</td>
+<td>挤掉真正重要的内容</td>
+<td>模型不知道要读</td>
+</tr>
+</tbody>
+</table>
+<p>第三种风险最容易被忽略：<strong>模型不知道自己不知道</strong>。
+所以清单里的 <code>description</code> 必须写成&quot;什么时候该用我&quot;，
+而不是&quot;我是什么&quot;。Pi 的校验里 <code>description</code> 是必填、
+≤1024 字符，就是在保证这句&quot;何时用&quot;的信息量。</p>
+<p>还有一个实现细节值得抄：<code>fileReadTool</code> 的<strong>三态</strong>。
+如果读取工具被藏了，措辞要退化成&quot;不提工具名&quot;；
+如果根本没有读取工具，<strong>整节不写</strong>。
+提示词里最贵的东西不是 token，是<strong>指向不存在能力的指令</strong>。</p>
+<hr>
+<h2 id="sec-43-下一步">下一步</h2>
+<p>到这一章结束，Part C 的&quot;装配&quot;部分齐了：提示词怎么拼、
+文件从哪来、增量怎么下发。但一个关键机制还挂着——
+第八节的流程图里有一行被我省略了：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> context = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_compactBeforeNextAssistantResponse</span>(turn.context);</span></code></pre></div>
+<p>压缩。当对话长到装不下，<code>sections</code> 能省的那点 token 毫无意义。
+下一章讲 <code>compaction.ts</code>：怎么判断该压、从哪里切、
+摘要怎么保持可续写、压缩之后 session 树怎么变。</p>
+<hr>
+<h2 id="sec-44-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>关键位置</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent/src/core/system-prompt.ts</code></td>
+<td>128-192</td>
+<td>八节装配</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>60-77</td>
+<td><code>normalizeBuildSystemPromptOptions</code></td>
+</tr>
+<tr>
+<td>同上</td>
+<td>88-125</td>
+<td><code>buildRules</code> 三段式</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>198-209</td>
+<td><code>buildSystemPromptState</code> / <code>buildSystemPrompt</code></td>
+</tr>
+<tr>
+<td>同上</td>
+<td>216-228</td>
+<td><code>diffSystemPromptSections</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/resource-loader.ts</code></td>
+<td>212-231</td>
+<td>五个候选文件名</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>242-258</td>
+<td>worktree 遮蔽</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>260-302</td>
+<td><code>loadProjectContextFiles</code></td>
+</tr>
+<tr>
+<td>同上</td>
+<td>1245-1272</td>
+<td><code>SYSTEM.md</code> / <code>APPEND_SYSTEM.md</code> 发现</td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/skills.ts</code></td>
+<td>92-134</td>
+<td>两道校验</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>173-275</td>
+<td>递归发现（四种情形）</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>358-397</td>
+<td><code>formatSkillsForPrompt</code> / <code>escapeXml</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/prompt-templates.ts</code></td>
+<td>25-108</td>
+<td><code>parseCommandArgs</code> / <code>substituteArgs</code></td>
+</tr>
+<tr>
+<td>同上</td>
+<td>309-325</td>
+<td><code>expandPromptTemplate</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/agent-session.ts</code></td>
+<td>920-947</td>
+<td>每轮装配与 patch 下发</td>
+</tr>
+<tr>
+<td>同上</td>
+<td>1614-1661</td>
+<td><code>_applyToolLoadout</code> / <code>prepareLoadout</code></td>
+</tr>
+<tr>
+<td>同上</td>
+<td>1741-1791</td>
+<td><code>_rebuildSystemPrompt</code> / <code>_preparePromptAndToolLoadout</code></td>
+</tr>
+<tr>
+<td>同上</td>
+<td>1808-1843</td>
+<td>两个 <code>transformContext</code> 投影</td>
+</tr>
+<tr>
+<td><code>ai/src/utils/transcript.ts</code></td>
+<td>73-120</td>
+<td>重放与 <code>resolveTranscript</code></td>
+</tr>
+<tr>
+<td><code>ai/src/utils/text.ts</code></td>
+<td>15-40</td>
+<td><code>getSystemMessageText</code> / <code>renderSystemMessageUpdate</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/docs/extensions.md</code></td>
+<td>615-659</td>
+<td><code>before_agent_start</code> 与缓存说明</td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m07-event-driven.html"><span class="lbl">上一篇</span>事件驱动 —— 十颗钉子，四十一个挂钩</a>
+      <a class="next" href="m09-compaction.html"><span class="lbl">下一篇</span>上下文压缩 —— 两道闸门，两种摘要</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-为什么提示词不能是写死的一段" class="">一、为什么提示词不能是写死的一段</a><a href="#sec-2-1-1-一段常量字符串-三个改不动的点" class="lv3">1.1 一段常量字符串，三个改不动的点</a><a href="#sec-3-1-2-一次请求只能有一段-system" class="lv3">1.2 一次请求只能有一段 system</a><a href="#sec-4-1-3-结论-提示词要-quot-可寻址-quot" class="lv3">1.3 结论：提示词要&amp;quot;可寻址&amp;quot;</a><a href="#sec-5-二-八节-一个真源" class="">二、八节，一个真源</a><a href="#sec-6-2-1-顺序与来源" class="lv3">2.1 顺序与来源</a><a href="#sec-7-2-2-只有-preamble-不带标签" class="lv3">2.2 只有 preamble 不带标签</a><a href="#sec-8-2-3-节的命名是被校验的" class="lv3">2.3 节的命名是被校验的</a><a href="#sec-9-2-4-空节不写-而不是写空" class="lv3">2.4 空节不写，而不是写空</a><a href="#sec-10-三-四种材料怎么进来" class="">三、四种材料怎么进来</a><a href="#sec-11-3-1-工具集-selected-与-hidden" class="lv3">3.1 工具集：selected 与 hidden</a><a href="#sec-12-3-2-一句话描述与规则子弹" class="lv3">3.2 一句话描述与规则子弹</a><a href="#sec-13-3-3-规则的三段式" class="lv3">3.3 规则的三段式</a><a href="#sec-14-3-4-三个-quot-整段替换-quot-语义完全不同" class="lv3">3.4 三个&amp;quot;整段替换&amp;quot;，语义完全不同</a><a href="#sec-15-3-5-自定义节-扩展的入口" class="lv3">3.5 自定义节：扩展的入口</a><a href="#sec-16-四-agents-md-链-从-cwd-往上爬" class="">四、AGENTS.md 链：从 cwd 往上爬</a><a href="#sec-17-4-1-五个候选名-命中即停" class="lv3">4.1 五个候选名，命中即停</a><a href="#sec-18-4-2-三段装配顺序" class="lv3">4.2 三段装配顺序</a><a href="#sec-19-4-3-worktree-遮蔽-一个很窄但真实的坑" class="lv3">4.3 worktree 遮蔽：一个很窄但真实的坑</a><a href="#sec-20-4-4-xml-包装-路径是元数据" class="lv3">4.4 XML 包装：路径是元数据</a><a href="#sec-21-五-skills-清单进提示词-正文后读" class="">五、Skills：清单进提示词，正文后读</a><a href="#sec-22-5-1-发现规则-四种情形" class="lv3">5.1 发现规则：四种情形</a><a href="#sec-23-5-2-两道校验" class="lv3">5.2 两道校验</a><a href="#sec-24-5-3-xml-与三态-filereadtool" class="lv3">5.3 XML 与三态 fileReadTool</a><a href="#sec-25-5-4-disablemodelinvocation" class="lv3">5.4 disableModelInvocation</a><a href="#sec-26-六-prompt-templates-另一条入口" class="">六、Prompt templates：另一条入口</a><a href="#sec-27-6-1-解析-bash-风格的引号" class="lv3">6.1 解析：bash 风格的引号</a><a href="#sec-28-6-2-六种占位符" class="lv3">6.2 六种占位符</a><a href="#sec-29-6-3-三条边界" class="lv3">6.3 三条边界</a><a href="#sec-30-七-增量-只发变了的那几节" class="">七、增量：只发变了的那几节</a><a href="#sec-31-7-1-每轮都算-但只在变了时发" class="lv3">7.1 每轮都算，但只在变了时发</a><a href="#sec-32-7-2-diffsystempromptsections-的两种输出" class="lv3">7.2 diffSystemPromptSections 的两种输出</a><a href="#sec-33-7-3-上一版从哪来" class="lv3">7.3 上一版从哪来</a><a href="#sec-34-7-4-两条下行路线" class="lv3">7.4 两条下行路线</a><a href="#sec-35-7-5-为什么这套设计省的是两笔钱" class="lv3">7.5 为什么这套设计省的是两笔钱</a><a href="#sec-36-八-完整装配流程" class="">八、完整装配流程</a><a href="#sec-37-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-38-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-39-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-40-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot" class="lv3">方法一：把可变提示词拆成&amp;quot;命名段 + 增量 patch&amp;quot;</a><a href="#sec-41-方法二-分层的上下文文件-用-quot-具体度-quot-排序" class="lv3">方法二：分层的上下文文件，用&amp;quot;具体度&amp;quot;排序</a><a href="#sec-42-方法三-清单进提示词-正文靠工具拉" class="lv3">方法三：清单进提示词，正文靠工具拉</a><a href="#sec-43-下一步" class="">下一步</a><a href="#sec-44-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

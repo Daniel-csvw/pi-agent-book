@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>持久运行时 —— 把 Agent Loop 拆成状态机 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="active">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M11</div>
+      <h1>持久运行时 —— 把 Agent Loop 拆成状态机</h1>
+      <div class="module-meta">9,300 字 · 含 364 行代码 · 约 45 分钟</div>
+    </header>
+    <p>M03 讲 <code>runLoop</code> 时，里面有两个 <code>while</code>：内层管模型与工具的锯齿，外层管续命。
+当时有个前提一直没摆到台面上——<strong>进程还在跑</strong>。</p>
+<p><code>packages/durable</code> 的全部工作，是把这句话反过来：进程随时会消失，对话还得接着走。</p>
+<p>33,728 行，<code>harness/</code> 一个目录就占了 11,332 行。这不是会话存储包，
+是一个完整的持久运行时。</p>
+<hr>
+<h2 id="sec-1-一-三个包的分工">一、三个包的分工</h2>
+<p>先把最容易搞混的关系钉死。</p>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th>层</th>
+<th>依赖 <code>pi-agent-core</code></th>
+<th>循环在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent</code></td>
+<td>无状态循环</td>
+<td>—</td>
+<td><code>agent-loop.ts</code> 的 <code>runLoop</code></td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td>有状态运行时</td>
+<td><strong>否</strong></td>
+<td>任务状态机，没有 <code>while</code></td>
+</tr>
+<tr>
+<td><code>coding-agent</code></td>
+<td>CLI 宿主</td>
+<td>是</td>
+<td>调 <code>agent</code> 的 <code>runLoop</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sec-2-1-1-两条互不相交的依赖线">1.1 两条互不相交的依赖线</h3>
+<p>看 <code>coding-agent/package.json:44-45</code>：依赖里有 <code>pi-agent-core</code> 和 <code>pi-ai</code>，
+没有 <code>pi-durable</code>。</p>
+<p>再看 <code>durable/package.json</code> 的 <code>dependencies</code>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">@earendil-works/chord          可持久化原语（JSON、delta、watch）</span><span class="ln">@earendil-works/pi-ai          模型调用</span><span class="ln">@earendil-works/pi-codemode    沙箱脚本</span><span class="ln">@earendil-works/pi-schema      schema 校验</span><span class="ln">@earendil-works/pi-telemetry   追踪</span><span class="ln">diff / photon                  文本 diff / 图片解码</span></code></pre></div>
+<p><strong>没有 <code>pi-agent-core</code>。</strong></p>
+<p>这是 M10 那个&quot;两代实现&quot;的技术底：CLI 那一条线用 <code>agent</code> 的循环 + 自己写的
+<code>SessionManager</code>；<code>durable</code> 这一条线两者都不用，它用 <code>pi-ai</code> 直接发请求，
+自己把循环拆成了状态机。</p>
+<h3 id="sec-3-1-2-为什么可以不用-runloop">1.2 为什么可以不用 <code>runLoop</code></h3>
+<p><code>runLoop</code> 的价值是&quot;管理锯齿&quot;：模型给出 tool call，跑工具，把结果塞回去，再问一遍。
+这件事在任何进程里都需要。</p>
+<p>但&quot;管理锯齿&quot;有两种写法：</p>
+<ul>
+<li><strong>栈上的循环</strong>：<code>while</code> 的进度是局部变量，进程死了就没了。</li>
+<li><strong>状态机</strong>：每一步的进度是一次提交，进程死了从最后一步重来。</li>
+</ul>
+<p><code>durable</code> 选后者。所以它的循环不是一个函数，是一组<strong>phase 处理函数</strong>加一个调度器。
+你在 <code>generation.ts</code> 里搜不到 <code>while (hasMoreToolCalls)</code>，搜到的是 <code>phase: &quot;tools&quot;</code>。</p>
+<hr>
+<h2 id="sec-4-二-目录地图">二、目录地图</h2>
+<p><code>durable/src/</code> 一共 33,728 行，按目录切成十块：</p>
+<table>
+<thead>
+<tr>
+<th>目录</th>
+<th>文件</th>
+<th>行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>harness/</code></td>
+<td>24</td>
+<td>11,332</td>
+<td>运行时：调度器、四个内置任务、注册表、视图</td>
+</tr>
+<tr>
+<td><code>storage/</code></td>
+<td>19</td>
+<td>5,769</td>
+<td>四种后端 + 共享 SQL 层</td>
+</tr>
+<tr>
+<td><code>session/</code></td>
+<td>7</td>
+<td>4,628</td>
+<td>提交内核（M10 讲过）</td>
+</tr>
+<tr>
+<td><code>testing/</code></td>
+<td>8</td>
+<td>3,409</td>
+<td>存储一致性测试套件</td>
+</tr>
+<tr>
+<td><code>env/</code></td>
+<td>5</td>
+<td>2,319</td>
+<td>执行环境抽象（文件、进程、监听）</td>
+</tr>
+<tr>
+<td><code>codemode/</code></td>
+<td>5</td>
+<td>1,710</td>
+<td>沙箱脚本执行</td>
+</tr>
+<tr>
+<td><code>tools/</code></td>
+<td>11</td>
+<td>1,596</td>
+<td>内置工具实现</td>
+</tr>
+<tr>
+<td><code>images/</code></td>
+<td>6</td>
+<td>396</td>
+<td>图片解码与缩放</td>
+</tr>
+<tr>
+<td><code>tool-search/</code></td>
+<td>2</td>
+<td>102</td>
+<td>延迟工具加载</td>
+</tr>
+<tr>
+<td>根层</td>
+<td>10</td>
+<td>2,467</td>
+<td><code>types</code> / <code>documents</code> / <code>entries</code> / <code>errors</code> / <code>search</code> 等</td>
+</tr>
+</tbody>
+</table>
+<p><code>harness/</code> 里最重的四个文件：<code>scheduler.ts</code>(3,159)、<code>generation.ts</code>(1,188)、
+<code>tool.ts</code>(1,147)、<code>types.ts</code>(1,080)。后面几节基本围着它们转。</p>
+<h3 id="sec-5-2-1-harness-的-24-个文件分成五组">2.1 <code>harness/</code> 的 24 个文件分成五组</h3>
+<p>只记住&quot;最重的四个&quot;不够用。真正读代码时要能在一次跳转内找到目标，所以按职责分：</p>
+<table>
+<thead>
+<tr>
+<th>组</th>
+<th>代表文件</th>
+<th>行数合计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调度内核</td>
+<td><code>scheduler.ts</code></td>
+<td>3,159</td>
+</tr>
+<tr>
+<td>内置任务</td>
+<td><code>generation</code> / <code>tool</code> / <code>compaction</code></td>
+<td>2,836</td>
+</tr>
+<tr>
+<td>状态与文档</td>
+<td><code>types</code> / <code>live</code> / <code>agent</code> / <code>inbox</code></td>
+<td>2,186</td>
+</tr>
+<tr>
+<td>视图与投影</td>
+<td><code>view</code> / <code>context</code> / <code>task-graph</code> / <code>transcript</code></td>
+<td>1,567</td>
+</tr>
+<tr>
+<td>定义与胶水</td>
+<td><code>harness</code> / <code>submissions</code> / <code>prompt</code> / <code>registry</code></td>
+<td>1,584</td>
+</tr>
+</tbody>
+</table>
+<p>五行加起来 11,332，就是整个 <code>harness/</code>。两个细节：</p>
+<ul>
+<li><strong>状态与文档那组还有两个几十行的尾巴</strong>：<code>usage.ts</code>(73) 和 <code>provider.ts</code>(40)，
+各自只定义一个文档。它们行数少，但都是内置契约的一部分。</li>
+<li><strong>视图与投影那组是&quot;读侧&quot;</strong>。<code>context.ts</code> 拼模型输入，<code>view.ts</code> 拼给人看的快照，
+<code>task-graph.ts</code> 算父子关系。这一组全是纯读：不提交、不改状态，因此可以随时重算。</li>
+</ul>
+<h3 id="sec-6-2-2-根层那四个不到-250-行的文件">2.2 根层那四个不到 250 行的文件</h3>
+<p>大包容易让人只盯大头。<code>durable</code> 的四个小文件反而定义了整个包的形状：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行</th>
+<th>定义了什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ids.ts</code></td>
+<td>12</td>
+<td>带 brand 的数字 ID，避免 <code>ConversationId</code> 和 <code>TaskId</code> 混用</td>
+</tr>
+<tr>
+<td><code>tasks.ts</code></td>
+<td>9</td>
+<td><code>defineTask</code>，<code>Task</code> 就是 <code>{ definition }</code> 一个字段</td>
+</tr>
+<tr>
+<td><code>entries.ts</code></td>
+<td>35</td>
+<td>六个内置 entry kind（M10 §8.1）</td>
+</tr>
+<tr>
+<td><code>documents.ts</code></td>
+<td>209</td>
+<td><code>defineDoc</code> / <code>defineDocFamily</code> 的四个重载</td>
+</tr>
+</tbody>
+</table>
+<p><code>tasks.ts</code> 只有九行，值得看一眼：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// tasks.ts:4-9</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> defineTask&lt;</span><span class="ln">	I,</span><span class="ln">	S <span class="tok-kw">extends</span> { phase: <span class="tok-kw">string</span> },</span><span class="ln">	R,</span><span class="ln">	H <span class="tok-kw">extends</span> <span class="tok-kw">object</span> = <span class="tok-kw">object</span>,</span><span class="ln">&gt;(definition: TaskDefinition&lt;I, S, R, H&gt;): Task&lt;I, S, R, H&gt; {</span><span class="ln">	<span class="tok-kw">return</span> { definition };</span><span class="ln">}</span></code></pre></div>
+<p>类型参数有三个硬约束：<code>S</code> 必须有 <code>phase</code> 字段，<code>R</code> 是结果类型，<code>H</code> 是钩子形状。
+&quot;必须有 phase&quot;这一条，就是&quot;任务即状态机&quot;的类型级表达。</p>
+<hr>
+<h2 id="sec-7-三-三个内核概念">三、三个内核概念</h2>
+<p><code>entry</code>、<code>document</code>、<code>task</code>。M10 讲了前两个，这里只补必要的差别，重点在第三个。</p>
+<h3 id="sec-8-3-1-entry-不可变的历史">3.1 entry：不可变的历史</h3>
+<p><code>EntryRecord</code>（<code>types.ts:458-473</code>）M10 拆过。这一章只需要记住一句话：
+<strong>entry 只追加，永远不改</strong>。所以它是&quot;发生过什么&quot;的唯一权威。</p>
+<h3 id="sec-9-3-2-document-可以被改写的状态">3.2 document：可以被改写的状态</h3>
+<p><code>defineDoc</code>（<code>documents.ts:39-80</code>）有四个重载，切的是三个维度：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>取值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>作用域</td>
+<td><code>session</code> / 会话 / <code>task</code></td>
+<td>谁拥有它，跟着谁销毁</td>
+</tr>
+<tr>
+<td>历史</td>
+<td><code>latest</code> / <code>rewindable</code></td>
+<td>只留最新值，还是每个提交点都能回去</td>
+</tr>
+<tr>
+<td>分叉</td>
+<td><code>asOf</code> / <code>current</code></td>
+<td>分叉时拷&quot;那一刻的值&quot;还是&quot;现在的值&quot;</td>
+</tr>
+</tbody>
+</table>
+<p>内置文档有六个，各自的语义设置值得列一张表：</p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>定义在</th>
+<th>history</th>
+<th>fork</th>
+<th>装什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pi.agent</code></td>
+<td><code>agent.ts</code></td>
+<td>rewindable</td>
+<td><strong>asOf</strong></td>
+<td>模型、思考等级、工具与扩展</td>
+</tr>
+<tr>
+<td><code>pi.provider</code></td>
+<td><code>provider.ts</code></td>
+<td>latest</td>
+<td>initial</td>
+<td>provider 侧会话 id</td>
+</tr>
+<tr>
+<td><code>pi.live</code></td>
+<td><code>live.ts</code></td>
+<td>latest</td>
+<td>initial</td>
+<td>正在跑的 generation 与工具</td>
+</tr>
+<tr>
+<td><code>pi.inbox</code></td>
+<td><code>inbox.ts</code></td>
+<td>latest</td>
+<td>initial</td>
+<td>排队中的提交</td>
+</tr>
+<tr>
+<td><code>pi.usage</code></td>
+<td><code>usage.ts</code></td>
+<td>latest</td>
+<td>initial</td>
+<td>累计花费</td>
+</tr>
+</tbody>
+</table>
+<p>注意 <code>fork</code> 那一列：<strong>只有 <code>pi.agent</code> 是 <code>asOf</code></strong>。</p>
+<p>代侧会话 id 分叉时必须换一个新的（README 里明说）——否则两个会话共用一个
+provider 缓存，提示词缓存会互相干扰。<code>pi.live</code> 是&quot;此刻在跑什么&quot;，新会话当然什么都不在跑。</p>
+<p>只有 <code>pi.agent</code> 是 <code>asOf</code>，因为它存的是<strong>用户的选择</strong>：你从这个点分叉，
+当然希望新会话继承你当时选的那个模型。</p>
+<p><code>AgentDoc</code> 是最讲究的一个（<code>harness/agent.ts:44-52</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> AgentDoc = defineDoc&lt;AgentState&gt;({</span><span class="ln">	kind: <span class="tok-str">"pi.agent"</span>,</span><span class="ln">	version: <span class="tok-num">1</span>,</span><span class="ln">	scope: <span class="tok-str">"conversation"</span>,</span><span class="ln">	history: <span class="tok-str">"rewindable"</span>,</span><span class="ln">	fork: <span class="tok-str">"asOf"</span>,</span><span class="ln">	initial: () =&gt; ({}),</span><span class="ln">	checkpointWhen: () =&gt; <span class="tok-kw">true</span>,</span><span class="ln">});</span></code></pre></div>
+<p>四个字段各管一件事：</p>
+<ul>
+<li><code>scope: &quot;conversation&quot;</code>：每个会话一份 agent 配置，不是全局。</li>
+<li><code>history: &quot;rewindable&quot;</code>：每次改动都留版本，所以能读到&quot;上个月那一刻&quot;。</li>
+<li><code>fork: &quot;asOf&quot;</code>：分叉时拷分叉点那一刻的配置，不是拷现在这个。</li>
+<li><code>checkpointWhen: () =&gt; true</code>：任何改动都产生一个新版本，不合并。</li>
+</ul>
+<p><code>checkpointWhen</code> 是这套设计里最巧的一个钩子：它决定&quot;这次改动要不要留一个可回读的快照&quot;。
+默认策略是按大小或时间算，而 agent 配置改一次就该记一次——所以直接返回 <code>true</code>。</p>
+<h3 id="sec-10-3-3-task-第四种东西">3.3 task：第四种东西</h3>
+<p>entry 是&quot;发生过什么&quot;，document 是&quot;现在是什么&quot;，task 是**&quot;接下来要做什么，做到哪了&quot;**。</p>
+<p>这是第一代完全没有的维度。M10 §7.2 说过：第一代的树里没有&quot;这次调用成没成&quot;这个概念，
+所以只能在请求前补一个假的 <code>No result provided</code>。<code>task</code> 就是把那个缺口补上的类型。</p>
+<p><code>TaskDefinition</code>（<code>types.ts:364-387</code>）有六个字段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> TaskDefinition&lt;</span><span class="ln">	I,</span><span class="ln">	S <span class="tok-kw">extends</span> { phase: <span class="tok-kw">string</span> },</span><span class="ln">	R,</span><span class="ln">	H <span class="tok-kw">extends</span> <span class="tok-kw">object</span>,</span><span class="ln">&gt; = {</span><span class="ln">	<span class="tok-kw">readonly</span> name: <span class="tok-kw">string</span>;          <span class="tok-com">// 落到 TaskRecord.kind</span></span><span class="ln">	<span class="tok-kw">readonly</span> version: <span class="tok-kw">number</span>;       <span class="tok-com">// 落到 TaskRecord.version，用于迁移</span></span><span class="ln">	<span class="tok-fn">initial</span>(input: I): S;           <span class="tok-com">// 第一个检查点</span></span><span class="ln">	<span class="tok-kw">readonly</span> phases: {</span><span class="ln">		<span class="tok-kw">readonly</span> [P <span class="tok-kw">in</span> S[<span class="tok-str">"phase"</span>]]: PhaseHandler&lt;</span><span class="ln">			I, Extract&lt;S, { phase: P }&gt;, S, R, H&gt;;</span><span class="ln">	};</span><span class="ln">	<span class="tok-fn">abort</span>(task, runtime, context): Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">	migrate?(input, checkpoint, fromVersion): {</span><span class="ln">		input: I;</span><span class="ln">		checkpoint: S;</span><span class="ln">	};</span><span class="ln">	<span class="tok-kw">readonly</span> hooks?: H;</span><span class="ln">};</span></code></pre></div>
+<p>三件事值得单独说：</p>
+<p><strong>一、<code>phases</code> 是穷举映射。</strong> <code>S[&quot;phase&quot;]</code> 是一个字面量联合，<code>phases</code> 必须每个都实现。
+加一个 phase 忘了写处理函数，编译期就报错。</p>
+<p><strong>二、每个 handler 拿到的是&quot;窄化后的任务&quot;。</strong> <code>Extract&lt;S, { phase: P }&gt;</code> 把联合类型
+收窄到当前 phase，于是 <code>task.state.checkpoint</code> 在 <code>prepare</code> 里就是 <code>prepare</code> 的形状，
+不需要在每个 handler 开头写 <code>if</code>。</p>
+<p><strong>三、<code>migrate</code> 在预留时跑，不在启动时跑。</strong> 一个一年前的 task 要等真正轮到自己
+被调度时才迁移，所以旧版本的迁移代码不会在新进程启动时集中爆掉。</p>
+<h3 id="sec-11-3-4-taskruntime-handler-能碰到的全部">3.4 <code>TaskRuntime</code>：handler 能碰到的全部</h3>
+<p>每个 phase handler 签名的第二个参数是 <code>runtime</code>（<code>types.ts:261-361</code>）。它是任务唯一的
+&quot;手&quot;——除了它，handler 没有别的途径读写世界。按用途分四组：</p>
+<table>
+<thead>
+<tr>
+<th>组</th>
+<th>方法</th>
+<th>干什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>写</td>
+<td><code>commit(change, context, options?)</code></td>
+<td>唯一写入口，返回新状态或 <code>undefined</code></td>
+</tr>
+<tr>
+<td>读</td>
+<td><code>entry</code> / <code>entries</code> / <code>context</code> / <code>getTask</code></td>
+<td>读已提交的 entry、上下文视图</td>
+</tr>
+<tr>
+<td>编排</td>
+<td><code>waitForTask</code> / <code>abortOwned</code> / <code>sleepUntil</code> / <code>outcomes</code></td>
+<td>建关系和等结果</td>
+</tr>
+<tr>
+<td>宿主</td>
+<td><code>agent</code> / <code>settings</code> / <code>models</code> / <code>env</code> / <code>hooks</code> / <code>report</code></td>
+<td>拿配置、跑钩子、报错</td>
+</tr>
+</tbody>
+</table>
+<p><code>commit</code> 的签名值得拄一遍（<code>:290-297</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">commit</span>(</span><span class="ln">	change: (tx: Tx, current: RunningTask&lt;I, S, R&gt;) =&gt;</span><span class="ln">		NextTaskState&lt;S, R&gt; | <span class="tok-kw">undefined</span></span><span class="ln">		| Promise&lt;NextTaskState&lt;S, R&gt; | <span class="tok-kw">undefined</span>&gt;,</span><span class="ln">	context: Context,</span><span class="ln">	options?: CommitOptions,</span><span class="ln">): Promise&lt;<span class="tok-kw">void</span>&gt;;</span></code></pre></div>
+<p>三个要点：</p>
+<ul>
+<li>回调里拿到的 <code>current</code> 是<strong>提交那一刻</strong>的任务记录，不是 handler 开头的快照。
+中间可能已经过了一轮变更线，重读一遍才对。</li>
+<li>返回值是&quot;下一个状态&quot;。返回 <code>undefined</code> 表示&quot;状态不变，只写了别的&quot;。</li>
+<li>写操作全在 <code>tx</code> 上。注释里有一条警告（<code>:286-287</code>）：回调里只能用 <code>tx</code> 读，
+用 <code>snapshot()</code> / <code>watchDoc()</code> 去读会排到自己持有的那条线上，永远不返回。
+<strong>这是这套 API 最容易踩的一处死锁。</strong></li>
+</ul>
+<p>还有一个隐晦的约束：<code>memo</code>。两种签名——只读，或&quot;没有就写、有就返回赢家&quot;。
+它是任务自己存的小值，随任务记录一起销毁，不占文档。</p>
+<h3 id="sec-12-3-5-所有权-每个任务都得有个主人">3.5 所有权：每个任务都得有个主人</h3>
+<p><code>TaskOptions.ownership</code> 是<strong>必填</strong>字段（<code>types.ts:406-407</code>），注释写着
+&quot;a task always names its owner (spec §5.5)&quot;。两种主人（<code>:395</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> TaskOwnership =</span><span class="ln">	| { <span class="tok-kw">readonly</span> kind: <span class="tok-str">"conversation"</span> }</span><span class="ln">	| { <span class="tok-kw">readonly</span> kind: <span class="tok-str">"task"</span>; <span class="tok-kw">readonly</span> taskId: TaskId };</span></code></pre></div>
+<ul>
+<li>会话拥有：顶层任务。一个 run 的 <code>pi.generation</code> 就是这样。</li>
+<li>任务拥有：子任务。一次工具调用 <code>pi.tool</code> 被它所在那轮 generation 拥有。</li>
+</ul>
+<p>所有权不是装饰字段，它决定三件事：</p>
+<ol>
+<li><strong>谁等谁</strong>。<code>waitForTask</code> 只能等自己拥有的任务（<code>types.ts:306-310</code>）。</li>
+<li><strong>取消怎么传播</strong>。父任务取消，意图会传给下面的普通子任务（§5.6）。</li>
+<li><strong><code>completing</code> 什么时候结束</strong>。父任务宣布结局后，要等所有普通子任务终态。</li>
+</ol>
+<p>还有两个标记：</p>
+<ul>
+<li><code>background: true</code>：会话拥有的任务，但<strong>排除在</strong>普通空闲等待、会话取消、级联之外。
+常驻的后台任务用它。</li>
+<li><code>abandonOnRestart: true</code>：进程重启后就不该继续的任务。它会被打上
+<code>abortReason: &quot;restart&quot;</code> 的标记走 abort 处理器，而不是变成 <code>orphaned</code>。</li>
+</ul>
+<p>这两个标记解决同一类问题：<strong>这个任务还要不要跟着宿主一起活</strong>。
+第一代根本没有这个问题，因为它没有任务。</p>
+<hr>
+<h2 id="sec-13-四-六种状态-五种结局">四、六种状态，五种结局</h2>
+<h3 id="sec-14-4-1-taskstate-types-ts-658-702">4.1 <code>TaskState</code>（<code>types.ts:658-702</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>status</th>
+<th>有调用栈吗</th>
+<th>什么时候离开</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pending</code></td>
+<td>没有</td>
+<td>被调度器预留 → <code>running</code></td>
+</tr>
+<tr>
+<td><code>running</code></td>
+<td><strong>有</strong></td>
+<td>handler 提交新检查点 → 仍是 <code>running</code>；或提交等待/睡眠/结局</td>
+</tr>
+<tr>
+<td><code>waiting</code></td>
+<td>没有</td>
+<td><code>on</code> 里所有任务都终态 → <code>pending</code></td>
+</tr>
+<tr>
+<td><code>sleeping</code></td>
+<td>没有</td>
+<td>时钟到 <code>until</code> → <code>pending</code></td>
+</tr>
+<tr>
+<td><code>completing</code></td>
+<td>没有</td>
+<td>它拥有的普通子任务全部终态 → <code>terminal</code></td>
+</tr>
+<tr>
+<td><code>terminal</code></td>
+<td>没有</td>
+<td>永不再变</td>
+</tr>
+</tbody>
+</table>
+<p>注意 <code>pending</code> 和 <code>running</code> 的检查点类型完全一样。<strong>运行时状态不进检查点</strong>——
+这是整套设计的核心约定：检查点里只有&quot;业务进度&quot;，没有&quot;我现在跑到哪一行&quot;。</p>
+<h3 id="sec-15-4-2-taskoutcome-types-ts-621-655">4.2 <code>TaskOutcome</code>（<code>types.ts:621-655</code>）</h3>
+<p>五种结局，区分得很细：</p>
+<table>
+<thead>
+<tr>
+<th>status</th>
+<th>谁写的</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>completed</code></td>
+<td>任务自己</td>
+<td>正常完成，带 <code>result</code></td>
+</tr>
+<tr>
+<td><code>failed</code></td>
+<td>任务自己</td>
+<td>预期内的失败，带 <code>error</code></td>
+</tr>
+<tr>
+<td><code>aborted</code></td>
+<td>abort 处理器</td>
+<td>被取消，走完了自己定义的清理</td>
+</tr>
+<tr>
+<td><code>orphaned</code></td>
+<td>调度器</td>
+<td>定义没了或迁移失败，<strong>这台机器上永远跑不了</strong></td>
+</tr>
+<tr>
+<td><code>faulted</code></td>
+<td>调度器</td>
+<td>契约破了：未捕获异常，或这一轮没产生持久进展</td>
+</tr>
+</tbody>
+</table>
+<p><code>orphaned</code> 和 <code>faulted</code> 的区别很实用：前者是&quot;缺东西&quot;，装上那个扩展就能继续；
+后者是&quot;代码有 bug&quot;，重试一万次也一样。诊断时先看这个字段。</p>
+<h3 id="sec-16-4-3-completing-为什么必须存在">4.3 <code>completing</code> 为什么必须存在</h3>
+<p>这是六个状态里最反直觉的一个。</p>
+<p>任务宣布了自己的结局，但它手上还有子任务在跑。如果立刻置 <code>terminal</code>，
+子任务结束后就没有父任务可挂结果了。所以中间插一个 <code>completing</code>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">outcome 已定 ──&gt; completing ──子任务全部终态──&gt; terminal</span></code></pre></div>
+<p><code>types.ts:691-696</code> 的注释写得很直白：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/** Outcome decided; becomes terminal once no ordinary owned work</span></span><span class="ln"><span class="tok-com"> * below is live. Runs no more code. */</span></span></code></pre></div>
+<p>&quot;不再跑代码，但也不许收摊&quot;——这一条正是第一代树结构做不出来的状态。
+树里没有&quot;父子任务的存活计数&quot;这种东西。</p>
+<h3 id="sec-17-4-4-为什么-finish-必须和-drain-分成两步">4.4 为什么 <code>finish</code> 必须和 <code>drain</code> 分成两步</h3>
+<p>这是上面那条规则在代码里的直接后果，也是读 <code>generation.ts</code> 七个 phase 时最容易疑惑的地方：
+<code>afterRun</code> 钩子跑完就该结束了，何必再有一个 <code>drain</code>。</p>
+<p><code>session/transaction.ts:1062-1065</code> 有一条校验：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * New owned work needs a live owner, judged on the owner's final</span></span><span class="ln"><span class="tok-com"> * candidate: not `completing`, terminal, or abort-marked. A task</span></span><span class="ln"><span class="tok-com"> * therefore cannot create owned work in the commit that finishes it</span></span><span class="ln"><span class="tok-com"> * (spec §5.5).</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">async</span> #<span class="tok-fn">validateOwners</span>(): Promise&lt;<span class="tok-kw">void</span>&gt; {</span></code></pre></div>
+<p><strong>一次提交里，不许&quot;建子任务&quot;和&quot;自己终结&quot;同时发生。</strong> <code>#validateOwners</code> 在组装阶段
+（<code>commit</code> 真正落盘之前）遍历这次提交里所有新写的主任务 id，主人的候选状态只要是
+<code>completing</code> / <code>terminal</code> / abort-marked，直接抛错。</p>
+<p>所以 <code>afterRun</code> 钩子要建任务时，<code>finish</code> 只能先做一次<strong>不终结</strong>的提交
+（<code>generation.ts:899-915</code> 的 <code>holdRun</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// generation.ts:914-915（Commit A：不终结，只换 phase）</span></span><span class="ln"><span class="tok-kw">const</span> summary: RunSummary = { ...end, first: run.first ?? end.answer };</span><span class="ln"><span class="tok-kw">return</span> { status: <span class="tok-str">"running"</span>, checkpoint: { phase: <span class="tok-str">"finish"</span>, run: summary } };</span></code></pre></div>
+<p><code>running</code>，不是 <code>terminal</code>。<code>pi.live.run</code> 也特意保留（<code>delete live.generation</code>
+只清 generation 那一格），因为钩子建的任务还挂着这个 run。等 <code>drain</code> 里那些任务
+全终态，才走 <code>endAnsweredRun</code>（<code>:953-956</code> 的注释直接写着 &quot;Commit B&quot;）真正收尾。</p>
+<p>这段代码把 §4.3 那句话变成了可执行的规则：
+<strong><code>completing</code> 不只是&quot;等子任务结束&quot;的状态，它还是一条&quot;不许再招人&quot;的边界。</strong>
+两个 phase，就是这条边界在时间上的投影。</p>
+<hr>
+<h2 id="sec-18-五-调度器-没有循环的循环">五、调度器：没有循环的循环</h2>
+<p><code>scheduler.ts</code> 3,159 行，是全包最重的一块。抓四个函数就够理解它了。</p>
+<h3 id="sec-19-5-1-一次-kick-一轮-drain">5.1 一次 kick，一轮 drain</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// scheduler.ts:1865-1888</span></span><span class="ln">#<span class="tok-fn">kick</span>(): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">this</span>.#<span class="tok-fn">scheduleWake</span>();</span><span class="ln">	<span class="tok-kw">this</span>.#dirty = <span class="tok-kw">true</span>;</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.#draining || !<span class="tok-kw">this</span>.#enabled || <span class="tok-kw">this</span>.#closing) <span class="tok-kw">return</span>;</span><span class="ln">	<span class="tok-kw">this</span>.#draining = <span class="tok-kw">true</span>;</span><span class="ln">	<span class="tok-com">// Never commit synchronously from a commit or registry listener.</span></span><span class="ln">	<span class="tok-fn">queueMicrotask</span>(() =&gt; <span class="tok-kw">void</span> <span class="tok-kw">this</span>.#<span class="tok-fn">drain</span>());</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">async</span> #<span class="tok-fn">drain</span>(): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">while</span> (<span class="tok-kw">this</span>.#dirty &amp;&amp; <span class="tok-kw">this</span>.#enabled &amp;&amp; !<span class="tok-kw">this</span>.#closing) {</span><span class="ln">			<span class="tok-kw">this</span>.#dirty = <span class="tok-kw">false</span>;</span><span class="ln">			<span class="tok-kw">const</span> reservations = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.#<span class="tok-fn">reserve</span>();</span><span class="ln">			<span class="tok-kw">for</span> (<span class="tok-kw">const</span> reservation <span class="tok-kw">of</span> reservations) <span class="tok-kw">this</span>.#<span class="tok-fn">start</span>(reservation);</span><span class="ln">		}</span><span class="ln">	} <span class="tok-kw">catch</span> (error) {</span><span class="ln">		<span class="tok-kw">this</span>.#<span class="tok-fn">failSession</span>(error);</span><span class="ln">	} <span class="tok-kw">finally</span> {</span><span class="ln">		<span class="tok-kw">this</span>.#draining = <span class="tok-kw">false</span>;</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.#dirty) <span class="tok-kw">this</span>.#<span class="tok-fn">kick</span>();</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>这是 <code>scheduler.ts</code> 里<strong>唯一的调度循环</strong>——文件里另有五个 <code>while</code>，
+都在向上走归属链或跑任务阶段，只有这一个管&quot;这一轮有没有新活&quot;。</p>
+<p>三个细节：</p>
+<ul>
+<li><code>queueMicrotask</code>：注释写着&quot;永远不要从提交回调或注册表监听器里同步提交&quot;。
+否则一次提交里套另一次提交，变更线会自己咬自己。</li>
+<li><code>finally</code> 里再 <code>kick</code> 一次：循环最后一轮检查之后到达的唤醒不能丢。</li>
+<li><code>#failSession</code>：预留阶段抛错，整个 Session 判死（M10 §10.4）。调度器不做局部恢复。</li>
+</ul>
+<h3 id="sec-20-5-2-reserve-一次提交预留所有活">5.2 <code>#reserve</code>：一次提交预留所有活</h3>
+<p><code>#reserve</code>（<code>:1894-1988</code>）做的事，用大白话说：</p>
+<ol>
+<li>如果一个任务被&quot;放弃重启&quot;标记过，先给它打 abort 标记，这一轮就返回（下次再看）。</li>
+<li>扫出这一轮所有可跑的候选。</li>
+<li>对每个候选：检查重启次数上限、解析定义、必要时迁移、把状态写回 <code>running</code>。</li>
+<li>全部写操作放进<strong>同一个</strong> <code>commitInternal</code>。</li>
+</ol>
+<p>第 3 步里那段&quot;重启上限&quot;值得抄一眼（<code>:1932-1944</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> cutOff = record.restarts !== <span class="tok-kw">undefined</span></span><span class="ln">	&amp;&amp; record.restarts &gt;= <span class="tok-kw">this</span>.#<span class="tok-fn">restartLimit</span>();</span><span class="ln"><span class="tok-kw">if</span> (cutOff &amp;&amp; (mode === <span class="tok-str">"abort"</span> || !<span class="tok-kw">this</span>.#<span class="tok-fn">limitsRestarts</span>(record.kind))) {</span><span class="ln">	<span class="tok-kw">const</span> message = mode === <span class="tok-str">"abort"</span></span><span class="ln">		? <span class="tok-str">`Abort handler of task ${id} (${record.kind}) was cut off `</span> +</span><span class="ln">			<span class="tok-str">`${record.restarts} times`</span></span><span class="ln">		: <span class="tok-str">`Task ${id} (${record.kind}) was cut off ${record.restarts} times `</span> +</span><span class="ln">			<span class="tok-str">"without progress"</span>;</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-kw">this</span>.#<span class="tok-fn">terminate</span>(tx, record, {</span><span class="ln">		status: <span class="tok-str">"faulted"</span>,</span><span class="ln">		error: { message, detail: { reason: <span class="tok-str">"restart_limit"</span> } },</span><span class="ln">	});</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>#restartLimit()</code> 默认 5（<code>harness/agent.ts:58</code>）。</p>
+<p><strong>这是第一代完全没有的一道闸。</strong> 一个会让进程崩溃的 bug，如果没有这个计数器，
+就是无限重启：启动 → 跑到同一处 → 崩 → 再启动。加上计数之后，
+第五次直接判 <code>faulted</code> 并上报，用户看到的是&quot;这个任务坏了&quot;，不是&quot;这个软件坏了&quot;。</p>
+<h3 id="sec-21-5-3-rules-六条决策规则">5.3 <code>#rules</code>：六条决策规则</h3>
+<p>一次 phase 跑完，要不要继续？<code>#rules</code>（<code>:2289-2303</code>）回答：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">#<span class="tok-fn">rules</span>(</span><span class="ln">	current: ErasedRunningTask,</span><span class="ln">	previous: PhaseResult | <span class="tok-kw">undefined</span>,</span><span class="ln">): StepPlan {</span><span class="ln">	<span class="tok-com">// 3. abort mark: end; a fresh abort invocation starts once the</span></span><span class="ln">	<span class="tok-com">//    ordinary owned work is gone.</span></span><span class="ln">	<span class="tok-kw">if</span> (current.abortRequested) <span class="tok-kw">return</span> END;</span><span class="ln">	<span class="tok-kw">if</span> (!current.background &amp;&amp; <span class="tok-kw">this</span>.#<span class="tok-fn">belowCancelled</span>(<span class="tok-fn">parentOf</span>(current))) {</span><span class="ln">		<span class="tok-kw">return</span> CASCADE;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (previous === <span class="tok-kw">undefined</span>) <span class="tok-kw">return</span> CONTINUE;</span><span class="ln">	<span class="tok-com">// 4. uncaught error.</span></span><span class="ln">	<span class="tok-kw">if</span> (previous.failure !== <span class="tok-kw">undefined</span>) {</span><span class="ln">		<span class="tok-kw">return</span> { kind: <span class="tok-str">"fault"</span>, error: previous.failure.error };</span><span class="ln">	}</span><span class="ln">	<span class="tok-com">// 6. no durable progress.</span></span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-fn">jsonEqual</span>(current.state.checkpoint, previous.checkpoint)) {</span><span class="ln">		<span class="tok-kw">const</span> message =</span><span class="ln">			<span class="tok-str">`Task ${current.kind} phase ${previous.checkpoint.phase} returned `</span> +</span><span class="ln">			<span class="tok-str">"without durable progress"</span>;</span><span class="ln">		<span class="tok-kw">return</span> { kind: <span class="tok-str">"fault"</span>, error: <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(message) };</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> PROGRESS;</span><span class="ln">}</span></code></pre></div>
+<p>注释里给规则编了号，因为规则 1（状态已不是 <code>running</code>）和规则 2（Harness 在关闭）
+在 <code>#step</code> 里先处理掉了。</p>
+<p>最狠的是规则 6：<strong>handler 跑完，检查点跟进去时一模一样，判 <code>faulted</code></strong>。</p>
+<p><code>PhaseHandler</code> 的类型注释（<code>types.ts:238-241</code>）写着：</p>
+<blockquote>
+<p>每个 phase 处理器都必须通过 <code>runtime.commit()</code> 提交一个变了的检查点或一个终态；
+什么都没提交就返回，是&quot;契约失败&quot;。</p>
+</blockquote>
+<p>这条规则把&quot;我好像跑了但什么都没干&quot;变成了一个显式错误。
+在普通 <code>while</code> 循环里，这种 bug 表现为&quot;卡住了&quot;；在这里，它是一个可上报的 <code>faulted</code>。</p>
+<h3 id="sec-22-5-4-open-把-running-改回-pending">5.4 <code>open()</code>：把 <code>running</code> 改回 <code>pending</code></h3>
+<p>进程重启后，文件里那些 <code>running</code> 的任务是什么状态？答案是：<strong>不知道</strong>。
+可能跑完了没来得及提交，也可能刚到一半。</p>
+<p><code>open</code>（<code>:433-469</code>）的处理干脆利落：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (record.state.status === <span class="tok-str">"running"</span>) {</span><span class="ln">	<span class="tok-kw">const</span> restarts = (record.restarts ?? <span class="tok-num">0</span>) + <span class="tok-num">1</span>;</span><span class="ln">	<span class="tok-kw">const</span> pending = <span class="tok-fn">withState</span>(record, {</span><span class="ln">		status: <span class="tok-str">"pending"</span>,</span><span class="ln">		checkpoint: record.state.checkpoint,</span><span class="ln">	});</span><span class="ln">	tx.<span class="tok-fn">setTask</span>({ ...pending, restarts } <span class="tok-kw">as</span> AnyTaskRecord);</span><span class="ln">}</span></code></pre></div>
+<p>三件事一起发生：状态回 <code>pending</code>、检查点原样保留、<code>restarts</code> 加一。</p>
+<p>&quot;原样保留&quot;是重点。上一轮跑到哪个 phase、那个 phase 的中间数据是什么，全在检查点里。
+所以重跑不是从头来，是从<strong>最后一个已提交的阶段</strong>继续。</p>
+<p>而 <code>restarts</code> 加一，就是 §5.2 那道闸的输入。这两个动作必须同时发生，
+否则计数器就失去了&quot;连续&quot;的语义。</p>
+<h3 id="sec-23-5-5-一次调用的完整生命周期">5.5 一次调用的完整生命周期</h3>
+<p><code>#start</code>（<code>:2172-2189</code>）很短：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">#<span class="tok-fn">start</span>(reservation: Reservation): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">const</span> invocation = reservation.invocation;</span><span class="ln">	<span class="tok-kw">void</span> (<span class="tok-kw">async</span> () =&gt; {</span><span class="ln">		<span class="tok-kw">try</span> {</span><span class="ln">			<span class="tok-kw">if</span> (invocation.mode === <span class="tok-str">"run"</span>) <span class="tok-kw">await</span> <span class="tok-kw">this</span>.#<span class="tok-fn">run</span>(reservation);</span><span class="ln">			<span class="tok-kw">else</span> <span class="tok-kw">await</span> <span class="tok-kw">this</span>.#<span class="tok-fn">runAbort</span>(reservation);</span><span class="ln">		} <span class="tok-kw">catch</span> (error) {</span><span class="ln">			<span class="tok-kw">this</span>.#<span class="tok-fn">report</span>(error, { kind: <span class="tok-str">"task_error"</span>, ... }, invocation.context);</span><span class="ln">		} <span class="tok-kw">finally</span> {</span><span class="ln">			<span class="tok-kw">this</span>.#<span class="tok-fn">end</span>(invocation);</span><span class="ln">			invocation.record = <span class="tok-kw">undefined</span>;</span><span class="ln">			invocation.<span class="tok-fn">finish</span>();</span><span class="ln">			<span class="tok-kw">this</span>.#<span class="tok-fn">kick</span>();</span><span class="ln">		}</span><span class="ln">	})();</span><span class="ln">}</span></code></pre></div>
+<p><code>#run</code>（<code>:2192-2216</code>）是一个 <code>while (current !== undefined)</code>：跑一个 phase，
+做一次决策，再跑下一个 phase——<strong>直到某个 phase 把状态改成 waiting / sleeping /
+terminal，或者决策说结束</strong>。</p>
+<p>也就是说，一次&quot;调用&quot;（invocation）里可以连续跑好几个 phase，只要它们都在同一轮
+并且每次都有持久进展。中途进程死了，检查点停在哪，下次就从哪接。</p>
+<h3 id="sec-24-5-6-取消怎么往下传">5.6 取消怎么往下传</h3>
+<p>取消不是&quot;给每个任务发一个 signal&quot;，而是一条<strong>从下往上确认</strong>的链。</p>
+<p><code>#belowCancelled</code>（<code>:1702-1705</code>）判一个任务头上有没有&quot;取消意图&quot;。
+<code>#planReservation</code> 里（<code>:2021-2024</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (!record.abortRequested &amp;&amp; !record.background</span><span class="ln">	&amp;&amp; <span class="tok-kw">this</span>.#<span class="tok-fn">belowCancelled</span>(<span class="tok-fn">parentOf</span>(record))) {</span><span class="ln">	cascade = <span class="tok-kw">true</span>;</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p>命中就<strong>不跑这个 phase</strong>，而是把这一轮标成&quot;有待处理的级联&quot;，然后安排一次 reconcile。</p>
+<p>为什么不直接取消？因为 abort 是<strong>自下而上</strong>跑的（<code>:2031-2032</code> 的注释）：
+子任务先清理完，父任务才能收尾。直接给父任务打 abort 标记，父任务会在子任务
+还活着的时候就开始清理。</p>
+<p>The waiting rule is also inverted: <code>#waitingOn</code>（<code>:2034-2040</code>）里，被 abort 标记的任务
+要等的是它<strong>所有活着的普通子任务</strong>，不是 <code>state.on</code> 里那些。</p>
+<p>用一张图说清三条边：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">abortTask(parent)</span><span class="ln">   |</span><span class="ln">   +-&gt; parent.abortRequested = true      （一次提交）</span><span class="ln">   |</span><span class="ln">   +-&gt; parent 不再跑 phase，等 owned 全终态</span><span class="ln">         |</span><span class="ln">         +-&gt; child 被级联标记 -&gt; child 跑 abort 处理器 -&gt; terminal</span><span class="ln">               |</span><span class="ln">               +-&gt; 全部终态 -&gt; parent 跑 abort 处理器 -&gt; aborted</span></code></pre></div>
+<p>中间那一步是&quot;标记&quot;，不是&quot;命令&quot;。标记落盘之后，即使进程在中间死掉，
+重启后 <code>open()</code> 会重新推导级联标记（<code>:465-467</code>）。
+<strong>取消意图本身也是持久的。</strong></p>
+<h3 id="sec-25-5-7-提交点-一次-commit-到底保证什么">5.7 提交点：一次 commit 到底保证什么</h3>
+<p>前面反复出现&quot;一次提交&quot;。现在把它打开——这是 <code>session/transaction.ts</code>(1,293) 的全部职责，
+也是&quot;中断后可恢复&quot;能成立的地基。</p>
+<p><code>Storage</code> 接口（<code>types.ts:1329</code>）只有<strong>一个</strong>写方法：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">commit</span>(</span><span class="ln">	batches: <span class="tok-kw">readonly</span> (<span class="tok-kw">readonly</span> StorageWrite[])[],</span><span class="ln">	receive: (index: <span class="tok-kw">number</span>, seq: Seq) =&gt; <span class="tok-kw">void</span>,</span><span class="ln">	context: Context,</span><span class="ln">): Promise&lt;CommitResult&gt;;</span></code></pre></div>
+<p>签名里装了四件事（<code>:1330-1340</code> 的注释）：</p>
+<ol>
+<li>一个 batch 是一次原子提交，带自己的 <code>seq</code>，还要对照前一个 batch 留下的状态检查。</li>
+<li><strong>拒绝就停</strong>：某个 batch 被 <code>durable</code> 自己的校验拒了，前面的已经持久，它和后面的都没有。</li>
+<li><strong><code>receive</code> 是落盘回执，不是发布</strong>。它在全部落盘之后、下一个 commit 开始之前同步调用；
+Session 的对外发布在更后面。</li>
+<li>结果是未知的就 reject（连接断了、语句或提交失败）；已发出的 <code>receive</code> 仍然算数。</li>
+</ol>
+<p>第 3 条区分了两件常被混为一谈的事：<strong>&quot;写进存储&quot;和&quot;看到新值&quot;</strong>。落盘成功但发布还没跑时
+进程死掉，没问题——重启后从存储读就是新值。反过来，把发布当成落盘确认，就会丢数据。</p>
+<p><code>Transaction implements Tx</code>（<code>transaction.ts:239</code>）是接口上面那个对象。三条硬约束：</p>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th>出处</th>
+<th>撞上了会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>表读必须在第一次表写之前</td>
+<td><code>:277</code> 的 <code>#written</code></td>
+<td>抛 <code>ReadAfterWrite</code></td>
+</tr>
+<tr>
+<td>读一个被未发布写者占着的 key</td>
+<td><code>:123</code> 的 <code>GatedStorage</code></td>
+<td>等待，直到那个写者发布</td>
+</tr>
+<tr>
+<td>回调抛错</td>
+<td><code>:757</code> 的 <code>sealAfterFailure</code></td>
+<td>所有 prepared 变更作废，一个字节不落盘</td>
+</tr>
+</tbody>
+</table>
+<p>第一条解释了 <code>prepareBoundary</code> 的注释为什么强调 &quot;Table reads must precede the commit's
+first table write&quot;（<code>inbox.ts:54-57</code>）：边界要读队列和最新 head，这两次读必须在任何写之前完成。</p>
+<p>第三条是&quot;一个 phase 要么全成要么全不成&quot;的来源。检查点和这一轮的副作用（追加 entry、
+建子任务）在同一个回调里，所以不可能出现&quot;记了进度但没做&quot;或&quot;做了但没记&quot;。</p>
+<p>还有一层更省的东西：<code>HeldDocument</code> / <code>holdable()</code>（<code>:796-852</code>）。<strong>不是每次 commit 都必须落盘。</strong>
+一个只改 <code>latest</code> 文档、且改的是已有会话文档的提交，可以只在内存里推进，把变更攒着；
+等某个 commit 真要落盘时，<code>takeHeld()</code> 把攒的变更排在自己前面，一起写。
+语义上已提交，物理上延后——不是&quot;拖批&quot;，因为任何一个后来的落盘点都会把它们带上。</p>
+<p>最后一步是 <code>adopt</code>（<code>:904</code>）：落盘成功后按指针交换更新缓存，不重读存储。
+所以一次提交的代价是&quot;一次批量写 + 一次指针交换&quot;，而不是&quot;写 + 全量重读&quot;。</p>
+<p>这一节和 §5.4 合起来，就是完整的恢复机制：
+<strong>恢复的起点是最后一次落盘的 batch，而检查点保证那次 batch 里有一个完整可续的状态。</strong></p>
+<hr>
+<h2 id="sec-26-六-generation-把-while-换成-handover">六、generation：把 <code>while</code> 换成 <code>handOver</code></h2>
+<p><code>GenerationTask</code>（<code>generation.ts:162</code>），<code>name: &quot;pi.generation&quot;</code>，<code>version: 2</code>。</p>
+<h3 id="sec-27-6-1-七个-phase">6.1 七个 phase</h3>
+<p><code>GenerationCheckpoint</code>（<code>:69-136</code>）是一个七支联合：</p>
+<table>
+<thead>
+<tr>
+<th>phase</th>
+<th>干什么</th>
+<th>离开时去哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prepare</code></td>
+<td>拼系统提示词、工具集，写 <code>pi.system</code></td>
+<td><code>request</code></td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td>发一次模型请求</td>
+<td><code>tools</code> / <code>retry</code> / <code>poll</code> / 终态</td>
+</tr>
+<tr>
+<td><code>retry</code></td>
+<td>指数退避后重发</td>
+<td><code>request</code> 或 <code>poll</code></td>
+</tr>
+<tr>
+<td><code>poll</code></td>
+<td>拉一次延迟响应（provider 后台任务）</td>
+<td>同 <code>request</code></td>
+</tr>
+<tr>
+<td><code>tools</code></td>
+<td>为 tool call 建子任务并等待</td>
+<td><code>finish</code> 或再次 <code>tools</code></td>
+</tr>
+<tr>
+<td><code>finish</code></td>
+<td>跑 <code>afterRun</code> 钩子，它们可能建任务</td>
+<td><code>drain</code> 或终态</td>
+</tr>
+<tr>
+<td><code>drain</code></td>
+<td>等 <code>afterRun</code> 建的任务全部终态</td>
+<td>终态</td>
+</tr>
+</tbody>
+</table>
+<p>对比 M03 的 <code>runLoop</code>，一一对得上：</p>
+<table>
+<thead>
+<tr>
+<th>M03</th>
+<th>M11</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prepareRequest</code> 钩子</td>
+<td><code>prepare</code> phase</td>
+</tr>
+<tr>
+<td><code>streamFn</code> 一次请求</td>
+<td><code>request</code> phase</td>
+</tr>
+<tr>
+<td>重试逻辑</td>
+<td><code>retry</code> phase + <code>sleepUntil</code></td>
+</tr>
+<tr>
+<td>顺带产出的 partial</td>
+<td><code>convertPartial</code>（<code>generation.ts:661</code>）</td>
+</tr>
+<tr>
+<td>内层 <code>while (hasMoreToolCalls)</code></td>
+<td><code>tools</code> phase + <code>waiting</code></td>
+</tr>
+<tr>
+<td><code>afterRun</code> 钩子</td>
+<td><code>finish</code> phase</td>
+</tr>
+<tr>
+<td>外层 <code>while (true)</code></td>
+<td><code>handOver</code> 到新任务</td>
+</tr>
+</tbody>
+</table>
+<p><code>prepare</code> 里还有一件容易被忽略的事：它算出一个 <code>cutoff</code>（<code>generation.ts:245-257</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// generation.ts:245-247</span></span><span class="ln"><span class="tok-kw">let</span> cutoff = (<span class="tok-kw">await</span> tx.<span class="tok-fn">latestEntryId</span>(conversationId))!;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> entry <span class="tok-kw">of</span> entries) {</span><span class="ln">	cutoff = (<span class="tok-kw">await</span> tx.<span class="tok-fn">appendEntry</span>(</span><span class="ln">		SystemEntry, conversationId, entry,</span><span class="ln">	)).id;</span><span class="ln">}</span></code></pre></div>
+<p><code>cutoff</code> 是&quot;这一轮请求能看到的最后一条 entry&quot;。<code>prepare</code> 把系统提示词写成 <code>pi.system</code> entry，
+<code>cutoff</code> 随之推进到这个新 entry。之后 <code>request</code> 拿上下文视图时（<code>:283</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// generation.ts:283</span></span><span class="ln"><span class="tok-kw">const</span> view = <span class="tok-kw">await</span> runtime.<span class="tok-fn">context</span>(conversationId, context, { at: cutoff });</span></code></pre></div>
+<p><code>{ at: cutoff }</code> 是关键：视图按一个<strong>固定的 entry id</strong> 取，不是按&quot;当前最新&quot;。
+于是请求发出后，即使队列里又落了一条 entry，这一轮的输入也不会变。</p>
+<p><code>retry</code> 和 <code>poll</code> 也带着同一个 <code>cutoff</code>（<code>:298</code>、<code>:336</code>）。一次请求重试三次，
+三次发给 provider 的 messages 一模一样——否则重试就成了&quot;换了个问题再问一遍&quot;，
+计费和提示词缓存都会错位。</p>
+<p>这和 §6.4 的&quot;不重发、不重复付费&quot;是同一个设计的两面：
+<strong>请求的输入必须是一个可以被持久引用的事实，而不是一个随时会变的查询结果。</strong></p>
+<h3 id="sec-28-6-2-内层循环怎么没的">6.2 内层循环怎么没的</h3>
+<p>M03 的内层循环是这样的：模型给了 tool call，<code>Promise.all</code> 跑工具，
+结果塞回 messages，再问一遍。</p>
+<p><code>durable</code> 把它拆成两步，中间隔着一次持久化：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// generation.ts:345-357</span></span><span class="ln"><span class="tok-kw">await</span> runtime.<span class="tok-fn">commit</span>(<span class="tok-kw">async</span> (tx): Promise&lt;Next&gt; =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> live = <span class="tok-kw">await</span> tx.<span class="tok-fn">doc</span>(LiveDoc, runtime.conversationId);</span><span class="ln">	<span class="tok-kw">const</span> slot = live.tools?.<span class="tok-fn">find</span>(</span><span class="ln">		(slot) =&gt; slot.callId === next &amp;&amp; slot.taskId === <span class="tok-kw">undefined</span>,</span><span class="ln">	);</span><span class="ln">	<span class="tok-kw">const</span> taskId = <span class="tok-kw">await</span> <span class="tok-fn">createToolTask</span>(</span><span class="ln">		tx, runtime, assistant, next, slot?.unoffered,</span><span class="ln">	);</span><span class="ln">	<span class="tok-kw">if</span> (slot !== <span class="tok-kw">undefined</span>) slot.taskId = taskId;</span><span class="ln">	<span class="tok-kw">const</span> checkpoint: GenerationCheckpoint = {</span><span class="ln">		phase: <span class="tok-str">"tools"</span>,</span><span class="ln">		assistant,</span><span class="ln">		tools: [...tools, taskId],</span><span class="ln">		pending: rest,</span><span class="ln">	};</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"waiting"</span>, checkpoint, on: [taskId], policy: <span class="tok-str">"allSettled"</span> };</span><span class="ln">}, context);</span></code></pre></div>
+<p>一次提交同时干了三件事：建工具任务、把任务 id 记进检查点、把 generation 置为
+&quot;等这一个任务&quot;。</p>
+<p>然后 generation 就<strong>放弃了调用栈</strong>——<code>waiting</code> 状态下它没有 invocation，不占内存。
+工具任务跑完，调度器把它唤醒，它从 <code>tools</code> phase 继续，取出下一个待开始的调用。</p>
+<p>串行工具轮就是这样实现的：<code>pending</code> 数组每轮少一个。</p>
+<p>并行轮呢？<code>pending</code> 一次全建完，<code>on</code> 里是全部任务 id，还是 <code>waiting</code>。
+所以&quot;串行还是并行&quot;在这套设计里不是两种控制流，是<strong>两种填 <code>pending</code> 的顺序</strong>。</p>
+<h3 id="sec-29-6-3-外层循环怎么没的">6.3 外层循环怎么没的</h3>
+<p>M03 的外层 <code>while (true)</code> 管&quot;续命&quot;：question（steering）、follow-up、<code>finishTurn</code>。</p>
+<p><code>durable</code> 里没有这个循环。一个 run 结束，要么结束，要么<strong>换一个任务接着干</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// generation.ts:1175-1187</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">createGeneration</span>(</span><span class="ln">	tx: Tx,</span><span class="ln">	conversationId: ConversationId,</span><span class="ln">	telemetry: Pick&lt;TaskCreationOptions, <span class="tok-str">"submissionIds"</span>&gt; = {},</span><span class="ln">): Promise&lt;TaskId&lt;GenerationResult&gt;&gt; {</span><span class="ln">	<span class="tok-kw">return</span> tx.<span class="tok-fn">createTask</span>(GenerationTask, {}, {</span><span class="ln">		ownership: { kind: <span class="tok-str">"conversation"</span> },</span><span class="ln">		conversationId,</span><span class="ln">		...telemetry,</span><span class="ln">	});</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** Hand run control from `from` to `to`; the run's inputs move with it. */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">handOver</span>(</span><span class="ln">	live: Draft&lt;LiveState&gt;, <span class="tok-kw">from</span>: TaskId, to: TaskId,</span><span class="ln">): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">if</span> (live.run?.taskId === <span class="tok-kw">from</span>) live.run.taskId = to;</span><span class="ln">}</span></code></pre></div>
+<p><code>handOver</code> 三行，但它就是&quot;循环&quot;的替代品。两个调用点：</p>
+<ul>
+<li><code>:883</code>：<code>finishTurn</code> 式的续命——追加一条 user 消息，新建 generation，交棒。</li>
+<li><code>:1137</code>：还有排队的输入——把输入推回 <code>run.inputs</code>，新建 generation，交棒。</li>
+</ul>
+<p>区别在哪？<code>while</code> 循环里，第二轮是第一轮的&quot;下一次迭代&quot;，同一个函数调用栈。
+<code>handOver</code> 里，第二轮是<strong>另一个任务</strong>，第一个任务已经 <code>terminal</code>。</p>
+<p>这个差别带来一个直接好处：<strong>崩溃点可以精确到轮次</strong>。假设你问了五个问题，
+第三个答案生成到一半进程死了。重启后要恢复的是&quot;第三个 generation task&quot;，
+不是&quot;整个对话循环&quot;。前两个任务已经是 <code>terminal</code>，一行代码都不用重跑。</p>
+<h3 id="sec-30-6-4-中断分三种-不是一个-error">6.4 中断分三种，不是一个 error</h3>
+<p><code>request</code> phase 开头两行（<code>:264-266</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (<span class="tok-fn">cutOffTooOften</span>(task, runtime)) <span class="tok-kw">return</span> <span class="tok-fn">endCutOff</span>(runtime, task, context);</span><span class="ln"><span class="tok-com">// The host stopped while this request was in flight:</span></span><span class="ln"><span class="tok-com">// a failed attempt, not a resend.</span></span><span class="ln"><span class="tok-kw">if</span> (task.restarts !== <span class="tok-kw">undefined</span>) {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">interrupted</span>(runtime, task.state.checkpoint, context);</span><span class="ln">}</span></code></pre></div>
+<p>如果这个任务被重启过（<code>restarts !== undefined</code>），说明这次请求是在上一个进程里发出的，
+结果无从得知。这时不能当&quot;没发过&quot;重发——provider 可能已经计费了。</p>
+<p><code>interrupted</code> 的处理是把它记成一次<strong>失败尝试</strong>，然后走正常的重试逻辑。
+<code>retry</code> phase 里还有一段专门为延迟响应写的续命（<code>:310-317</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (poll !== <span class="tok-kw">undefined</span>) {</span><span class="ln">	<span class="tok-kw">const</span> pollAt = runtime.<span class="tok-fn">now</span>();</span><span class="ln">	live.generation = { attempt: attempt + <span class="tok-num">1</span>, deferred: { pollAt } };</span><span class="ln">	<span class="tok-kw">return</span> {</span><span class="ln">		status: <span class="tok-str">"running"</span>,</span><span class="ln">		checkpoint: {</span><span class="ln">			phase: <span class="tok-str">"poll"</span>, attempt: attempt + <span class="tok-num">1</span>, ...kept, ...poll, pollAt,</span><span class="ln">		},</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p>检查点里的 <code>poll.handle</code> 是 provider 侧那个后台任务的句柄。进程死了再起来，
+拿这个句柄去拉结果就行——<strong>不重发请求，不重复付费</strong>。</p>
+<p><code>GenerationCheckpoint</code> 里 <code>retry</code> 那一支的注释（<code>:96-100</code>）写得很清楚：</p>
+<blockquote>
+<p>主机死的时候正在拉取的那个延迟响应：下一次尝试再拉一次，而不是重发一次请求，
+这样 provider 那边的任务既不会丢，也不会付两次钱。</p>
+</blockquote>
+<p>这就是&quot;把状态显式建模&quot;的具体收益。第一代把这类信息全丢了，
+所以 M10 §7.2 只能补一个 <code>No result provided</code>。</p>
+<h3 id="sec-31-6-5-压缩是一个被-generation-拥有的任务">6.5 压缩是一个被 generation 拥有的任务</h3>
+<p>M09 讲了压缩的触发条件。在这一层，它就是一个普通任务：
+<code>CompactionTask</code>（<code>compaction.ts:114</code>），<code>name: &quot;pi.compaction&quot;</code>，三个 phase：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// compaction.ts:57-60</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> CompactionCheckpoint =</span><span class="ln">	| { phase: <span class="tok-str">"select"</span> }</span><span class="ln">	| ({ phase: <span class="tok-str">"summarize"</span> } &amp; SummaryRequest)</span><span class="ln">	| ({ phase: <span class="tok-str">"retry"</span>; until: <span class="tok-kw">number</span> } &amp; SummaryRequest);</span></code></pre></div>
+<p><code>select</code> 选范围，<code>summarize</code> 发一次摘要请求，<code>retry</code> 退避重试。
+跟 generation 骨架一模一样，只是短。</p>
+<p>两种触发者（<code>generation.ts:237</code> / <code>:812</code>）：</p>
+<ul>
+<li><strong>threshold</strong>：上下文快满了，<code>prepare</code> phase 里提前压。generation 建这个子任务，
+然后置 <code>waiting</code> 等它。</li>
+<li><strong>overflow</strong>：请求直接失败了、错误里说上下文超了，才压。此时 generation 已经在
+<code>request</code> 或 <code>poll</code> 之后，压完重走一轮 <code>prepare</code>。</li>
+</ul>
+<p>检查点里记的是&quot;等的是哪个压缩任务&quot;（<code>compacted?: TaskId&lt;CompactionResult&gt;</code>），
+不是&quot;压没压过&quot;。所以进程死了重启，generation 还是知道该等谁——那个任务也在磁盘上，
+会自己接着跑。</p>
+<p><code>pi.live</code> 里还有一份给人看的视图（<code>live.ts:70-80</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> CompactionStatus = {</span><span class="ln">	taskId: TaskId&lt;CompactionResult&gt;;</span><span class="ln">	trigger: CompactionReason;</span><span class="ln">	blocking: <span class="tok-kw">boolean</span>;</span><span class="ln">	attempt: <span class="tok-kw">number</span>;</span><span class="ln">	retry?: { at: <span class="tok-kw">number</span>; error: <span class="tok-kw">string</span> };</span><span class="ln">};</span></code></pre></div>
+<p><code>blocking</code> 就是&quot;有没有 run 在等它&quot;。前台的压缩要显示进度，后台的不用。</p>
+<h3 id="sec-32-6-6-一轮的输入从哪来">6.6 一轮的输入从哪来</h3>
+<p>M03 里 steering 和 follow-up 是两个钩子。这里它们是<strong>队列里的两种模式</strong>：
+<code>pi.inbox</code> 的每一项带 <code>mode: &quot;steer&quot; | &quot;followUp&quot; | &quot;write&quot;</code>（<code>inbox.ts:8-16</code>）。</p>
+<p>一个 run 在&quot;边界&quot;上看一眼收件箱：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// inbox.ts:35-42</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Boundary = {</span><span class="ln">	<span class="tok-kw">readonly</span> conversationId: ConversationId;</span><span class="ln">	<span class="tok-kw">readonly</span> inbox: Draft&lt;InboxState&gt;;</span><span class="ln">	<span class="tok-kw">readonly</span> steeringMode: QueueMode;</span><span class="ln">	<span class="tok-kw">readonly</span> followUpMode: QueueMode;</span><span class="ln">	head: EntryId | <span class="tok-kw">undefined</span>;</span><span class="ln">};</span></code></pre></div>
+<p><code>steeringMode</code> / <code>followUpMode</code> 来自设置（<code>agent.ts:80-81</code>），默认都是
+<code>&quot;one-at-a-time&quot;</code>——一次只放一条进去，剩下的留在队列里。</p>
+<p>两种模式的差别，只在于<strong>在哪个边界取</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>取的时机</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>steer</code></td>
+<td>一次 generation 结束、下一轮开始前</td>
+<td>打断当前节奏，插一句</td>
+</tr>
+<tr>
+<td><code>followUp</code></td>
+<td>整个 run 已经答完之后</td>
+<td>当作新一轮的起点</td>
+</tr>
+</tbody>
+</table>
+<p>所以在 <code>durable</code> 里，&quot;打断&quot;不是一个信号，是<strong>队列里一条比别的优先的记录</strong>。
+<code>withdrawQueuedInputs</code>（<code>harness.ts:253</code>）在任务失败时把排队的提交撤回去，
+让用户重新决定——这是第一代做不出来的，因为它的输入直接就是一行 entry。</p>
+<hr>
+<h2 id="sec-33-七-tool-一次调用的持久意图">七、tool：一次调用的持久意图</h2>
+<p><code>ToolTask</code>（<code>tool.ts:136</code>），<code>name: &quot;pi.tool&quot;</code>，<code>version: 3</code>。</p>
+<h3 id="sec-34-7-1-两个-phase-两种-input">7.1 两个 phase，两种 input</h3>
+<p><code>ToolTaskInput</code>（<code>tool.ts:67-83</code>）分两支，切的是&quot;这次调用有没有一条 entry&quot;：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolTaskInput =</span><span class="ln">	| { kind: <span class="tok-str">"model"</span>; assistant: EntryId; callId: <span class="tok-kw">string</span>; unoffered?: <span class="tok-kw">true</span> }</span><span class="ln">	| { kind: <span class="tok-str">"nested"</span>; parent: TaskId; parentCallId: <span class="tok-kw">string</span>;</span><span class="ln">			key: <span class="tok-kw">string</span>; call: ToolCall; progress?: <span class="tok-kw">false</span> };</span></code></pre></div>
+<ul>
+<li><strong><code>model</code></strong>：只存两个指针——哪条 assistant entry、哪个 <code>callId</code>。参数<strong>不复制</strong>，
+用的时候回 entry 里读。于是 entry 是唯一权威，不会出现&quot;任务里的参数和历史里的不一&quot;。</li>
+<li><strong><code>nested</code></strong>：调用内容 <code>call</code> 内联在 input 里。注释把理由写在脸上：
+&quot;whose call the input carries because no entry holds it&quot;——嵌套调用不写进 transcript，
+没有别处可查。</li>
+</ul>
+<p><code>unoffered?: true</code> 也在这一层：它是一句&quot;这个调用我根本没提供过&quot;，所以不必解析工具名，
+直接结算成 <code>tool_unavailable</code>。</p>
+<p>这一支就是 M03 里 <code>executeTool</code> 那个结构在持久层的对应物。但区别必须说清：
+M03 的嵌套调用是同步的一次函数调用，栈一退就没了；这里是一个有主人的任务，可以和调用者
+一起死、一起重启。</p>
+<p>再看检查点，只有两条分支：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// tool.ts:85-88</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolTaskCheckpoint =</span><span class="ln">	| { phase: <span class="tok-str">"call"</span> }</span><span class="ln">	<span class="tok-com">/** Durable intent: the final arguments and the replay policy</span></span><span class="ln"><span class="tok-com">	 * recorded before execution. */</span></span><span class="ln">	| { phase: <span class="tok-str">"execute"</span>; arguments: JsonObject; replay: <span class="tok-str">"safe"</span> | <span class="tok-str">"unsafe"</span> };</span></code></pre></div>
+<p><code>call</code> 这个 phase 很长（<code>:149-200</code>），因为它把整个&quot;准备工作&quot;串在了一起：
+读调用、解析工具、修参数、校验、跑 <code>beforeTool</code> 钩子、再校验、提交意图、执行。</p>
+<p>注释解释了为什么不拆（<code>:130-135</code>）：&quot;all in one <code>call</code> handler so nothing separates
+resolution from settlement&quot;——<strong>解析和结算之间不能有缝</strong>。如果&quot;解析出工具&quot;和&quot;开始执行&quot;
+分成两个 phase，中间那次崩溃就会留下一个&quot;已经决定要用哪个工具、但还不知道参数&quot;的半截状态。</p>
+<h3 id="sec-35-7-2-一段三行-把-m10-那个洞补上了">7.2 一段三行，把 M10 那个洞补上了</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// tool.ts:195-198</span></span><span class="ln"><span class="tok-kw">await</span> runtime.<span class="tok-fn">commit</span>(() =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> intent = {</span><span class="ln">		phase: <span class="tok-str">"execute"</span>, arguments: final, replay: tool.replay ?? <span class="tok-str">"unsafe"</span>,</span><span class="ln">	} <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span><span class="ln">	<span class="tok-kw">return</span> { status: <span class="tok-str">"running"</span>, checkpoint: intent };</span><span class="ln">}, context);</span><span class="ln"><span class="tok-kw">await</span> <span class="tok-fn">run</span>(runtime, task.input, call, tool, final, context);</span></code></pre></div>
+<p>先提交&quot;我要用这些参数跑这个工具，重放策略是 safe/unsafe&quot;，然后才真正跑。</p>
+<p>崩在 <code>run</code> 里面怎么办？进程重启，这个任务回到 <code>pending</code>，检查点是 <code>execute</code>。
+<code>execute</code> phase 只做一件事（<code>:202-227</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> { arguments: args, replay } = task.state.checkpoint;</span><span class="ln"><span class="tok-kw">const</span> call = <span class="tok-kw">await</span> <span class="tok-fn">readCall</span>(runtime, task.input, context);</span><span class="ln"><span class="tok-kw">const</span> tool = <span class="tok-kw">await</span> <span class="tok-fn">resolveTool</span>(runtime, task.input, call.name, context);</span><span class="ln"><span class="tok-kw">if</span> (replay === <span class="tok-str">"safe"</span> &amp;&amp; tool?.replay === <span class="tok-str">"safe"</span>) {</span><span class="ln">	<span class="tok-com">// The rerun reports from scratch: clear what the interrupted</span></span><span class="ln">	<span class="tok-com">// attempt published.</span></span><span class="ln">	<span class="tok-kw">await</span> runtime.<span class="tok-fn">commit</span>(<span class="tok-kw">async</span> (tx) =&gt; {</span><span class="ln">		<span class="tok-kw">const</span> slot = <span class="tok-fn">toolSlot</span>(</span><span class="ln">			<span class="tok-kw">await</span> tx.<span class="tok-fn">doc</span>(LiveDoc, runtime.conversationId), runtime.taskId,</span><span class="ln">		);</span><span class="ln">		<span class="tok-kw">if</span> (slot !== <span class="tok-kw">undefined</span>) {</span><span class="ln">			<span class="tok-fn">clearProgress</span>(slot);</span><span class="ln">			slot.status = <span class="tok-str">"running"</span>;</span><span class="ln">			<span class="tok-kw">if</span> (<span class="tok-str">"parentTaskId"</span> <span class="tok-kw">in</span> slot) slot.arguments = args;</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	}, context);</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-fn">run</span>(runtime, task.input, call, tool, args, context);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> message = <span class="tok-str">`Tool ${call.name} was interrupted and may have partially run`</span>;</span><span class="ln"><span class="tok-kw">const</span> ending = { status: <span class="tok-str">"failed"</span>, message } <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span><span class="ln"><span class="tok-kw">await</span> <span class="tok-fn">settleFromSlot</span>(</span><span class="ln">	runtime, task.input, call, { tool }, ending, <span class="tok-str">"interrupted"</span>, message,</span><span class="ln">	context,</span><span class="ln">);</span></code></pre></div>
+<p>两条路，选择依据是<strong>两次策略都必须说 safe</strong>：检查点里记的（当时的判断）和注册表里
+现在的（当前的定义）。任何一边是 <code>unsafe</code>，就不重跑，写一条 <code>interrupted</code> 的真实结果。</p>
+<p>这就是&quot;读文件可以重来、<code>bash</code> 不能瞎重来&quot;在类型上的表达。</p>
+<p><code>replay</code> 由工具自己声明（<code>tool.replay ?? &quot;unsafe&quot;</code>）。默认 <code>unsafe</code> 是个好默认值：
+新写的工具不知道能不能重放，就假定不能。</p>
+<h3 id="sec-36-7-3-工具里还能再调工具">7.3 工具里还能再调工具</h3>
+<p><code>NestedCallDoc</code>（<code>tool.ts:117-125</code>）解决的是另一类问题：工具 A 在执行中想调工具 B。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> NestedCallDoc = defineDocFamily&lt;NestedCallState, <span class="tok-kw">null</span>&gt;({</span><span class="ln">	kind: <span class="tok-str">"pi.tool.nested-call"</span>,</span><span class="ln">	version: <span class="tok-num">1</span>,</span><span class="ln">	scope: <span class="tok-str">"task"</span>,</span><span class="ln">	family: <span class="tok-kw">true</span>,</span><span class="ln">	initial: () =&gt; ({}),</span><span class="ln">	<span class="tok-com">// The document retires with its task.</span></span><span class="ln">	checkpointWhen: () =&gt; <span class="tok-kw">false</span>,</span><span class="ln">});</span></code></pre></div>
+<p>一行一个槽位：<code>family: true</code> + <code>initial: () =&gt; ({})</code> 意味着每次嵌套调用是这一族里的
+一个新成员，读的时候按 key 取。</p>
+<p>注释里那句&quot;the result retires with the caller&quot;是关键：嵌套调用的结果不写进 transcript，
+它挂在调用者的文档上。所以对话历史里看不到它，调用者结束它也一起没了。
+<code>ToolTaskResult</code> 因此是 <code>{ kind: &quot;nested&quot; }</code>——只有一个标记，没有内容。</p>
+<h3 id="sec-37-7-4-并行还是串行-是一个设置">7.4 并行还是串行，是一个设置</h3>
+<p><code>settings.toolExecution</code>（<code>agent.ts:79</code>）默认 <code>&quot;parallel&quot;</code>。</p>
+<p>两种模式在代码里只差<strong>填 <code>pending</code> 的速度</strong>：</p>
+<ul>
+<li>并行：一次把这一轮所有调用建成任务，<code>pending</code> 立刻清空。</li>
+<li>串行：<code>pending</code> 留着剩下的调用，每轮只建一个（<code>generation.ts:342-357</code>）。</li>
+</ul>
+<p>一份检查点里 <code>tools</code> 是&quot;已经建过的任务&quot;，<code>pending</code> 是&quot;还没开始的调用&quot;。
+两个数组一起，就是这一轮的全部进度。</p>
+<p>这也解释了 <code>unoffered</code> 那个标记的来由。<code>version: 2</code> 的迁移注释（<code>generation.ts:166-168</code>）
+写得很具体：版本 1 会把&quot;模型调了一个这轮没提供给它的工具&quot;当成正常调用去解析名字；
+版本 2 改成留一个 <code>unoffered</code> 标记，让它结算成 <code>tool_unavailable</code>。</p>
+<p><strong>为什么这需要版本号？</strong> 因为检查点是跨版本读的。一个 v1 进程读到 v2 的检查点，
+不知道怎么处理 <code>unoffered</code>，所以 <code>#fit</code> 直接判它 <code>blocked</code>，宁可不跑。</p>
+<hr>
+<h2 id="sec-38-八-和-m03-的对照">八、和 M03 的对照</h2>
+<p>把两代放一张表里，边界就清楚了：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th><code>agent</code>（M03）</th>
+<th><code>durable</code>（M11）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>循环的载体</td>
+<td>函数调用栈</td>
+<td>task 记录</td>
+</tr>
+<tr>
+<td>进度存在哪</td>
+<td>局部变量</td>
+<td>检查点（每次提交）</td>
+</tr>
+<tr>
+<td>一次工具调用</td>
+<td><code>await</code> 一个 Promise</td>
+<td>一个 <code>pi.tool</code> 任务</td>
+</tr>
+<tr>
+<td>一轮对话的边界</td>
+<td><code>while</code> 的一次迭代</td>
+<td>一个 <code>pi.generation</code> 任务</td>
+</tr>
+<tr>
+<td>崩溃恢复</td>
+<td>没有这个概念</td>
+<td><code>open()</code> 把 <code>running</code> 改回 <code>pending</code></td>
+</tr>
+<tr>
+<td>并发</td>
+<td><code>Promise.all</code></td>
+<td>调度器 + <code>waiting</code> + 所有权</td>
+</tr>
+<tr>
+<td>取消</td>
+<td><code>AbortSignal</code></td>
+<td>abort 标记 + abort 处理器</td>
+</tr>
+<tr>
+<td>重试上限</td>
+<td>调用方自己数</td>
+<td><code>restarts</code> + <code>restartLimit</code></td>
+</tr>
+<tr>
+<td>系统提示词</td>
+<td>每次请求现拼</td>
+<td><code>prepare</code> phase + <code>pi.system</code> entry</td>
+</tr>
+<tr>
+<td>谁在用</td>
+<td><code>coding-agent</code></td>
+<td><code>durable</code> 之上的宿主</td>
+</tr>
+</tbody>
+</table>
+<p>这张表的读法是：<strong>右列每一行，都是左列某一行从&quot;内存里的事实&quot;变成&quot;存储里的事实&quot;</strong>。</p>
+<p>不是 <code>durable</code> 更聪明，是它把同样的东西记下来了。代价是每次状态变化都要一次提交，
+收益是进程可以在任何一个逗号后面死掉。</p>
+<p>但要说清一件事：这张表里有一半<strong>不是 <code>agent</code> 做不到，而是 <code>agent</code> 不该做</strong>。</p>
+<p><code>AbortSignal</code> 换成 abort 标记、<code>Promise.all</code> 换成调度器，这两条是&quot;要不要&quot;的选择。
+<code>runLoop</code> 完全可以加一个 <code>restartLimit</code> 参数，把重试次数记在一个 Map 里。
+真正做不到的是另外几条：崩溃恢复、跨轮次的进度、进程死时&quot;可能已经发生&quot;的那个事实。</p>
+<p>分界线只有一条：<strong>这个信息需不需要活过进程。</strong></p>
+<ul>
+<li>不需要 → 留在内存里，循环就够了。</li>
+<li>需要 → 它必须在某一次提交里落盘；一旦落盘，就要回答&quot;谁在什么时候提交&quot;——
+那已经是一个运行时了。</li>
+</ul>
+<p>所以 <code>coding-agent</code> 选 <code>agent</code> 是合理的：它的会话是本地文件，用户关掉终端就是&quot;结束&quot;，
+没有&quot;重启后接着跑&quot;的承诺要兑现。<code>durable</code> 选了另一条，因为它要把这个承诺兑现。
+<strong>选型的分歧不在能力，在承诺。</strong></p>
+<hr>
+<h2 id="sec-39-九-四种后端-一套语义">九、四种后端，一套语义</h2>
+<p>M10 讲了 JSONL 的 marker + sidecar。这里补全四个后端：</p>
+<table>
+<thead>
+<tr>
+<th>后端</th>
+<th>文件</th>
+<th>行数</th>
+<th>定位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JSONL</td>
+<td><code>storage/jsonl/storage.ts</code></td>
+<td>908</td>
+<td>本地、可读、全历史在内存</td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td><code>storage/sqlite/storage.ts</code></td>
+<td>1,050</td>
+<td>长时间跑、不占内存</td>
+</tr>
+<tr>
+<td>IndexedDB</td>
+<td><code>storage/indexeddb.ts</code></td>
+<td>1,273</td>
+<td>浏览器</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td><code>storage/memory.ts</code></td>
+<td>893</td>
+<td>测试与沙箱</td>
+</tr>
+</tbody>
+</table>
+<p>前三个的实现方式差得很远，但对外暴露的是同一个 <code>Storage</code> 接口（<code>types.ts:1329</code>）。</p>
+<h3 id="sec-40-9-1-一致性靠测试-不靠约定">9.1 一致性靠测试，不靠约定</h3>
+<p><code>testing/storage-conformance.ts</code> 2,100 行，<code>env-conformance.ts</code> 634 行。
+这两个文件是这套多后端设计的地基。</p>
+<p>它们的用法是：每种后端实现完，跑同一套用例。用例断言的不是&quot;SQL 长什么样&quot;，
+而是&quot;语义对不对&quot;——分叉后能不能读到父会话的历史、延迟提交的窗口到点没有、
+一篇文档的 <code>latest</code> 版本是不是真的只有一个。</p>
+<p><strong>这比写文档靠谱。</strong> 一份 3,000 行的契约文档会过期，2,100 行可执行的用例不会。</p>
+<p>顺带一个观察：<code>durable/docs/spec.md</code> 有 362 KB。代码 33,728 行，规格书 36 万字节。
+这个比例在开源项目里很少见——源码里那些 <code>(spec §8.3)</code>、<code>(spec §5.5)</code> 的注释，
+指的就是这份文件。<strong>读不懂某段代码时，先去看它引用的 spec 章节。</strong></p>
+<h3 id="sec-41-9-2-sqlite-那-1-050-行里有什么">9.2 SQLite 那 1,050 行里有什么</h3>
+<p><code>storage/sqlite/</code> 下除了 <code>storage.ts</code> 还有 <code>schema.ts</code>(64)、<code>migrations.ts</code>(139)、
+<code>database.ts</code>(2)、<code>node.ts</code>(23)、<code>cloudflare.ts</code>(16)。</p>
+<p><code>database.ts</code> 只有两行——它是一个纯类型文件。真正干活的是 <code>node.ts</code> / <code>cloudflare.ts</code>
+这两个薄适配层，一个接 <code>node:sqlite</code>，一个接 Durable Object 的 SQL。</p>
+<p>上面还有一层 <code>storage/store/</code>（6 文件 / 1,329 行）：<code>commit.ts</code>、<code>documents.ts</code>、
+<code>queries.ts</code>、<code>storage.ts</code>、<code>tables.ts</code>。<strong>两个 SQL 后端共享这一层</strong>，
+所以 SQLite 和 Durable Object 的语义天然一致——它们跑的是同一份 SQL。</p>
+<hr>
+<h2 id="sec-42-十-完整链路">十、完整链路</h2>
+<p>一次&quot;用户输入 → 模型回答&quot;，在 <code>durable</code> 里的全过程：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">submit(input)</span><span class="ln">  |</span><span class="ln">  +-&gt; 一次提交：pi.user entry + submission 记录 + pi.inbox 更新</span><span class="ln">  |     （M10 §9：先 sidecar，再 marker）</span><span class="ln">  |</span><span class="ln">  +-&gt; startRun -&gt; tx.createTask(GenerationTask)</span><span class="ln">        |</span><span class="ln">        +-&gt; [scheduler #kick] queueMicrotask(#drain)</span><span class="ln">        |     |</span><span class="ln">        |     +-&gt; #reserve ：一次提交预留所有可跑任务</span><span class="ln">        |     |     -&gt; 状态写回 running，restarts 不动</span><span class="ln">        |     +-&gt; #start -&gt; #run ：循环跑 phase</span><span class="ln">        |</span><span class="ln">        +-&gt; prepare ：拼提示词 -&gt; 需要时写 pi.system entry -&gt; 提交</span><span class="ln">        |     -&gt; checkpoint = { phase: "request", cutoff, model, ... }</span><span class="ln">        |</span><span class="ln">        +-&gt; request ：streamResponse(...) 真正发请求</span><span class="ln">        |     |</span><span class="ln">        |     +-&gt; 拿到 tool call -&gt; 提交：建 n 个 pi.tool 任务</span><span class="ln">        |     |     -&gt; checkpoint = { phase: "tools", on: [...] }</span><span class="ln">        |     |     -&gt; 状态 = waiting（放弃调用栈）</span><span class="ln">        |     |</span><span class="ln">        |     +-&gt; 拿到最终答案 -&gt; 提交：写 pi.assistant</span><span class="ln">        |           -&gt; checkpoint = { phase: "finish", run }</span><span class="ln">        |</span><span class="ln">        +-&gt; [工具任务各自调度，见第七节]</span><span class="ln">        |     -&gt; 全部 terminal -&gt; 唤醒 generation</span><span class="ln">        |</span><span class="ln">        +-&gt; finish / drain ：afterRun 钩子可能再建任务</span><span class="ln">              -&gt; 终态 completed { entryId }</span><span class="ln">              -&gt; 需要续命则 handOver 到新 generation 任务</span></code></pre></div>
+<p>对比 M10 §11.1 的那张图：第一代那条线的终点是&quot;文件里多一行&quot;；
+这条线的终点是&quot;一批任务到达终态&quot;。</p>
+<hr>
+<h2 id="sec-43-十一-工程暗坑">十一、工程暗坑</h2>
+<p><strong>1. <code>pending</code> 和 <code>running</code> 的检查点类型一样，但不是一回事。</strong>
+<code>pending</code> 表示没有调用栈，<code>running</code> 表示有人正持有它。靠检查点区分不了，
+只能看状态字段。写恢复逻辑时不要拿检查点形状猜状态。</p>
+<p><strong>2. 规则 6 会咬人：phase 没产生持久进展就是 fault。</strong>
+<code>#rules</code>（<code>scheduler.ts:2297-2301</code>）对比进出的检查点。你写一个只做副作用、
+不提交的 handler，第一次跑就判 <code>faulted</code>。想&quot;什么都不改就退出&quot;，
+得显式返回一个 <code>waiting</code> 或 <code>sleeping</code> 状态。</p>
+<p><strong>3. <code>checkpointWhen</code> 返回 <code>false</code> 的文档不会留下版本。</strong>
+<code>NestedCallDoc</code> 就是 <code>checkpointWhen: () =&gt; false</code>，因为它跟着任务一起销毁。
+给这种文档写&quot;回到上一版&quot;的逻辑会拿到 <code>undefined</code>。</p>
+<p><strong>4. <code>replay</code> 两边都是 <code>safe</code> 才重跑。</strong>
+<code>tool.ts:208</code> 是 <code>replay === &quot;safe&quot; &amp;&amp; tool?.replay === &quot;safe&quot;</code>。
+只在自己那一侧写 safe、工具声明的是 unsafe，照样不重跑——这是故意的，
+因为它防的是&quot;工具的实现换了，重跑不再安全&quot;。</p>
+<p><strong>5. <code>restarts</code> 只在&quot;没改变过状态&quot;时累加。</strong>
+<code>open()</code> 里回退 <code>running → pending</code> 时加一。如果任务在被切断前改了检查点，
+它大概率已经离开 <code>running</code>，下一次不会再加。<strong>连续</strong>才是这个计数器的语义。</p>
+<p><strong>6. <code>abandonOnRestart</code> 的任务不会变 <code>orphaned</code>。</strong>
+它会带 <code>abortReason: &quot;restart&quot;</code> 等自己的定义，好让 abort 处理器清理干净
+（<code>scheduler.ts:1947-1952</code>）。这类任务的 abort 处理器必须能处理&quot;从没开始过&quot;的情况。</p>
+<p><strong>7. <code>orchestration</code> 里有两种等待，别混。</strong>
+<code>waitForTask</code> 等的是&quot;任务终态&quot;，是内存里的等待，调用结束就没；
+<code>state.waiting</code> 是持久等待，进程重启后仍然等。前者用来读结果，后者用来编排。</p>
+<p><strong>8. 延迟提交同样影响任务状态。</strong>
+<code>runtime.commit(..., PROGRESS_COMMIT)</code> 是 <code>persistWithinMs</code> 那一档（默认 1 秒）。
+任务的<strong>决策</strong>提交（返回新状态的那些）是立即的，只有纯文档改动可以延迟。
+把这两类提交搞混，会在崩溃后看到&quot;工具槽位显示 running 但任务已经 terminal&quot;。</p>
+<p><strong>9. <code>readOnly: true</code> 打开的 Harness 什么都不恢复。</strong>
+<code>open()</code> 里 <code>if (this.#readOnly) continue;</code> 跳过回退逻辑，<code>running</code> 任务保持原样
+（另一个进程还在跑它）。所以只读端看到的 <code>running</code> 是<strong>真的在跑</strong>，
+不是&quot;上次没跑完&quot;。</p>
+<p><strong>10. <code>GenerationTask</code> 的 <code>version</code> 是 2，<code>ToolTask</code> 是 3。</strong>
+版本号不是包版本，是&quot;检查点结构版本&quot;。改 <code>GenerationCheckpoint</code> 的字段就必须加版本，
+否则老检查点会被当成新结构读（<code>prepare</code> 里有专门处理旧版本缺字段的分支）。</p>
+<p><strong>11. <code>commit</code> 回调里只能用 <code>tx</code> 读。</strong>
+<code>types.ts:286-287</code> 明确警告：回调里调 <code>snapshot()</code> / <code>watchDoc()</code> / <code>getTask()</code>
+会排到自己持有的那条变更线上，然后永远不返回。<strong>这不是慢，是死锁。</strong></p>
+<p><strong>12. <code>pi.inbox</code> 只在队列空的时候留版本。</strong>
+<code>inbox.ts:28</code> 是 <code>checkpointWhen: (value) =&gt; value.items.length === 0</code>。
+所以&quot;把收件箱回滚到上一版&quot;这种操作拿不到非空的旧状态——它压根没存。</p>
+<p><strong>13. 同一个 <code>commit</code> 里，表读必须在表写之前。</strong>
+<code>transaction.ts:277</code> 的 <code>#written</code> 一旦置位，后续表读直接抛 <code>ReadAfterWrite</code>。
+所以凡是&quot;先读一下再决定写什么&quot;的 phase，读都得摆在开头（<code>prepareBoundary</code> 就是这个形状）。
+这条限制不在文档里，在错误里——撞上一次就记住了。</p>
+<hr>
+<h2 id="sec-44-十二-自己动手验证">十二、自己动手验证</h2>
+<p>六个实验，前三个不用装依赖。</p>
+<h3 id="sec-45-实验-1-看任务状态机在磁盘上长什么样">实验 1：看任务状态机在磁盘上长什么样</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/durable</span><span class="ln">node --conditions=source --experimental-strip-types \</span><span class="ln">  test/examples/12-recovery.ts</span></code></pre></div>
+<p>判据：输出里能看到任务从 <code>pending</code> 到 <code>terminal</code> 的迁移，以及重开后
+<code>running</code> 被改回 <code>pending</code> 且 <code>restarts</code> 变了。</p>
+<p>想看更完整的恢复场景，再跑 <code>30-reload-and-restart.ts</code>（中途重载扩展 + 模拟重启）。</p>
+<h3 id="sec-46-实验-2-让一个-phase-不提交-看它被判-fault">实验 2：让一个 phase 不提交，看它被判 fault</h3>
+<p>去 <code>packages/durable/test/</code> 下新建一个任务定义：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> Stuck = <span class="tok-fn">defineTask</span>({</span><span class="ln">	name: <span class="tok-str">"test.stuck"</span>,</span><span class="ln">	version: <span class="tok-num">1</span>,</span><span class="ln">	initial: () =&gt; ({ phase: <span class="tok-str">"spin"</span> }),</span><span class="ln">	phases: {</span><span class="ln">		<span class="tok-com">// 只读不写，什么都不提交</span></span><span class="ln">		spin: <span class="tok-kw">async</span> () =&gt; {},</span><span class="ln">	},</span><span class="ln">	abort: <span class="tok-kw">async</span> () =&gt; {},</span><span class="ln">});</span></code></pre></div>
+<p>把它注册进去、建一个、等一秒。判据：任务终态是 <code>faulted</code>，
+错误文本含 <code>returned without durable progress</code>。</p>
+<h3 id="sec-47-实验-3-确认-durable-真的不依赖-agent">实验 3：确认 <code>durable</code> 真的不依赖 <code>agent</code></h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/durable</span><span class="ln">grep -r "pi-agent-core" package.json src/ | wc -l</span><span class="ln">grep -r "pi-ai" package.json | wc -l</span></code></pre></div>
+<p>判据：第一条 0，第二条 1。再反查 <code>coding-agent/package.json</code> 里两条都在。</p>
+<h3 id="sec-48-实验-4-跑一遍存储一致性套件">实验 4：跑一遍存储一致性套件</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/durable</span><span class="ln">npx vitest --run test/memory-storage.test.ts \</span><span class="ln">  test/jsonl-storage.test.ts test/sqlite-storage.test.ts</span></code></pre></div>
+<p>判据：三套用例全绿。它们用的是同一份 <code>createStorageConformance()</code>
+（<code>src/testing/storage-conformance.ts:129</code>）——契约只有一份，实现有三份。</p>
+<p>把 <code>storage/memory.ts</code> 里某处语义改坏，再跑，看是哪一条用例先红。
+<strong>先红的那条就是这份契约里最容易被写错的一条。</strong></p>
+<h3 id="sec-49-实验-5-看取消怎么级联">实验 5：看取消怎么级联</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd packages/durable</span><span class="ln">node --conditions=source --experimental-strip-types \</span><span class="ln">  test/examples/23-child-tasks.ts</span></code></pre></div>
+<p>判据：子任务先到终态，父任务后到——中间那段就是 <code>completing</code>。
+把 <code>ownership</code> 从 <code>{ kind: &quot;task&quot;, taskId }</code> 改成 <code>{ kind: &quot;conversation&quot; }</code>，
+子任务就不再被级联取消，会自己跑完。<strong>所有权不只是记账，它是取消的拓扑。</strong></p>
+<h3 id="sec-50-实验-6-撞一次-readafterwrite">实验 6：撞一次 <code>ReadAfterWrite</code></h3>
+<p>拿任意一个 phase 的 handler，把表写放到表读前面：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">await</span> runtime.<span class="tok-fn">commit</span>(<span class="tok-kw">async</span> (tx) =&gt; {</span><span class="ln">	<span class="tok-kw">await</span> tx.<span class="tok-fn">appendEntry</span>(UserEntry, runtime.conversationId, { model: [] });</span><span class="ln">	<span class="tok-kw">await</span> tx.<span class="tok-fn">latestHeadMarker</span>(runtime.conversationId); <span class="tok-com">// 写之后才读</span></span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}, context);</span></code></pre></div>
+<p>判据：抛 <code>ReadAfterWrite</code>。把两行对调就不抛了。</p>
+<p>这个实验的价值不在验证一个错误，而在明白 <code>prepareBoundary</code> 为什么长成那个形状：
+它必须在回调第一行就把队列和 head 读出来，因为边界的判断依赖&quot;写之前的世界&quot;，
+而一旦开始写，那个世界就不可再问。</p>
+<hr>
+<h2 id="sec-51-十三-收束">十三、收束</h2>
+<h3 id="sec-52-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
+<p><strong>一、把&quot;进度&quot;从栈上搬到存储里，循环就自然消失了。</strong>
+不是&quot;给循环加个存档点&quot;，是&quot;循环本来就不该是一个函数&quot;。
+一个 <code>while</code> 的每次迭代如果都要持久化，那它就是一个状态机，
+只是因为不需要崩溃恢复，被写成了循环的样子。</p>
+<p><strong>二、用&quot;不产生进展即失败&quot;兜住状态机的空转。</strong>
+状态机最阴的 bug 是&quot;什么都没发生，但也没报错&quot;。
+<code>#rules</code> 规则 6 用一个 <code>jsonEqual</code> 把这类 bug 变成可上报的 <code>faulted</code>。
+这是状态机设计里性价比最高的一行代码。</p>
+<p><strong>三、不可逆的操作要先记意图，再执行。</strong>
+<code>tool.ts:195-198</code> 那三行是整章最值得抄的一处：先提交&quot;我要用什么参数跑什么工具&quot;，
+再跑。这样崩溃之后，系统知道&quot;有一件事可能已经发生了&quot;，
+而不是&quot;不知道发生过什么&quot;——后者才是数据损坏的真正来源。</p>
+<h3 id="sec-53-13-2-这章的边界">13.2 这章的边界</h3>
+<p>本章讲了 <code>durable</code> 的调度内核和三个内置任务。没讲的是：</p>
+<ul>
+<li><code>codemode/</code>（1,710 行）：沙箱里跑模型写的脚本，留给 M13。</li>
+<li><code>env/</code>（2,319 行）：文件与进程的跨平台抽象，本章只当作黑盒。</li>
+<li><code>tools/</code>（1,596 行）：内置工具实现，M05 讲的是 <code>coding-agent</code> 的那一套，不是这一套。</li>
+<li><code>images/</code>、<code>tool-search/</code>：与主线无关的两块。</li>
+</ul>
+<h3 id="sec-54-13-3-下一站">13.3 下一站</h3>
+<p>M11 讲了&quot;提交怎么被调度成任务&quot;。M12 讲 <code>chord</code>——<code>durable</code> 依赖的那个包，
+也是这些提交能在浏览器、Node、Cloudflare 三处跑同一份代码的原因。</p>
+<p><code>chord</code> 50,101 行（216 文件），是仓库里最大的包。M12 只细读它的 v1 根层——
+那 25 个文件里就有 <code>object.ts</code>、<code>connection.ts</code>、<code>host.ts</code>、<code>reload.ts</code>。</p>
+<hr>
+<h2 id="sec-55-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>durable/src/types.ts</code></td>
+<td>1,446</td>
+<td><code>TaskDefinition</code> / <code>TaskState</code> / <code>TaskRuntime</code> / <code>Tx</code> / <code>Storage</code> 契约</td>
+</tr>
+<tr>
+<td><code>durable/src/session/transaction.ts</code></td>
+<td>1,293</td>
+<td>一次提交的原子边界：<code>Tx</code> 实现、<code>ReadAfterWrite</code>、延迟提交</td>
+</tr>
+<tr>
+<td><code>durable/src/session/session.ts</code></td>
+<td>2,105</td>
+<td>Session 门面：提交线、缓存、发布</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/scheduler.ts</code></td>
+<td>3,159</td>
+<td>预留、决策、记账、唤醒；唯一的调度循环</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/generation.ts</code></td>
+<td>1,188</td>
+<td><code>pi.generation</code> 七阶段任务 + <code>handOver</code></td>
+</tr>
+<tr>
+<td><code>durable/src/harness/tool.ts</code></td>
+<td>1,147</td>
+<td><code>pi.tool</code> 两阶段任务 + 重放策略 + 嵌套调用</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/types.ts</code></td>
+<td>1,080</td>
+<td><code>AgentState</code> / <code>Agent</code> / <code>Submission</code> / <code>ToolExecutionResult</code></td>
+</tr>
+<tr>
+<td><code>durable/src/harness/harness.ts</code></td>
+<td>612</td>
+<td><code>Harness</code> 门面：open / resume / create / fork</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/compaction.ts</code></td>
+<td>501</td>
+<td><code>pi.compaction</code>（select / summarize / retry）</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/live.ts</code></td>
+<td>452</td>
+<td><code>pi.live</code> 文档：工具槽位、压缩状态、run 进度</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/view.ts</code></td>
+<td>400</td>
+<td>会话视图与窗口</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/context.ts</code></td>
+<td>383</td>
+<td>head 标记到上下文区间（M10 §8.2）</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/agent.ts</code></td>
+<td>362</td>
+<td><code>AgentDoc</code> 定义 + 默认策略常数</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/task-graph.ts</code></td>
+<td>313</td>
+<td>任务图视图</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/submissions.ts</code></td>
+<td>318</td>
+<td>提交的生命周期</td>
+</tr>
+<tr>
+<td><code>durable/src/harness/registry.ts</code></td>
+<td>115</td>
+<td>三个内置任务的注册表</td>
+</tr>
+<tr>
+<td><code>durable/src/documents.ts</code></td>
+<td>209</td>
+<td><code>defineDoc</code> / <code>defineDocFamily</code> 四个重载</td>
+</tr>
+<tr>
+<td><code>durable/src/testing/storage-conformance.ts</code></td>
+<td>2,100</td>
+<td>四种后端共用的一致性用例</td>
+</tr>
+<tr>
+<td><code>durable/src/storage/sqlite/storage.ts</code></td>
+<td>1,050</td>
+<td>SQLite 后端</td>
+</tr>
+<tr>
+<td><code>durable/src/storage/indexeddb.ts</code></td>
+<td>1,273</td>
+<td>IndexedDB 后端</td>
+</tr>
+<tr>
+<td><code>durable/src/storage/memory.ts</code></td>
+<td>893</td>
+<td>内存后端</td>
+</tr>
+<tr>
+<td><code>durable/docs/spec.md</code></td>
+<td>362 KB</td>
+<td>源码注释里 <code>(spec §x.y)</code> 引用的那份规格书</td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m10-session.html"><span class="lbl">上一篇</span>会话 —— 从会话树到持久运行时</a>
+      <a class="next" href="m12-chord.html"><span class="lbl">下一篇</span>对象与热重载 —— 改代码为什么不用重启</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-三个包的分工" class="">一、三个包的分工</a><a href="#sec-2-1-1-两条互不相交的依赖线" class="lv3">1.1 两条互不相交的依赖线</a><a href="#sec-3-1-2-为什么可以不用-runloop" class="lv3">1.2 为什么可以不用 runLoop</a><a href="#sec-4-二-目录地图" class="">二、目录地图</a><a href="#sec-5-2-1-harness-的-24-个文件分成五组" class="lv3">2.1 harness/ 的 24 个文件分成五组</a><a href="#sec-6-2-2-根层那四个不到-250-行的文件" class="lv3">2.2 根层那四个不到 250 行的文件</a><a href="#sec-7-三-三个内核概念" class="">三、三个内核概念</a><a href="#sec-8-3-1-entry-不可变的历史" class="lv3">3.1 entry：不可变的历史</a><a href="#sec-9-3-2-document-可以被改写的状态" class="lv3">3.2 document：可以被改写的状态</a><a href="#sec-10-3-3-task-第四种东西" class="lv3">3.3 task：第四种东西</a><a href="#sec-11-3-4-taskruntime-handler-能碰到的全部" class="lv3">3.4 TaskRuntime：handler 能碰到的全部</a><a href="#sec-12-3-5-所有权-每个任务都得有个主人" class="lv3">3.5 所有权：每个任务都得有个主人</a><a href="#sec-13-四-六种状态-五种结局" class="">四、六种状态，五种结局</a><a href="#sec-14-4-1-taskstate-types-ts-658-702" class="lv3">4.1 TaskState（types.ts:658-702）</a><a href="#sec-15-4-2-taskoutcome-types-ts-621-655" class="lv3">4.2 TaskOutcome（types.ts:621-655）</a><a href="#sec-16-4-3-completing-为什么必须存在" class="lv3">4.3 completing 为什么必须存在</a><a href="#sec-17-4-4-为什么-finish-必须和-drain-分成两步" class="lv3">4.4 为什么 finish 必须和 drain 分成两步</a><a href="#sec-18-五-调度器-没有循环的循环" class="">五、调度器：没有循环的循环</a><a href="#sec-19-5-1-一次-kick-一轮-drain" class="lv3">5.1 一次 kick，一轮 drain</a><a href="#sec-20-5-2-reserve-一次提交预留所有活" class="lv3">5.2 #reserve：一次提交预留所有活</a><a href="#sec-21-5-3-rules-六条决策规则" class="lv3">5.3 #rules：六条决策规则</a><a href="#sec-22-5-4-open-把-running-改回-pending" class="lv3">5.4 open()：把 running 改回 pending</a><a href="#sec-23-5-5-一次调用的完整生命周期" class="lv3">5.5 一次调用的完整生命周期</a><a href="#sec-24-5-6-取消怎么往下传" class="lv3">5.6 取消怎么往下传</a><a href="#sec-25-5-7-提交点-一次-commit-到底保证什么" class="lv3">5.7 提交点：一次 commit 到底保证什么</a><a href="#sec-26-六-generation-把-while-换成-handover" class="">六、generation：把 while 换成 handOver</a><a href="#sec-27-6-1-七个-phase" class="lv3">6.1 七个 phase</a><a href="#sec-28-6-2-内层循环怎么没的" class="lv3">6.2 内层循环怎么没的</a><a href="#sec-29-6-3-外层循环怎么没的" class="lv3">6.3 外层循环怎么没的</a><a href="#sec-30-6-4-中断分三种-不是一个-error" class="lv3">6.4 中断分三种，不是一个 error</a><a href="#sec-31-6-5-压缩是一个被-generation-拥有的任务" class="lv3">6.5 压缩是一个被 generation 拥有的任务</a><a href="#sec-32-6-6-一轮的输入从哪来" class="lv3">6.6 一轮的输入从哪来</a><a href="#sec-33-七-tool-一次调用的持久意图" class="">七、tool：一次调用的持久意图</a><a href="#sec-34-7-1-两个-phase-两种-input" class="lv3">7.1 两个 phase，两种 input</a><a href="#sec-35-7-2-一段三行-把-m10-那个洞补上了" class="lv3">7.2 一段三行，把 M10 那个洞补上了</a><a href="#sec-36-7-3-工具里还能再调工具" class="lv3">7.3 工具里还能再调工具</a><a href="#sec-37-7-4-并行还是串行-是一个设置" class="lv3">7.4 并行还是串行，是一个设置</a><a href="#sec-38-八-和-m03-的对照" class="">八、和 M03 的对照</a><a href="#sec-39-九-四种后端-一套语义" class="">九、四种后端，一套语义</a><a href="#sec-40-9-1-一致性靠测试-不靠约定" class="lv3">9.1 一致性靠测试，不靠约定</a><a href="#sec-41-9-2-sqlite-那-1-050-行里有什么" class="lv3">9.2 SQLite 那 1,050 行里有什么</a><a href="#sec-42-十-完整链路" class="">十、完整链路</a><a href="#sec-43-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-实验-1-看任务状态机在磁盘上长什么样" class="lv3">实验 1：看任务状态机在磁盘上长什么样</a><a href="#sec-46-实验-2-让一个-phase-不提交-看它被判-fault" class="lv3">实验 2：让一个 phase 不提交，看它被判 fault</a><a href="#sec-47-实验-3-确认-durable-真的不依赖-agent" class="lv3">实验 3：确认 durable 真的不依赖 agent</a><a href="#sec-48-实验-4-跑一遍存储一致性套件" class="lv3">实验 4：跑一遍存储一致性套件</a><a href="#sec-49-实验-5-看取消怎么级联" class="lv3">实验 5：看取消怎么级联</a><a href="#sec-50-实验-6-撞一次-readafterwrite" class="lv3">实验 6：撞一次 ReadAfterWrite</a><a href="#sec-51-十三-收束" class="">十三、收束</a><a href="#sec-52-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-53-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-54-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-55-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

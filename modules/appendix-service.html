@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>附录 C —— 把 Agent 装进你的服务 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="active">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">APX</div>
+      <h1>附录 C —— 把 Agent 装进你的服务</h1>
+      <div class="module-meta">2,900 字 · 含 220 行代码 · 约 19 分钟</div>
+    </header>
+    <p>前面十四页讲的是「里面怎么转」。这一页讲另一件事：<strong>怎么把它装进一个
+能对外服务的进程</strong>，让浏览器、Java、Python 都能用。</p>
+<p>只走一条路：进程内 SDK 加一个 HTTP 接口，响应是 SSE 流。
+不走的路也说清楚——RPC 为什么这次没用、多用户会话隔离为什么本书不写。</p>
+<p>这一页的代码全部实跑过，跑不了的会写「未实跑」并说明原因。
+实测环境：<code>node v24.12.0</code>、Pi <code>1.4.0</code>、Windows 24H2。</p>
+<hr>
+<h2 id="sec-1-一-四种跑法-先选一种">一、四种跑法，先选一种</h2>
+<p>Pi 有四种被驱动的方式。翻 <code>main.ts:112-123</code> 的 <code>resolveAppMode</code>，
+分支就三行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">resolveAppMode</span>(parsed: Args, stdinIsTTY: <span class="tok-kw">boolean</span>,</span><span class="ln">	stdoutIsTTY: <span class="tok-kw">boolean</span>): AppMode {</span><span class="ln">	<span class="tok-kw">if</span> (parsed.mode === <span class="tok-str">"rpc"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"rpc"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (parsed.mode === <span class="tok-str">"json"</span>) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"json"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (parsed.print || !stdinIsTTY || !stdoutIsTTY) {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-str">"print"</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-str">"interactive"</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>stdout</code> 被重定向就自动降级成 <code>print</code>——所以管道里跑 <code>pi &quot;问题&quot;</code> 不会
+卡在 TUI 里等输入。四种跑法对照：</p>
+<table>
+<thead>
+<tr>
+<th>跑法</th>
+<th>怎么起</th>
+<th>谁能用</th>
+<th>事件粒度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>交互 TUI</td>
+<td><code>pi</code></td>
+<td>人</td>
+<td>渲染层内部消费</td>
+</tr>
+<tr>
+<td>打印</td>
+<td><code>pi -p &quot;…&quot;</code> / <code>--mode json</code></td>
+<td>任何语言起子进程</td>
+<td>只有最终结果</td>
+</tr>
+<tr>
+<td>RPC</td>
+<td><code>pi --mode rpc</code></td>
+<td>任何能读写 JSON 的语言</td>
+<td>全部事件</td>
+</tr>
+<tr>
+<td>进程内 SDK</td>
+<td><code>createAgentSession()</code></td>
+<td>只有 Node</td>
+<td>全部事件</td>
+</tr>
+</tbody>
+</table>
+<p>RPC 的定位写在文件头（<code>rpc-mode.ts:1-11</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * RPC mode: Headless operation with JSON stdin/stdout protocol.</span></span><span class="ln"><span class="tok-com"> *</span></span><span class="ln"><span class="tok-com"> * Used for embedding the agent in other applications.</span></span><span class="ln"><span class="tok-com"> * Receives commands as JSON on stdin, outputs events and</span></span><span class="ln"><span class="tok-com"> * responses as JSON on stdout.</span></span><span class="ln"><span class="tok-com"> * ...</span></span></code></pre></div>
+<p>它的取舍很清楚：<strong>多一个进程，换崩溃隔离</strong>。进程挂了不影响宿主，
+代价是所有事件要序列化一遍过管道——<code>AgentSessionEvent</code> 里带 <code>Message</code>，
+有图片时一条事件能到几百 KB。</p>
+<p>SDK 没有进程边界，事件是内存里的对象，直接读字段。代价是 Agent 崩了
+就是你的进程崩了（第七节坑 4 会演示一次）。</p>
+<p>本书选 SDK，因为下面要讲的 <code>subscribe</code> 只在同进程里有意义。</p>
+<blockquote>
+<p>这一节和 M07 的「扩展层 vs 订阅层」是同一件事的两面：<code>pi.on</code> 是
+扩展里注册的钩子（<code>extensions/types.ts</code> 一族），<code>session.subscribe</code>
+是宿主进程的监听器。服务端用后者。</p>
+</blockquote>
+<hr>
+<h2 id="sec-2-二-前置条件-先有凭据">二、前置条件：先有凭据</h2>
+<p><code>createAgentSession()</code> 允许零参数调用，但<strong>不允许零配置跑起来</strong>。
+两道闸门：</p>
+<p><strong>第一道，找模型。</strong> <code>sdk.ts:236-251</code> 调 <code>findInitialModel</code>，依次看
+settings 里的默认值、各 provider 的默认模型。都找不到时把原因写进
+<code>modelFallbackMessage</code>（<code>sdk.ts:247</code> 的 <code>formatNoModelsAvailableMessage</code>）。</p>
+<p><strong>第二道，发消息前验 auth。</strong> <code>agent-session.ts:2174-2191</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-kw">this</span>.model) {</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-fn">formatNoModelSelectedMessage</span>());</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> hasConfiguredAuth =</span><span class="ln">	<span class="tok-kw">this</span>._modelRuntime.<span class="tok-fn">hasConfiguredAuth</span>(<span class="tok-kw">this</span>.model.provider) ||</span><span class="ln">	(<span class="tok-kw">await</span> <span class="tok-kw">this</span>._modelRuntime.<span class="tok-fn">checkAuth</span>(<span class="tok-kw">this</span>.model.provider))</span><span class="ln">		!== <span class="tok-kw">undefined</span>;</span></code></pre></div>
+<p>凭据默认从 <code>~/.pi/agent/auth.json</code> 读（<code>sdk.ts:196-198</code> 用 <code>agentDir</code> 拼出来）。
+这和 M01 §7.2 那条快速路用的是同一份。</p>
+<p>本机实测（<code>createAgentSession()</code> 零参数，只打两个字段）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">model      : doubao</span><span class="ln">provider   : （本机 provider 配置）</span><span class="ln">fallback   : (none)</span></code></pre></div>
+<p><code>fallback</code> 是 <code>(none)</code>，说明第一道闸门过了。</p>
+<p><strong>未实跑</strong>：把 <code>auth.json</code> 挪走会怎样。按 <code>:2174-2191</code> 读，
+<code>model</code> 会是 <code>undefined</code>，<code>prompt()</code> 抛 <code>No model selected</code>；
+若模型在但 key 没了，抛 <code>No API key found for provider …</code>（<code>:2190</code>）。</p>
+<p>所以这一页的所有示例，先决条件都是<strong>你已经跑通 M01 §7.2</strong>。</p>
+<hr>
+<h2 id="sec-3-三-十行嵌入">三、十行嵌入</h2>
+<p>最短能跑的形状：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 本页示例，实跑于 v1.4.0</span></span><span class="ln"><span class="tok-kw">import</span> { createAgentSession, SessionManager } <span class="tok-kw">from</span></span><span class="ln">	<span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> { session } = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSession</span>({</span><span class="ln">	sessionManager: SessionManager.<span class="tok-fn">inMemory</span>(),</span><span class="ln">});</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> off = session.<span class="tok-fn">subscribe</span>((e) =&gt; <span class="tok-fn">handle</span>(e));</span><span class="ln"><span class="tok-kw">await</span> session.<span class="tok-fn">prompt</span>(<span class="tok-str">"用 ls 看当前目录"</span>);</span><span class="ln"><span class="tok-fn">off</span>();</span><span class="ln">session.<span class="tok-fn">dispose</span>();</span></code></pre></div>
+<p>五个 API，各自的位置和返回值：</p>
+<table>
+<thead>
+<tr>
+<th>调用</th>
+<th>位置</th>
+<th>返回</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>createAgentSession(opts)</code></td>
+<td><code>sdk.ts:191</code></td>
+<td><code>{ session, extensionsResult, modelFallbackMessage? }</code></td>
+</tr>
+<tr>
+<td><code>SessionManager.inMemory()</code></td>
+<td><code>session-manager.ts:1814</code></td>
+<td>不落盘的会话存储</td>
+</tr>
+<tr>
+<td><code>session.subscribe(fn)</code></td>
+<td><code>agent-session.ts:1404</code></td>
+<td><strong>注销函数</strong>，不是 session</td>
+</tr>
+<tr>
+<td><code>session.prompt(text)</code></td>
+<td><code>agent-session.ts:2113</code></td>
+<td>Promise，整轮结束才 resolve</td>
+</tr>
+<tr>
+<td><code>session.dispose()</code></td>
+<td><code>agent-session.ts:1428</code></td>
+<td><code>void</code></td>
+</tr>
+</tbody>
+</table>
+<p>三个容易踩的点：</p>
+<p><strong><code>inMemory()</code> 不是「什么都不做」。</strong> 不传时走 <code>SessionManager.create</code>
+（<code>sdk.ts:201</code>），消息会以 JSONL 落到 <code>~/.pi/agent/sessions/</code> 下。
+服务端每个请求建一个 session 又不清理，几天就是几万个文件。
+<code>inMemory()</code> 的 cwd 默认是 <code>process.cwd()</code>（<code>session-manager.ts:1814</code>）。</p>
+<p><strong><code>subscribe</code> 返回的是函数。</strong> 拿它当 session 用是最常见的笔误：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> off = session.<span class="tok-fn">subscribe</span>(...);   <span class="tok-com">// 对</span></span><span class="ln"><span class="tok-kw">const</span> s2 = session.<span class="tok-fn">subscribe</span>(...);    <span class="tok-com">// s2 是函数，不是 session</span></span></code></pre></div>
+<p><strong><code>prompt()</code> 的 Promise 覆盖整轮，不只是首 token。</strong> 模型调工具、
+工具跑完、再调模型，这一整套都在同一个 Promise 里。</p>
+<p>实测同一段代码（只把 <code>handle</code> 换成打类型名）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">model      : doubao</span><span class="ln">fallback   : (none)</span><span class="ln">unsubscribe: function</span><span class="ln">prompt ms  : 7849</span><span class="ln">messages   : 5</span><span class="ln">dispose ok : 11126 ms total</span></code></pre></div>
+<p>11.1 秒里 7.8 秒在 <code>prompt</code>，剩下 <strong>3.3 秒在建会话</strong>——
+<code>DefaultResourceLoader</code> 要扫项目目录、读 settings、加载扩展
+（<code>sdk.ts:203-207</code>）。这就是「一个进程建一次 session，而不是一个请求
+建一次」的量化理由。</p>
+<p><code>dispose()</code> 之后这个 session 就废了：扩展 ctx 被标成 stale、监听器数组
+清空（<code>agent-session.ts:1439-1443</code>）。要新会话，重新 <code>createAgentSession</code>。</p>
+<hr>
+<h2 id="sec-4-四-第二轮-会话怎么续">四、第二轮：会话怎么续</h2>
+<p>同一个 session 连着 <code>prompt</code> 两次，就是多轮对话。不用你拼历史——历史在
+session 里。实测（同一 session，两次 prompt）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">第 1 轮后 messages = 3</span><span class="ln">第 2 轮后 messages = 5</span><span class="ln">最后一条 role = assistant | stop = stop</span><span class="ln">文本 = "42"            ← 它记得上一轮</span></code></pre></div>
+<p><code>3</code> 是 <code>system</code> + <code>user</code> + <code>assistant</code>；第二轮又加 2 条。<strong>每轮只增两条，
+但每次请求发的是全量。</strong></p>
+<p>用量在 <code>message.usage</code>。实测第二轮那条：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{"input":8569,"output":2,"cacheRead":0,"cacheWrite":0,</span><span class="ln"> "reasoning":0,"totalTokens":8571,</span><span class="ln"> "cost":{"input":0,"output":0,"total":0,</span><span class="ln">         "totalFromProvider":false}}</span></code></pre></div>
+<p>输入 8,569 个 token，输出 2 个。<strong>system prompt 就有 8.5k</strong>——回复
+「42」这两个字的成本，绝大部分花在重复发送同一份提示词上。M08 讲的那条
+目录链之所以值得读，理由就在这个数字里。</p>
+<p><code>cost</code> 全是 0 是因为本机 provider 没配价格表（注意 <code>totalFromProvider</code>
+是 <code>false</code>），<strong>不是免费</strong>。服务端要计费就从 <code>usage</code> 取，别自己数字符。</p>
+<p><code>session.state</code> 还能读到的（<code>agent-session.ts:1461</code> 的 <code>get state</code>，
+类型在 <code>packages/agent/src/types.ts:382</code>）：<code>messages</code>、<code>model</code>、
+<code>thinkingLevel</code>、<code>isStreaming</code>。前端要显示「正在回答」的转圈，
+就读 <code>state.isStreaming</code>，不用自己维护标志。</p>
+<p>会话越滚越长怎么办，是 M09 的事（两道闸门、两种摘要）；这一页不展开。</p>
+<hr>
+<h2 id="sec-5-五-subscribe-能拿到什么">五、subscribe 能拿到什么</h2>
+<p>这一节是整页的骨架。表里的「实测键」是把 <code>Object.keys(e)</code> 打出来的结果，
+不是从类型定义抄的。</p>
+<table>
+<thead>
+<tr>
+<th>事件</th>
+<th>实测键</th>
+<th>什么时候发</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message_start</code></td>
+<td><code>type,message</code></td>
+<td>一条消息进入 transcript</td>
+</tr>
+<tr>
+<td><code>message_end</code></td>
+<td><code>type,message</code></td>
+<td>同一条消息结束</td>
+</tr>
+<tr>
+<td><code>message_update</code></td>
+<td><code>type,message,assistantMessageEvent</code></td>
+<td>流式增量</td>
+</tr>
+<tr>
+<td><code>tool_execution_start</code></td>
+<td><code>type,toolCallId,toolName,args</code></td>
+<td>工具开始</td>
+</tr>
+<tr>
+<td><code>tool_execution_update</code></td>
+<td>—</td>
+<td>工具流式输出</td>
+</tr>
+<tr>
+<td><code>tool_execution_end</code></td>
+<td><code>type,toolCallId,toolName,result,isError,durationMs</code></td>
+<td>工具结束</td>
+</tr>
+<tr>
+<td><code>agent_end</code></td>
+<td><code>type,messages,willRetry</code></td>
+<td>一轮循环结束</td>
+</tr>
+<tr>
+<td><code>agent_settled</code></td>
+<td><code>type,aborted</code></td>
+<td>彻底结束</td>
+</tr>
+</tbody>
+</table>
+<p>完整事件类型在 <code>agent-session.ts:209-250</code>，是 <code>AgentEvent</code> 的扩展：
+<code>agent_end</code> 被换掉（多了 <code>willRetry</code>），另加了 <code>agent_settled</code>、
+<code>queue_update</code>、<code>compaction_*</code> 等（<code>:211-250</code>）。</p>
+<p>四个要点，每个都有实测痕迹。</p>
+<h3 id="sec-6-1-message_start-不只属于用户">1. <code>message_start</code> 不只属于用户</h3>
+<p>一轮真实对话的骨架（实测，字段是原样打印）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">message_end     role=system stop=-</span><span class="ln">message_end     role=user stop=-</span><span class="ln">message_end     role=assistant stop=toolUse</span><span class="ln">tool_start      keys=type,toolCallId,toolName,args</span><span class="ln">                toolName=bash args={"command":"ls -la"}</span><span class="ln">tool_end        keys=type,toolCallId,toolName,result,</span><span class="ln">                     isError,durationMs</span><span class="ln">                toolName=bash isError=false</span><span class="ln">                result.content[0]={"type":"text","text":"total 371…"}</span><span class="ln">message_end     role=toolResult stop=-</span><span class="ln">message_end     role=assistant stop=stop</span><span class="ln">agent_end       willRetry=false messages=5</span><span class="ln">agent_settled   aborted=false</span></code></pre></div>
+<p>第一条是 <strong>system</strong>。如果你按「一条 message 一个气泡」渲染，页面上
+第一个气泡会是系统提示词。<strong>handler 里要按 <code>role</code> 过滤。</strong></p>
+<p><code>stopReason</code> 只有 assistant 有值：<code>toolUse</code> 表示这条要调工具，
+<code>stop</code> 表示说完了。用它切分「第几段回答」比数字段靠谱。</p>
+<h3 id="sec-7-2-tool_execution_end-带-durationms">2. <code>tool_execution_end</code> 带 <code>durationMs</code></h3>
+<p>M05 讲工具时还没有这个字段的用处，服务端就有用了——显示「耗时 1.2s」
+不用自己掐表。载荷在 <code>agent-loop.ts:931</code> 附近，<code>start</code> 在 <code>:495</code>、
+<code>:553</code>、<code>:608</code> 三处（普通调用、并发调用、另一条分支各一个发射点）。</p>
+<p><code>result</code> 的形状就是工具返回的 <code>AgentToolResult</code>，文字在
+<code>result.content[0].text</code>。</p>
+<h3 id="sec-8-3-增量藏在-assistantmessageevent-里">3. 增量藏在 <code>assistantMessageEvent</code> 里</h3>
+<p><code>message_update</code> 的事件体是 <code>packages/agent/src/types.ts:538</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">| { <span class="tok-kw">type</span>: <span class="tok-str">"message_update"</span>; message: AgentMessage;</span><span class="ln">    assistantMessageEvent: AssistantMessageEvent }</span></code></pre></div>
+<p>外层的 <code>type</code> 恒为 <code>message_update</code>，真正区分内容的是
+<code>e.assistantMessageEvent.type</code>：<code>&quot;text_delta&quot;</code> 或 <code>&quot;thinking_delta&quot;</code>，
+文本在 <code>.delta</code>。</p>
+<p>实测另一次：<code>text_delta</code> 出现 146 次，<code>thinking_delta</code> 0 次
+（那一轮模型没开 thinking）。把 <code>delta</code> 按到达顺序拼接，
+就是完整的回答。</p>
+<h3 id="sec-9-4-一轮到底发多少事件">4. 一轮到底发多少事件</h3>
+<p>实测一次带两次工具调用的对话（每轮都不一样，以下是<strong>那一次</strong>的计数）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">total=66</span><span class="ln">agent_start=1          turn_start=3</span><span class="ln">message_start=7        message_end=7</span><span class="ln">message_update=37      tool_execution_start=2</span><span class="ln">tool_execution_end=2   tool_execution_update=2</span><span class="ln">turn_end=3             agent_end=1        agent_settled=1</span></code></pre></div>
+<p>66 个事件里 37 个是增量。<strong>转发时用白名单</strong>，别原样丢给浏览器：
+<code>entry_appended</code>、<code>queue_update</code>、<code>compaction_*</code> 前端根本不显示，
+传过去只是浪费带宽和前端的事件处理分支。</p>
+<hr>
+<h2 id="sec-10-六-四十行服务">六、四十行服务</h2>
+<p>用 <code>node:http</code>，不引 Express。理由不是「轻量」，是<strong>仓库的依赖里没有它</strong>
+（<code>packages/coding-agent/package.json</code> 的 dependencies 里没有 express），
+示例引一个装不上的包，等于跑不起来。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 实跑于 v1.4.0，node v24.12.0</span></span><span class="ln"><span class="tok-kw">import</span> { createServer } <span class="tok-kw">from</span> <span class="tok-str">"node:http"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createAgentSession, SessionManager } <span class="tok-kw">from</span></span><span class="ln">	<span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> { session } = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSession</span>({</span><span class="ln">	sessionManager: SessionManager.<span class="tok-fn">inMemory</span>(),</span><span class="ln">});</span><span class="ln"><span class="tok-kw">let</span> busy = <span class="tok-kw">false</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> server = <span class="tok-fn">createServer</span>(<span class="tok-kw">async</span> (req, res) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (req.method !== <span class="tok-str">"POST"</span> || req.url !== <span class="tok-str">"/chat"</span>) {</span><span class="ln">		res.<span class="tok-fn">writeHead</span>(<span class="tok-num">404</span>).<span class="tok-fn">end</span>();</span><span class="ln">		<span class="tok-kw">return</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">if</span> (busy) {</span><span class="ln">		res.<span class="tok-fn">writeHead</span>(<span class="tok-num">429</span>, { <span class="tok-str">"content-type"</span>: <span class="tok-str">"application/json"</span> })</span><span class="ln">			.<span class="tok-fn">end</span>(<span class="tok-str">'{"error":"busy"}'</span>);</span><span class="ln">		<span class="tok-kw">return</span>;</span><span class="ln">	}</span><span class="ln">	busy = <span class="tok-kw">true</span>;</span><span class="ln"></span><span class="ln">	<span class="tok-kw">let</span> body = <span class="tok-str">""</span>;</span><span class="ln">	<span class="tok-kw">for</span> <span class="tok-kw">await</span> (<span class="tok-kw">const</span> chunk <span class="tok-kw">of</span> req) body += chunk;</span><span class="ln">	<span class="tok-kw">let</span> message: <span class="tok-kw">string</span>;</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		message = JSON.<span class="tok-fn">parse</span>(body || <span class="tok-str">"{}"</span>).message ?? <span class="tok-str">""</span>;</span><span class="ln">	} <span class="tok-kw">catch</span> {</span><span class="ln">		res.<span class="tok-fn">writeHead</span>(<span class="tok-num">400</span>, { <span class="tok-str">"content-type"</span>: <span class="tok-str">"application/json"</span> })</span><span class="ln">			.<span class="tok-fn">end</span>(<span class="tok-str">'{"error":"bad json"}'</span>);</span><span class="ln">		busy = <span class="tok-kw">false</span>;</span><span class="ln">		<span class="tok-kw">return</span>;</span><span class="ln">	}</span><span class="ln"></span><span class="ln">	res.<span class="tok-fn">writeHead</span>(<span class="tok-num">200</span>, {</span><span class="ln">		<span class="tok-str">"Content-Type"</span>: <span class="tok-str">"text/event-stream"</span>,</span><span class="ln">		<span class="tok-str">"Cache-Control"</span>: <span class="tok-str">"no-cache"</span>,</span><span class="ln">		Connection: <span class="tok-str">"keep-alive"</span>,</span><span class="ln">	});</span><span class="ln">	<span class="tok-kw">const</span> send = (<span class="tok-kw">type</span>: <span class="tok-kw">string</span>, data: <span class="tok-kw">unknown</span>) =&gt;</span><span class="ln">		res.<span class="tok-fn">write</span>(<span class="tok-str">`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`</span>);</span><span class="ln"></span><span class="ln">	<span class="tok-kw">let</span> settled = <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">const</span> off = session.<span class="tok-fn">subscribe</span>((e: <span class="tok-kw">any</span>) =&gt; {</span><span class="ln">		<span class="tok-kw">if</span> (e.<span class="tok-kw">type</span> === <span class="tok-str">"message_update"</span>) {</span><span class="ln">			<span class="tok-kw">const</span> a = e.assistantMessageEvent;</span><span class="ln">			<span class="tok-kw">if</span> (a.<span class="tok-kw">type</span> === <span class="tok-str">"text_delta"</span>) {</span><span class="ln">				<span class="tok-fn">send</span>(<span class="tok-str">"text"</span>, { delta: a.delta });</span><span class="ln">			} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (a.<span class="tok-kw">type</span> === <span class="tok-str">"thinking_delta"</span>) {</span><span class="ln">				<span class="tok-fn">send</span>(<span class="tok-str">"thinking"</span>, { delta: a.delta });</span><span class="ln">			}</span><span class="ln">			<span class="tok-kw">return</span>;</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">if</span> (e.<span class="tok-kw">type</span> === <span class="tok-str">"tool_execution_start"</span>) {</span><span class="ln">			<span class="tok-fn">send</span>(<span class="tok-str">"tool_start"</span>, {</span><span class="ln">				id: e.toolCallId,</span><span class="ln">				name: e.toolName,</span><span class="ln">				args: e.args,</span><span class="ln">			});</span><span class="ln">		} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (e.<span class="tok-kw">type</span> === <span class="tok-str">"tool_execution_end"</span>) {</span><span class="ln">			<span class="tok-fn">send</span>(<span class="tok-str">"tool_end"</span>, {</span><span class="ln">				id: e.toolCallId,</span><span class="ln">				name: e.toolName,</span><span class="ln">				isError: e.isError,</span><span class="ln">			});</span><span class="ln">		}</span><span class="ln">	});</span><span class="ln"></span><span class="ln">	res.<span class="tok-fn">on</span>(<span class="tok-str">"close"</span>, () =&gt; {</span><span class="ln">		<span class="tok-fn">off</span>();</span><span class="ln">		<span class="tok-kw">if</span> (!settled) <span class="tok-kw">void</span> session.<span class="tok-fn">abort</span>();</span><span class="ln">	});</span><span class="ln"></span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">await</span> session.<span class="tok-fn">prompt</span>(message);</span><span class="ln">		settled = <span class="tok-kw">true</span>;</span><span class="ln">		<span class="tok-fn">send</span>(<span class="tok-str">"done"</span>, {});</span><span class="ln">	} <span class="tok-kw">catch</span> (err) {</span><span class="ln">		settled = <span class="tok-kw">true</span>;</span><span class="ln">		<span class="tok-fn">send</span>(<span class="tok-str">"error"</span>, { message: (err <span class="tok-kw">as</span> Error).message });</span><span class="ln">	} <span class="tok-kw">finally</span> {</span><span class="ln">		<span class="tok-fn">off</span>();</span><span class="ln">		res.<span class="tok-fn">end</span>();</span><span class="ln">		busy = <span class="tok-kw">false</span>;</span><span class="ln">	}</span><span class="ln">});</span><span class="ln"></span><span class="ln">server.<span class="tok-fn">listen</span>(<span class="tok-num">3123</span>);</span></code></pre></div>
+<p>四处值得指出来：</p>
+<p><strong><code>res.on(&quot;close&quot;)</code> 不是 <code>req.on(&quot;close&quot;)</code>。</strong> 要监听的是<strong>响应连接</strong>。
+<code>req</code> 的 close 在请求体读完时就会触发，那时 Agent 才刚开始跑。</p>
+<p><strong><code>settled</code> 防的是正常结束后的补偿 abort。</strong> 没有它，<code>done</code> 发完、
+<code>res.end()</code> 之后 close 事件仍会到，<code>session.abort()</code> 会把一个已经
+结束的跑动再中止一次。</p>
+<p><strong><code>off()</code> 调了两遍是安全的。</strong> <code>subscribe</code> 返回的注销函数用
+<code>indexOf</code> + <code>splice</code>（<code>agent-session.ts:1408-1413</code>），找不到就什么也不做。</p>
+<p><strong><code>abort()</code> 会让 <code>prompt()</code> 抛错。</strong> <code>agent-session.ts:2519</code> 的
+<code>abort()</code> 最终调到 <code>agent.abort()</code>（<code>:2527</code>），正在跑的 <code>prompt</code> 以异常
+收场。所以 catch 里必须发 <code>error</code>——否则前端连接还在，却永远等不到
+<code>done</code>。</p>
+<h3 id="sec-11-请求一次">请求一次</h3>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">curl -sN -X POST http://127.0.0.1:3123/chat \</span><span class="ln">  -H "Content-Type: application/json" \</span><span class="ln">  -d '{"message":"list files with ls"}'</span></code></pre></div>
+<p>真实输出（截前四帧和末尾）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">event: tool_start</span><span class="ln">data: {"id":"call_wq32dwjhjasv78zqfi66y65r","name":"bash",</span><span class="ln">"args":{"command":"ls -1"}}</span><span class="ln"></span><span class="ln">event: tool_end</span><span class="ln">data: {"id":"call_wq32dwjhjasv78zqfi66y65r","name":"bash",</span><span class="ln">"isError":false}</span><span class="ln"></span><span class="ln">event: text</span><span class="ln">data: {"delta":"AG"}</span><span class="ln"></span><span class="ln">event: text</span><span class="ln">data: {"delta":"ENTS"}</span><span class="ln">…</span><span class="ln">event: done</span><span class="ln">data: {}</span></code></pre></div>
+<p><code>-N</code> 关掉 curl 自己的缓冲，否则你会等到全部结束才一次性看到。
+上面 <code>data</code> 我只是为排版折了行，实际是一行。</p>
+<h3 id="sec-12-前端那一侧">前端那一侧</h3>
+<p><code>fetch</code> + <code>getReader()</code>，按 <code>\n\n</code> 切帧。实测（node 24 跑同一套读法）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">状态: 200 text/event-stream</span><span class="ln">帧数: 4</span><span class="ln">首帧: 2639ms text | 末帧: 2819ms done</span><span class="ln">拼接文本: 你好。</span><span class="ln">text_delta 段数: 3</span></code></pre></div>
+<p>一句话「你好。」被切成 3 段，首帧在 2.6 秒到达。<strong>这就是 SSE 的全部意义</strong>：
+用户在 2.6 秒看到第一个词，而不是在 2.8 秒看到一整句。</p>
+<h3 id="sec-13-接口文档">接口文档</h3>
+<p>给同事的那一版，不含 Pi 的任何概念：</p>
+<table>
+<thead>
+<tr>
+<th>type</th>
+<th>data</th>
+<th>客户端做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text</code></td>
+<td><code>{&quot;delta&quot;:&quot;…&quot;}</code></td>
+<td>追加到气泡</td>
+</tr>
+<tr>
+<td><code>thinking</code></td>
+<td><code>{&quot;delta&quot;:&quot;…&quot;}</code></td>
+<td>追加到折叠区</td>
+</tr>
+<tr>
+<td><code>tool_start</code></td>
+<td><code>{&quot;id&quot;,&quot;name&quot;,&quot;args&quot;}</code></td>
+<td>显示「执行中」卡片</td>
+</tr>
+<tr>
+<td><code>tool_end</code></td>
+<td><code>{&quot;id&quot;,&quot;name&quot;,&quot;isError&quot;}</code></td>
+<td>更新卡片</td>
+</tr>
+<tr>
+<td><code>done</code></td>
+<td><code>{}</code></td>
+<td>恢复输入框</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td><code>{&quot;message&quot;:&quot;…&quot;}</code></td>
+<td>显示错误</td>
+</tr>
+</tbody>
+</table>
+<p>中断没有单独的接口：<strong>直接断开请求</strong>。服务端 <code>res.on(&quot;close&quot;)</code> 会 abort。</p>
+<p>实测：客户端 2 秒超时断开（curl 退出码 28），6 秒后再发一个请求，
+仍然 <code>HTTP 200</code> 加 <code>event: done</code>——会话没坏，<code>busy</code> 也释放了。</p>
+<hr>
+<h2 id="sec-14-七-上线前的四个坑">七、上线前的四个坑</h2>
+<h3 id="sec-15-坑-1-凭据和-cwd">坑 1：凭据和 cwd</h3>
+<p><code>auth.json</code> 在 <code>~/.pi/agent/</code>。别写进代码，别打进镜像。</p>
+<p>另一件常被忽略的是 <strong>cwd</strong>。<code>createAgentSession</code> 的 <code>cwd</code> 默认
+<code>process.cwd()</code>（<code>sdk.ts:192</code>），它决定两件事：<code>DefaultResourceLoader</code>
+去哪找 <code>AGENTS.md</code>、<code>.pi/</code> 这类项目级配置（<code>:204</code>），以及工具能碰哪些
+文件——<code>bash</code> 的默认工作目录就是它。</p>
+<p>服务进程在 <code>/</code> 或在部署目录启动，模型的一次 <code>ls</code> 就落在了构建产物里。
+生产环境的做法是显式传 <code>cwd</code>，指向一个受限的沙箱目录。</p>
+<h3 id="sec-16-坑-2-并发">坑 2：并发</h3>
+<p>一个 session 同时只能跑一轮。第二个人进来时，<code>prompt()</code> 立刻抛
+（<code>agent-session.ts:2158-2163</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (<span class="tok-kw">this</span>.isStreaming) {</span><span class="ln">	<span class="tok-kw">if</span> (!options?.streamingBehavior) {</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(</span><span class="ln">			<span class="tok-str">"Agent is already processing. Specify "</span> +</span><span class="ln">			<span class="tok-str">"streamingBehavior ('steer' or 'followUp') "</span> +</span><span class="ln">			<span class="tok-str">"to queue the message."</span>,</span><span class="ln">		);</span><span class="ln">	}</span></code></pre></div>
+<p>实测：第一个 <code>prompt</code> 还没结束时调第二次，<strong>立刻抛错，不排队</strong>。
+错误原文：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Agent is already processing. Specify streamingBehavior</span><span class="ln">('steer' or 'followUp') to queue the message.</span></code></pre></div>
+<p>所以 <code>busy</code> 标志不是可选的。服务端的 <code>busy</code> 实测：并发两个请求，
+第二个拿到 <code>{&quot;error&quot;:&quot;busy&quot;} &lt;- HTTP 429</code>。</p>
+<p>要支持多用户，得「每人一个 session」：<code>SessionManager</code> 换成按用户
+落地的实例（<code>session-manager.ts:1765</code> 的 <code>create</code>），每人调一次
+<code>createAgentSession</code>。<strong>本书不展开</strong>——那涉及会话隔离和按用户路由，
+是另一套工程。注意每个 session 都有一份资源加载开销（第三节实测 3.3 秒），
+所以真实项目还要配一个会话池。</p>
+<h3 id="sec-17-坑-3-背压">坑 3：背压</h3>
+<p><code>res.write()</code> 返回 <code>false</code> 表示缓冲区满了。SSE 一段几十字节，正常网络
+下不会满；但客户端「连着不读」（手机切后台）时，缓冲区会一直涨。</p>
+<p>麻烦在于<strong>你没有机会 <code>await drain</code></strong>：<code>subscribe</code> 的监听器是同步调用的
+（<code>agent-session.ts:1055-1059</code>，<code>_emit</code> 里一个 for 循环，不 await），
+事件一到，你就得在里面把字节塞进 socket。</p>
+<p><strong>未压测</strong>。检测办法是把 <code>send</code> 改成：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> ok = res.<span class="tok-fn">write</span>(frame);</span><span class="ln"><span class="tok-kw">if</span> (!ok) slowClients++;</span></code></pre></div>
+<p><code>slowClients</code> 涨起来就是有客户端在拖。真拖了只有两条路：断开它，
+或者在监听器里先攒批、再异步写。</p>
+<h3 id="sec-18-坑-4-一个畸形请求能打挂整个进程">坑 4：一个畸形请求能打挂整个进程</h3>
+<p>这个是实测撞出来的。第一版服务直接 <code>JSON.parse(body)</code>，我把 <code>curl -d</code>
+的引号弄丢了，服务端收到 <code>{message:hi}</code>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">SyntaxError: Expected property name or '}' in JSON at position 1</span><span class="ln">    at JSON.parse (&lt;anonymous&gt;)</span><span class="ln">    at Server.&lt;anonymous&gt; (…/tmp-t22-server.ts:22:23)</span><span class="ln">Node.js v24.12.0</span></code></pre></div>
+<p><code>async</code> 的请求处理函数里抛错，就是一个未处理的 rejection，<strong>进程直接退出</strong>，
+后面所有请求都连不上。加了 try/catch 之后实测：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{"error":"bad json"} &lt;- HTTP 400</span></code></pre></div>
+<p>服务继续活着。写服务的第一天就该加这七行。</p>
+<hr>
+<h2 id="sec-19-八-改一处试试">八、改一处试试</h2>
+<p><strong>把 <code>busy</code> 那道闸门拆掉，看并发会怎么坏。</strong>（实跑于 node v24.12.0）</p>
+<ul>
+<li><strong>改哪里</strong>　删掉 §六 里 <code>if (busy) { … }</code> 那五行（<code>:344-348</code>），保留
+<code>busy = true</code> 和 <code>finally</code> 里的 <code>busy = false</code>；再在门口加一行日志，
+把进门那一刻的 <code>busy</code> 打出来：</li>
+</ul>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`#${id} 进门时 busy=${busy}`</span>);</span><span class="ln">busy = <span class="tok-kw">true</span>;</span></code></pre></div>
+<ul>
+<li><strong>预期</strong>　A 先发、700 ms 后发 B、再 300 ms 后发 C，实测：</li>
+</ul>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[B] status=200 frames=2 首帧=error 末帧=done    ← B 半秒内结束</span><span class="ln">[C] status=200 frames=2 首帧=error 末帧=done    ← C 也被放行</span><span class="ln">[A] status=200 frames=96 首帧=text 末帧=done    ← A 正常跑完</span></code></pre></div>
+<p>B 的错误帧长这样：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">event: error</span><span class="ln">data: {"message":"Agent is already processing. …"}</span></code></pre></div>
+<p>省略号处是它的完整文案（<code>agent-session.ts:2160-2162</code>）：「Agent is already
+processing. Specify streamingBehavior ('steer' or 'followUp') to queue
+the message.」——特意抄全，因为你会在日志里反复看到它。</p>
+<p>注意前面的 <code>status=200</code>：SSE 的响应头在 <code>prompt()</code> 之前就发出去了，
+所以客户端看到的不是 429，而是一个「开了流却只有错误」的 200。</p>
+<ul>
+<li><strong>连带</strong>　真正的坏消息在门口日志：</li>
+</ul>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">#1 进门时 busy=false</span><span class="ln">#2 进门时 busy=true     ← 原版在这里 429</span><span class="ln">#2 收尾，busy -&gt; false</span><span class="ln">#3 进门时 busy=false    ← A 还在跑，闸门已经开了</span></code></pre></div>
+<p>B 走完 catch 就执行 <code>finally</code> 里的 <code>busy = false</code>，而 A 还在跑。第三个
+请求因此看到 <code>busy === false</code> 被放行。<strong>状态机坏了，不是进程崩溃</strong>：
+生产上表现为「偶发两条回答串在一起」，日志里什么都看不到。裸布尔的
+问题不是没锁，而是<strong>别人的收尾替你把锁开了</strong>——要挡并发就用计数器，
+或者干脆以 <code>prompt()</code> 抛错为准（那是 agent 自己的契约，见第七节坑 2）。</p>
+<ul>
+<li><strong>回滚</strong>　把五行判断加回去。<code>busy</code> 只在请求真正结束时清零。</li>
+</ul>
+<hr>
+<h2 id="sec-20-九-这一页没讲的">九、这一页没讲的</h2>
+<ul>
+<li><strong>多用户会话隔离</strong>：每人一个 <code>SessionManager</code> 加一个 session，见坑 2。</li>
+<li><strong>鉴权与限流</strong>：服务层的事，和 Pi 无关。</li>
+<li><strong>优雅退出</strong>：<code>dispose()</code> 要挂在 <code>SIGTERM</code> 上，否则正在跑的
+<code>prompt</code> 会被硬切。</li>
+<li><strong>WebSocket</strong>：Agent 对话是「用户偶尔发、Agent 持续推」，SSE 够用。
+要双向高频（多人协作画板那种）才需要 WebSocket。</li>
+</ul>
+<hr>
+<h2 id="sec-21-源码索引">源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>位置</th>
+<th>行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>四种跑法的分支</td>
+<td><code>packages/coding-agent/src/main.ts</code></td>
+<td>1,011</td>
+</tr>
+<tr>
+<td>RPC 模式自述</td>
+<td><code>packages/coding-agent/src/modes/rpc/rpc-mode.ts</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>createAgentSession</code></td>
+<td><code>packages/coding-agent/src/core/sdk.ts</code></td>
+<td>482</td>
+</tr>
+<tr>
+<td><code>SessionManager.inMemory</code></td>
+<td><code>packages/coding-agent/src/core/session-manager.ts</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>AgentSessionEvent</code> 全表</td>
+<td><code>packages/coding-agent/src/core/agent-session.ts</code></td>
+<td>4,480</td>
+</tr>
+<tr>
+<td><code>subscribe</code> / <code>dispose</code> / <code>prompt</code></td>
+<td>同上</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>_emit</code> 同步分发</td>
+<td>同上</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>AgentEvent</code> 与 <code>message_update</code></td>
+<td><code>packages/agent/src/types.ts</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>工具事件发射点</td>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="appendix-typescript.html"><span class="lbl">上一篇</span>附录 B —— 读源码用的 TypeScript 速查</a>
+      <span></span>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四种跑法-先选一种" class="">一、四种跑法，先选一种</a><a href="#sec-2-二-前置条件-先有凭据" class="">二、前置条件：先有凭据</a><a href="#sec-3-三-十行嵌入" class="">三、十行嵌入</a><a href="#sec-4-四-第二轮-会话怎么续" class="">四、第二轮：会话怎么续</a><a href="#sec-5-五-subscribe-能拿到什么" class="">五、subscribe 能拿到什么</a><a href="#sec-6-1-message_start-不只属于用户" class="lv3">1. message_start 不只属于用户</a><a href="#sec-7-2-tool_execution_end-带-durationms" class="lv3">2. tool_execution_end 带 durationMs</a><a href="#sec-8-3-增量藏在-assistantmessageevent-里" class="lv3">3. 增量藏在 assistantMessageEvent 里</a><a href="#sec-9-4-一轮到底发多少事件" class="lv3">4. 一轮到底发多少事件</a><a href="#sec-10-六-四十行服务" class="">六、四十行服务</a><a href="#sec-11-请求一次" class="lv3">请求一次</a><a href="#sec-12-前端那一侧" class="lv3">前端那一侧</a><a href="#sec-13-接口文档" class="lv3">接口文档</a><a href="#sec-14-七-上线前的四个坑" class="">七、上线前的四个坑</a><a href="#sec-15-坑-1-凭据和-cwd" class="lv3">坑 1：凭据和 cwd</a><a href="#sec-16-坑-2-并发" class="lv3">坑 2：并发</a><a href="#sec-17-坑-3-背压" class="lv3">坑 3：背压</a><a href="#sec-18-坑-4-一个畸形请求能打挂整个进程" class="lv3">坑 4：一个畸形请求能打挂整个进程</a><a href="#sec-19-八-改一处试试" class="">八、改一处试试</a><a href="#sec-20-九-这一页没讲的" class="">九、这一页没讲的</a><a href="#sec-21-源码索引" class="">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

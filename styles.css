@@ -1,0 +1,539 @@
+/* ==========================================================================
+   Pi Agent 源码级教程 · 站点样式
+   设计 token 复刻自 dg-ai-notes（配色 / 字体 / 字号梯度 / 阅读宽度）
+   ========================================================================== */
+
+:root {
+  --paper: #f5f5f5;
+  --paper-raised: #ffffff;
+  --paper-sunken: #ececec;
+  --ink: #2d3142;
+  --ink-strong: #1a1d28;
+  --muted: #4f5d75;
+  --soft: #7a8399;
+  --rule: rgba(45, 49, 66, 0.12);
+  --accent: #eb6c36;
+  --accent-soft: rgba(235, 108, 54, 0.08);
+
+  --code-bg: #1e2130;
+  --code-fg: #e8eaf2;
+  --code-keyword: #c792ea;
+  --code-string: #c3e88d;
+  --code-comment: #8b90ad;
+  --code-number: #f78c6c;
+  --code-fn: #82aaff;
+  --code-meta: #9aa5ce;
+
+  --font-display: "Instrument Serif", "Songti SC", "STSong", Georgia, serif;
+  --font-body: "Geist", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+
+  --fs-h1: 44px;
+  --fs-h2: 30px;
+  --fs-h3: 21px;
+  --fs-body: 17px;
+  --fs-small: 14px;
+  --fs-xs: 12px;
+  --fs-code: 13px;
+  --lh-tight: 1.2;
+  --lh-prose: 1.8;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --read-width: 720px;
+  --toc-width: 240px;
+  --page-max: 1296px;
+  --topbar-h: 56px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgba(45, 49, 66, 0.04);
+  --shadow-2: 0 4px 12px rgba(45, 49, 66, 0.06);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-base: 0.24s;
+}
+
+:root[data-theme="dark"] {
+  --paper: #16181f;
+  --paper-raised: #1e2130;
+  --paper-sunken: #12141a;
+  --ink: #c8cddb;
+  --ink-strong: #eef1f8;
+  --muted: #9aa5be;
+  --soft: #737d94;
+  --rule: rgba(255, 255, 255, 0.1);
+  --accent: #ff8a5b;
+  --accent-soft: rgba(255, 138, 91, 0.1);
+  --code-bg: #0f1117;
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- 阅读进度条 ---------- */
+.progress-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--accent);
+  z-index: 100;
+  transition: width 0.1s linear;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+  z-index: 50;
+}
+
+.topbar .brand {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink-strong);
+  font-weight: 400;
+}
+.topbar .brand b { color: var(--accent); font-weight: 400; }
+
+.topbar .spacer { flex: 1; }
+
+.topbar button {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease);
+}
+.topbar button:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ---------- 布局 ---------- */
+.shell {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  max-width: var(--page-max);
+  margin: 0 auto;
+  gap: var(--space-8);
+  padding: 0 var(--space-6);
+}
+
+/* ---------- 侧边栏 ---------- */
+.sidebar {
+  position: sticky;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  overflow-y: auto;
+  padding: var(--space-8) 0 var(--space-16);
+  border-right: 1px solid var(--rule);
+  font-size: var(--fs-small);
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+.sidebar .part {
+  margin-bottom: var(--space-6);
+}
+.sidebar .part-title {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.sidebar a {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid transparent;
+  line-height: 1.5;
+  transition: all var(--dur-base) var(--ease);
+}
+.sidebar a:hover { color: var(--accent); background: var(--accent-soft); text-decoration: none; }
+.sidebar a.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  font-weight: 500;
+}
+.sidebar a .code { font-family: var(--font-mono); font-size: 11px; color: var(--soft); }
+
+/* ---------- 正文容器 ---------- */
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--toc-width);
+  gap: var(--space-8);
+  padding: var(--space-8) 0 var(--space-16);
+  min-width: 0;
+}
+
+.prose {
+  max-width: var(--read-width);
+  min-width: 0;
+}
+
+/* ---------- 章节头 ---------- */
+.module-header { margin-bottom: var(--space-8); }
+.module-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: var(--space-2);
+}
+.module-meta {
+  font-size: var(--fs-small);
+  color: var(--soft);
+  margin-top: var(--space-3);
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.module-meta .dot { color: var(--rule); }
+
+/* ---------- 标题 ---------- */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  color: var(--ink-strong);
+  font-weight: 400;
+  line-height: var(--lh-tight);
+  scroll-margin-top: calc(var(--topbar-h) + var(--space-4));
+}
+h1 { font-size: var(--fs-h1); margin: 0 0 var(--space-4); }
+h2 {
+  font-size: var(--fs-h2);
+  margin: var(--space-12) 0 var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+h3 { font-size: var(--fs-h3); margin: var(--space-8) 0 var(--space-3); }
+h4 { font-size: var(--fs-body); margin: var(--space-6) 0 var(--space-2); }
+
+/* ---------- 段落与列表 ---------- */
+p { margin: 0 0 var(--space-4); }
+ul, ol { margin: 0 0 var(--space-4); padding-left: var(--space-6); }
+li { margin-bottom: var(--space-1); }
+li > ul, li > ol { margin-top: var(--space-1); }
+
+strong { color: var(--ink-strong); font-weight: 600; }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: var(--space-8) 0;
+}
+
+blockquote {
+  margin: var(--space-5) 0;
+  padding: var(--space-2) var(--space-5);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--muted);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+/* ---------- 行内代码 ---------- */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--paper-sunken);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  color: var(--ink-strong);
+  white-space: nowrap;
+}
+
+/* ---------- 代码块 ---------- */
+pre {
+  position: relative;
+  background: var(--code-bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  overflow-x: auto;
+  /* 源码用 tab 缩进，浏览器默认 tab-size:8 会把行长度凭空放大 8 倍 */
+  tab-size: 2;
+  margin: 0 0 var(--space-5);
+  box-shadow: var(--shadow-2);
+}
+pre code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-code);
+  line-height: 1.65;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--code-fg);
+  white-space: pre;
+}
+
+/* ---------- 代码块外壳：语言标签 + 复制按钮 ---------- */
+.code-block {
+  position: relative;
+  margin: 0 0 var(--space-5);
+}
+/* 标签栏是 pre 的兄弟节点，所以不跟着横向滚动跑掉 */
+.code-block pre {
+  margin: 0;
+  /* 顶部留出标签栏的高度，避免按钮压住第一行代码 */
+  padding-top: calc(var(--space-4) + 14px);
+}
+/* 整条标签栏横跨代码块顶部：语言在左（对齐代码首列），复制在右 */
+.code-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  /* 左侧 20px = pre 的左右内边距，语言标签与代码首列对齐 */
+  padding: 5px 10px 0 20px;
+  pointer-events: none;
+}
+.code-head .copy { pointer-events: auto; }
+.code-head .lang {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--code-comment);
+}
+.code-head .copy {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--code-comment);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.code-head .copy:hover { color: var(--code-fg); border-color: rgba(255, 255, 255, 0.34); }
+.code-head .copy.is-done { color: var(--accent); border-color: var(--accent); }
+
+/* 行：整行一句 .ln，便于悬停高亮与整块复制 */
+.ln { display: block; min-height: 1.65em; }
+.ln:hover { background: rgba(255, 255, 255, 0.05); }
+.ln.hl { background: rgba(235, 108, 54, 0.16); }
+
+/* 语法高亮 token */
+.tok-kw { color: var(--code-keyword); }
+.tok-str { color: var(--code-string); }
+.tok-com { color: var(--code-comment); }
+/* 中文在合成斜体下会变形，注释统一用颜色区分，不用斜体 */
+.tok-num { color: var(--code-number); }
+.tok-fn { color: var(--code-fn); }
+.tok-meta { color: var(--code-meta); }
+
+/* ---------- 表格 ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--space-5);
+  font-size: var(--fs-small);
+  /* 不要用 display:block——那会让浏览器退化成普通块级布局，
+     放弃表格列宽算法，长路径列会疯狂挤占数字列的空间。
+     单元格已开 overflow-wrap，不会撑破容器。 */
+}
+th, td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  /* 表格内行内代码默认 nowrap，长路径会把整列撑宽、挤瘪相邻列。
+     这里必须是 break-word 而不是 anywhere：
+     - anywhere 会把最小内容宽度压到 1 个字符，数字列被挤到放不下 "4480"，
+       行号也会被从中间硬断（":518-6" / "70"）；
+     - break-word 不参与最小内容宽度计算，浏览器会按完整 token 留够列宽，
+       只有单个 token 比整行还宽时（如长文件路径）才真的折。 */
+  overflow-wrap: break-word;
+}
+th code, td code {
+  white-space: normal;
+  overflow-wrap: break-word;
+  /* inline-block 让一个行内代码 chip 当作整体换行：起始位置太靠右时
+     整个跳到下一行，而不是被从中间切开（":668-" / "671"）。
+     max-width 保证超长路径仍然折在单元格内，不会撑破表格。 */
+  display: inline-block;
+  max-width: 100%;
+}
+th {
+  font-weight: 600;
+  color: var(--ink-strong);
+  border-bottom: 2px solid var(--rule);
+  white-space: nowrap;
+}
+tbody tr:hover { background: var(--paper-sunken); }
+
+/* ---------- 章内目录 ---------- */
+.toc {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--space-8));
+  max-height: calc(100vh - var(--topbar-h) - var(--space-16));
+  overflow-y: auto;
+  font-size: var(--fs-xs);
+  padding-bottom: var(--space-8);
+}
+.toc-title {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+  margin-bottom: var(--space-3);
+  font-weight: 600;
+}
+.toc a {
+  display: block;
+  padding: 3px 0 3px var(--space-3);
+  color: var(--soft);
+  border-left: 2px solid var(--rule);
+  line-height: 1.5;
+}
+.toc a:hover { color: var(--accent); text-decoration: none; }
+.toc a.lv3 { padding-left: var(--space-5); }
+.toc a.active { color: var(--accent); border-left-color: var(--accent); }
+
+/* ---------- 翻页 ---------- */
+.pager {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-16);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--rule);
+}
+.pager a {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-small);
+  color: var(--muted);
+  transition: all var(--dur-base) var(--ease);
+}
+.pager a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-decoration: none;
+}
+.pager a .lbl { display: block; font-size: var(--fs-xs); color: var(--soft); }
+.pager a.next { text-align: right; }
+
+/* ---------- 首页 ---------- */
+.hero {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6) var(--space-8);
+  text-align: center;
+}
+.hero h1 { font-size: 56px; margin-bottom: var(--space-4); }
+.hero .sub { color: var(--muted); font-size: var(--fs-body); line-height: var(--lh-prose); }
+
+.card-grid {
+  max-width: 960px;
+  margin: 0 auto var(--space-16);
+  padding: 0 var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+.card {
+  display: block;
+  padding: var(--space-5);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition: all var(--dur-base) var(--ease);
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.card .num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.card .ttl {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink-strong);
+  margin: var(--space-2) 0;
+  line-height: 1.3;
+}
+.card .meta { font-size: var(--fs-xs); color: var(--soft); }
+
+/* ---------- 移动端 ---------- */
+@media (max-width: 1180px) {
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .toc { display: none; }
+  .prose { max-width: 100%; }
+}
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); padding: 0 var(--space-4); }
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: var(--space-4) 0;
+  }
+  :root { --fs-h1: 32px; --fs-h2: 24px; --fs-body: 16px; }
+  .hero h1 { font-size: 36px; }
+  .main { padding-top: var(--space-4); }
+}
+
+@media print {
+  .topbar, .sidebar, .toc, .pager, .progress-rail, .code-head { display: none; }
+  .shell, .main { display: block; }
+}

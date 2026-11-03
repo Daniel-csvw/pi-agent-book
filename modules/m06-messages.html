@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>消息系统 —— 四种给模型看，八种给系统记 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="active">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M06</div>
+      <h1>消息系统 —— 四种给模型看，八种给系统记</h1>
+      <div class="module-meta">6,200 字 · 含 166 行代码 · 约 31 分钟</div>
+    </header>
+    <p>M05 里工具执行完了，产出变成一条 <code>ToolResultMessage</code>。它进了 transcript，然后在下一轮被发给模型。</p>
+<p>问题来了：用户在 TUI 里敲 <code>!ls -la</code>，这条 bash 执行记录是什么消息？它<strong>不是</strong>用户说的话，也<strong>不是</strong>模型说的话，更<strong>不是</strong>工具调用结果。可是它必须留在 transcript 里——下次打开会话还能看到&quot;我当时跑了什么&quot;。</p>
+<p>Pi 的答案是：<strong>给系统记的消息比给模型看的多四种。</strong></p>
+<p>这一章讲这四种，以及它们和那四种之间那道转换闸门。</p>
+<hr>
+<h2 id="sec-1-一-给模型看的只有四种">一、给模型看的只有四种</h2>
+<p><code>Message</code> 的定义只有一行（<code>packages/ai/src/types.ts:659</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Message =</span><span class="ln">	SystemMessage | UserMessage | AssistantMessage | ToolResultMessage;</span></code></pre></div>
+<p>四种。这是所有 provider 都能表达的<strong>最小公约数</strong>——M04 讲过的十种方言，翻译的对象就是这个联合类型。</p>
+<h3 id="sec-2-1-1-字段对照">1.1 字段对照</h3>
+<p>四种消息的字段数差得很远，值得摆在一起看：</p>
+<table>
+<thead>
+<tr>
+<th>消息</th>
+<th>字段数</th>
+<th>必有字段</th>
+<th>独有字段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UserMessage</code></td>
+<td>2</td>
+<td><code>content</code> <code>timestamp</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>SystemMessage</code></td>
+<td>5</td>
+<td><code>content</code> <code>timestamp</code></td>
+<td><code>sections</code> <code>toolsAdded</code> <code>toolsRemoved</code></td>
+</tr>
+<tr>
+<td><code>ToolResultMessage</code></td>
+<td>9</td>
+<td><code>toolCallId</code> <code>toolName</code> <code>content</code> <code>isError</code> <code>timestamp</code></td>
+<td><code>details</code> <code>usage</code> <code>nestedCalls</code> <code>durationMs</code></td>
+</tr>
+<tr>
+<td><code>AssistantMessage</code></td>
+<td>17</td>
+<td><code>content</code> <code>api</code> <code>provider</code> <code>model</code> <code>usage</code> <code>stopReason</code> <code>timestamp</code></td>
+<td>见下</td>
+</tr>
+</tbody>
+</table>
+<p><code>AssistantMessage</code>（<code>:585-616</code>）是唯一一个&quot;必须记录是谁回答的&quot;的消息：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> AssistantMessage {</span><span class="ln">	role: <span class="tok-str">"assistant"</span>;</span><span class="ln">	content: (TextContent | ThinkingContent | ToolCall)[];</span><span class="ln">	api: Api;</span><span class="ln">	provider: ProviderId;</span><span class="ln">	model: <span class="tok-kw">string</span>;</span><span class="ln">	responseModel?: <span class="tok-kw">string</span>;</span><span class="ln">	responseId?: <span class="tok-kw">string</span>;</span><span class="ln">	providerThinkingLevel?: <span class="tok-kw">string</span>;</span><span class="ln">	thinkingLevel?: ModelThinkingLevel;</span><span class="ln">	diagnostics?: AssistantMessageDiagnostic[];</span><span class="ln">	usage: Usage;</span><span class="ln">	stopReason: StopReason;</span><span class="ln">	deferred?: DeferredHandle;</span><span class="ln">	errorMessage?: <span class="tok-kw">string</span>;</span><span class="ln">	rawStopReason?: <span class="tok-kw">string</span>;</span><span class="ln">	endTurn?: <span class="tok-kw">boolean</span>;</span><span class="ln">	timestamp: <span class="tok-kw">number</span>;</span><span class="ln">	durationMs?: <span class="tok-kw">number</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>UserMessage</code> 只有两个字段，<code>AssistantMessage</code> 有十七个。为什么？因为<strong>用户说的东西只需要读，模型说的话需要被记账</strong>：花了多少钱（<code>usage</code>）、用的哪个模型（<code>provider</code> + <code>model</code>）、为什么停下来（<code>stopReason</code>）、花了多久（<code>durationMs</code>）。</p>
+<p>M10 讲会话恢复时会发现，正是这十七个字段让&quot;重放一次历史对话&quot;变成可能——你不仅知道模型说了什么，还知道它当时是怎么说的。</p>
+<h3 id="sec-3-1-2-content-是唯一形状各异的字段">1.2 <code>content</code> 是唯一形状各异的字段</h3>
+<p>四种消息里，除 <code>content</code> 之外的字段都长得规矩。<code>content</code> 却四种形状：</p>
+<table>
+<thead>
+<tr>
+<th>消息</th>
+<th><code>content</code> 类型</th>
+<th>图片</th>
+<th>thinking</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system</code></td>
+<td><code>string | TextContent[]</code></td>
+<td>否</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>user</code></td>
+<td><code>string | (Text | Image)[]</code></td>
+<td>是</td>
+<td>否</td>
+</tr>
+<tr>
+<td><code>assistant</code></td>
+<td><code>(Text | Think | ToolCall)[]</code></td>
+<td>否</td>
+<td>是</td>
+</tr>
+<tr>
+<td><code>toolResult</code></td>
+<td><code>(Text | Image)[]</code></td>
+<td>是</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<p>三条规律：</p>
+<p><strong>一，只有 <code>user</code> 和 <code>toolResult</code> 能带图片。</strong> 因为&quot;看图&quot;是输入能力：
+用户发截图，工具回传渲染结果（M05 的 <code>read</code> 读图片文件就靠这个）。
+而 <code>assistant</code> 不能产出图片块——模型生成图像走的是另一套接口
+（<code>KnownImageApi</code>，<code>ai/src/types.ts:78</code>），不在对话流里。</p>
+<p><strong>二，只有 <code>assistant</code> 能带 <code>ThinkingContent</code> 和 <code>ToolCall</code>。</strong>
+这是&quot;模型说过什么&quot;独有的两种形状：思考过程、结构化的调用请求。
+其余三种消息没有理由出现它们。</p>
+<p><strong>三，<code>assistant</code> 和 <code>toolResult</code> 不接受裸 <code>string</code>。</strong>
+<code>user</code> 和 <code>system</code> 可以，因为它们常常&quot;整条就是一段话&quot;。
+而 <code>assistant</code> 的 content 是<strong>一串事件</strong>——可能同时有一条思考、一段文字、
+一个工具调用，必须结构化才能记账（<code>usage</code> 按块分摊、<code>durationMs</code> 对齐）。</p>
+<p>同一件事在不同消息里用不同形状表达，是<strong>能力边界直接映射进了类型</strong>。</p>
+<h3 id="sec-4-1-3-三个-quot-本来不该在这里-quot-的字段">1.3 三个&quot;本来不该在这里&quot;的字段</h3>
+<p><code>AssistantMessage</code> 里有三个字段很可疑：</p>
+<ul>
+<li><code>diagnostics</code>：<em>Redacted provider/runtime diagnostics for failures and recoveries.</em></li>
+<li><code>rawStopReason</code>：provider 原始停止原因，没做归一化</li>
+<li><code>endTurn</code>：<em>Preserved for debugging and does not currently affect agent control flow.</em></li>
+</ul>
+<p>三个都是<strong>调试用途</strong>，都在注释里明说了。为什么允许它们存在？</p>
+<p>因为线上问题的排查现场只有 transcript。如果 <code>stopReason</code> 归一化成 <code>&quot;error&quot;</code> 就丢了原始值，你永远查不出&quot;到底是限流还是内容审核&quot;。<strong>把原始值留在消息里，是最便宜的可观测性。</strong></p>
+<p><code>endTurn</code> 那条注释里的 <em>does not currently affect agent control flow</em> 更值得记：它说明这个字段<strong>曾经</strong>想过参与控制流，后来退出了。留着是为了不破坏已有 transcript 的兼容性。</p>
+<h3 id="sec-5-1-4-sections-里别用整数键">1.4 <code>sections</code> 里别用整数键</h3>
+<p><code>SystemMessage.sections</code> 的注释藏着一句警告（<code>ai/src/types.ts:565-571</code>）：</p>
+<blockquote>
+<p>Named, ordered prompt sections rendered verbatim after <code>content</code>. ...
+<strong>Avoid integer-like names; JSON objects reorder those.</strong></p>
+</blockquote>
+<p><code>sections</code> 是 <code>Record&lt;string, string | null&gt;</code>，注释里写着 <em>ordered</em>——
+顺序有语义，因为提示词是顺序读的。但 JS 对象的键顺序不是插入顺序：</p>
+<ul>
+<li>整数样式的键（<code>&quot;0&quot;</code>、<code>&quot;12&quot;</code>）被引擎排到最前，并按<strong>数值升序</strong></li>
+<li>其余字符串键保持插入顺序</li>
+</ul>
+<p>所以 <code>{&quot;b&quot;:.., &quot;0&quot;:.., &quot;a&quot;:..}</code> 渲染出来是 <code>0, b, a</code>。
+编号成 <code>&quot;1&quot; &quot;2&quot; &quot;3&quot;</code> 恰好躲过，但 <code>&quot;10&quot;</code> 会排到 <code>&quot;2&quot;</code> 前面。</p>
+<p><code>null</code> 的语义也值得一提：它不是&quot;置空&quot;，是<strong>删除这一节</strong>。
+后面一条 system 消息可以把前面声明的一节整个摘掉，不必重发全文。
+这跟 <code>toolsRemoved</code> 是同一个思路——<strong>后续消息只描述增量</strong>。</p>
+<h3 id="sec-6-1-5-一条消息-两个消费者">1.5 一条消息，两个消费者</h3>
+<p><code>ToolResultMessage</code>（<code>:640-657</code>）里有三个字段明确注明<strong>不发给模型</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">usage?: Usage;                  <span class="tok-com">// 不进主 LLM 上下文记账</span></span><span class="ln">nestedCalls?: NestedToolCalls;  <span class="tok-com">// 只进会话记录，不发给模型</span></span><span class="ln">durationMs?: <span class="tok-kw">number</span>;</span></code></pre></div>
+<ul>
+<li><code>usage</code> 是工具<strong>自己</strong>花掉的 token——比如一个内部调模型做总结的工具</li>
+<li><code>nestedCalls</code> 是工具内部又发起了哪些工具调用（codemode 场景）</li>
+<li><code>durationMs</code> 是执行耗时，给 UI 和分析用</li>
+</ul>
+<p>三个字段指向同一个事实：<strong>一条消息同时服务多个消费者。</strong>
+模型只读 <code>content</code> 和 <code>isError</code>；会话记录（M10）读 <code>usage</code>、
+<code>nestedCalls</code>、<code>durationMs</code>；TUI 读 <code>details</code> 里的渲染数据。</p>
+<p>字段按消费者分区，所以&quot;消息&quot;不是&quot;发给模型的东西&quot;，
+而是&quot;关于这次工具调用，我记下的全部&quot;。</p>
+<hr>
+<h2 id="sec-7-二-给系统记的还有四种">二、给系统记的还有四种</h2>
+<p><code>coding-agent/src/core/messages.ts</code>（196 行）定义了四种额外消息。它们<strong>不在</strong> <code>Message</code> 里，全在 <code>AgentMessage</code> 里。</p>
+<h3 id="sec-8-2-1-bashexecution-命令的记录">2.1 <code>bashExecution</code>：<code>!</code> 命令的记录</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> BashExecutionMessage {</span><span class="ln">	role: <span class="tok-str">"bashExecution"</span>;</span><span class="ln">	command: <span class="tok-kw">string</span>;</span><span class="ln">	output: <span class="tok-kw">string</span>;</span><span class="ln">	exitCode: <span class="tok-kw">number</span> | <span class="tok-kw">undefined</span>;</span><span class="ln">	cancelled: <span class="tok-kw">boolean</span>;</span><span class="ln">	truncated: <span class="tok-kw">boolean</span>;</span><span class="ln">	fullOutputPath?: <span class="tok-kw">string</span>;</span><span class="ln">	timestamp: <span class="tok-kw">number</span>;</span><span class="ln">	<span class="tok-com">/** If true, this message is excluded from LLM context (!! prefix) */</span></span><span class="ln">	excludeFromContext?: <span class="tok-kw">boolean</span>;</span><span class="ln">}</span></code></pre></div>
+<p>字段几乎和 <code>BashToolOutput</code>（M05 的 <code>bash</code> 结构化输出）一一对应。区别在于它是<strong>用户主动跑的</strong>，不是模型要跑的。</p>
+<p><code>!</code> 和 <code>!!</code> 的区别就是一个布尔：<code>!ls</code> 会进上下文让模型知道，<code>!!ls</code> 只显示给人看。</p>
+<p>为什么不复用 <code>UserMessage</code> 塞一段文本？因为 <code>output</code> 可能有几十 MB（被截断后还留着 <code>fullOutputPath</code>）。如果一开始就转成文本，那&quot;折叠展开完整输出&quot;这个 UI 功能就没法做了。<strong>原始字段留着，转文本推迟到最后一刻。</strong></p>
+<h3 id="sec-9-2-2-custom-扩展的注入口">2.2 <code>custom</code>：扩展的注入口</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> CustomMessage&lt;T = <span class="tok-kw">unknown</span>&gt; {</span><span class="ln">	role: <span class="tok-str">"custom"</span>;</span><span class="ln">	customType: <span class="tok-kw">string</span>;</span><span class="ln">	content: <span class="tok-kw">string</span> | (TextContent | ImageContent)[];</span><span class="ln">	display: <span class="tok-kw">boolean</span>;</span><span class="ln">	details?: T;</span><span class="ln">	timestamp: <span class="tok-kw">number</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>customType</code> 是扩展自己的命名空间（比如 <code>&quot;todo-reminder&quot;</code>），<code>details</code> 是任意挂载数据。</p>
+<p><code>display</code> 这个字段值得单独说：它控制<strong>是否在 TUI 里显示</strong>，和是否发给模型<strong>完全无关</strong>。一个 <code>display: false</code> 的 custom 消息会静默进入上下文，用户看不见。</p>
+<p>这是个双刃剑：扩展可以用它注入&quot;系统提醒&quot;而不污染界面，也可以用它偷偷塞东西。所以扩展机制天然需要信任——M07 会讲扩展是怎么被加载和隔离的。</p>
+<h3 id="sec-10-2-3-branchsummary-分叉回退的凭证">2.3 <code>branchSummary</code>：分叉回退的凭证</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> BranchSummaryMessage {</span><span class="ln">	role: <span class="tok-str">"branchSummary"</span>;</span><span class="ln">	summary: <span class="tok-kw">string</span>;</span><span class="ln">	fromId: <span class="tok-kw">string</span> | <span class="tok-kw">null</span>;</span><span class="ln">	timestamp: <span class="tok-kw">number</span>;</span><span class="ln">}</span></code></pre></div>
+<p>场景：你在第 20 轮发现走错路了，回退到第 8 轮重开。但<strong>第 9 到 20 轮发生过的事不能凭空消失</strong>——模型如果完全不知道&quot;之前试过 A 方案失败了&quot;，就会再试一次。</p>
+<p><code>branchSummary</code> 就是那条&quot;我从哪来&quot;的记录：<code>fromId</code> 指向被放弃的分叉点，<code>summary</code> 是那段历史的摘要。它被插回上下文时用一对标签包起来（<code>messages.ts:19-24</code>）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">The following is a summary of a branch that this conversation came back from:</span><span class="ln"></span><span class="ln">&lt;summary&gt;</span><span class="ln">...摘要内容...</span><span class="ln">&lt;/summary&gt;</span></code></pre></div>
+<p>为什么要标签？因为要让它<strong>长得不像对话</strong>。模型看到 <code>&lt;summary&gt;</code> 包着的东西，就知道这是&quot;关于历史的元信息&quot;，不是&quot;用户在跟我说话&quot;。</p>
+<h3 id="sec-11-2-4-compactionsummary-压缩后的替身">2.4 <code>compactionSummary</code>：压缩后的替身</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> CompactionSummaryMessage {</span><span class="ln">	role: <span class="tok-str">"compactionSummary"</span>;</span><span class="ln">	summary: <span class="tok-kw">string</span>;</span><span class="ln">	tokensBefore: <span class="tok-kw">number</span>;</span><span class="ln">	timestamp: <span class="tok-kw">number</span>;</span><span class="ln">}</span></code></pre></div>
+<p>和 <code>branchSummary</code> 几乎一样，多一个 <code>tokensBefore</code>——压缩前的 token 数。这个数字是<strong>压缩效果的唯一证据</strong>：你能算出&quot;从 150,000 压到 8,000&quot;，也能在它压得不够时报警。</p>
+<p>两者的区别是语义：<code>branchSummary</code> 是&quot;这段历史被放弃了&quot;，<code>compactionSummary</code> 是&quot;这段历史被浓缩了&quot;。<strong>同样是摘要，一个向前看，一个向后看。</strong> 所以它们是两个类型，不是同一个类型加个 <code>kind</code> 字段。</p>
+<h3 id="sec-12-2-5-三类来源-三种信任等级">2.5 三类来源，三种信任等级</h3>
+<p>四条自定义消息看着平级，按&quot;谁产生的&quot;分却是三层：</p>
+<table>
+<thead>
+<tr>
+<th>消息</th>
+<th>产生者</th>
+<th>可信吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bashExecution</code></td>
+<td>用户敲 <code>!</code></td>
+<td>高（人操作）</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td>扩展</td>
+<td>中（需审计）</td>
+</tr>
+<tr>
+<td><code>branchSummary</code></td>
+<td>系统自动</td>
+<td>高（内部写）</td>
+</tr>
+<tr>
+<td><code>compactionSummary</code></td>
+<td>系统自动</td>
+<td>高（内部写）</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><code>bashExecution</code> 的每个字段都来自一次真实进程（<code>output</code>、<code>exitCode</code>）</li>
+<li><code>custom</code> 是<strong>唯一允许外部代码任意注入</strong>的通道，
+<code>customType</code> 就是它的自报家门</li>
+<li>两条 summary 由系统自己拼，前缀是导出的常量（<code>:11-24</code>），格式可控</li>
+</ul>
+<p>这个分级解释了 <code>custom</code> 为什么独独带 <code>display</code> 和 <code>details</code>：
+它必须能被渲染成&quot;看起来像插件的东西&quot;，用户才有机会发现异常。
+<code>bashExecution</code> 不需要——它本来就在等宽输出区里，长得就像终端。</p>
+<p><strong>权限不同，UI 待遇就不该相同。</strong></p>
+<hr>
+<h2 id="sec-13-三-超集是怎么做到不侵入的">三、超集是怎么做到不侵入的</h2>
+<p>这是本章技术上最漂亮的一处。</p>
+<h3 id="sec-14-3-1-空接口-声明合并">3.1 空接口 + 声明合并</h3>
+<p><code>agent/src/types.ts:365-374</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> CustomAgentMessages {</span><span class="ln">	<span class="tok-com">// Empty by default - apps extend via declaration merging</span></span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> AgentMessage =</span><span class="ln">	Message | CustomAgentMessages[<span class="tok-kw">keyof</span> CustomAgentMessages];</span></code></pre></div>
+<p><code>CustomAgentMessages</code> 是空接口。所以默认情况下：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">AgentMessage = Message | never = Message</span></code></pre></div>
+<p><code>never</code> 在联合类型里会消失。<strong>默认等于没有扩展，零成本。</strong></p>
+<p>然后 <code>coding-agent</code> 在 <code>messages.ts:70-77</code> 往里加字段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">declare</span> <span class="tok-kw">module</span> <span class="tok-str">"@earendil-works/pi-agent-core"</span> {</span><span class="ln">	<span class="tok-kw">interface</span> CustomAgentMessages {</span><span class="ln">		bashExecution: BashExecutionMessage;</span><span class="ln">		custom: CustomMessage;</span><span class="ln">		branchSummary: BranchSummaryMessage;</span><span class="ln">		compactionSummary: CompactionSummaryMessage;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>这是 TypeScript 的<strong>声明合并</strong>（declaration merging）：同名接口在多个地方声明，字段会合并。加完之后，全仓库的 <code>AgentMessage</code> 立刻变成八种。</p>
+<h3 id="sec-15-3-2-为什么这个设计值得学">3.2 为什么这个设计值得学</h3>
+<p>关键在于：<strong><code>agent</code> 包完全不知道 <code>coding-agent</code> 有哪些消息类型。</strong></p>
+<p><code>agent</code> 包的 <code>types.ts</code> 里没有 <code>bashExecution</code> 这个词。它只提供&quot;一个可被扩充的插槽&quot;，<code>coding-agent</code> 往里塞。编译产物里也没有循环依赖。</p>
+<p>对比一下常见的替代方案：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent</code> 包里直接定义八种消息</td>
+<td><code>agent</code> 得认识&quot;bash 执行&quot;这种业务概念，抽象被污染</td>
+</tr>
+<tr>
+<td>用 <code>Record&lt;string, unknown&gt;</code> 兜</td>
+<td>丢掉全部类型安全，<code>m.role</code> 变成 string</td>
+</tr>
+<tr>
+<td>泛型参数 <code>AgentMessage&lt;TExtra&gt;</code></td>
+<td>每传一层都要带上类型参数，传染性极强</td>
+</tr>
+</tbody>
+</table>
+<p>声明合并的代价是<strong>隐式的</strong>：你看到一个 <code>AgentMessage</code> 的 <code>switch</code>，里面却有 <code>case &quot;bashExecution&quot;</code>，而在当前文件里搜不到这个类型的定义。新手会困惑&quot;这个 role 到底哪来的&quot;。</p>
+<p>这也解释了为什么 <code>messages.ts</code> 开头要有那段文件注释（<code>:1-6</code>）——它是在补声明合并丢掉的可发现性。</p>
+<h3 id="sec-16-3-3-代价-穷尽检查必须写">3.3 代价：穷尽检查必须写</h3>
+<p><code>convertToLlm</code> 的 <code>switch</code> 末尾有这几行（<code>:189-193</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">default</span>:</span><span class="ln">	<span class="tok-com">// biome-ignore lint/correctness/noSwitchDeclarations: fine</span></span><span class="ln">	<span class="tok-kw">const</span> _exhaustiveCheck: <span class="tok-kw">never</span> = m;</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span></code></pre></div>
+<p><code>never</code> 类型在这里当编译器用：如果某个 <code>case</code> 没写，<code>m</code> 就不是 <code>never</code>，这一行编译报错。</p>
+<p><strong>声明合并让&quot;加类型&quot;变容易了，所以&quot;加完忘改转换器&quot;就成了主要风险。</strong> 穷尽检查是唯一能拦住它的东西。注释里那个 <code>biome-ignore</code> 说明这是在&quot;让 linter 闭嘴换类型安全&quot;——值得的交易。</p>
+<h3 id="sec-17-3-4-声明合并是-quot-编译单元级-quot-的">3.4 声明合并是&quot;编译单元级&quot;的</h3>
+<p>这点容易误解：<code>CustomAgentMessages</code> 不是全局共享的，
+<strong>合并结果取决于当前程序包含了哪些文件</strong>。</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">只编 agent 包             → AgentMessage = 4 种</span><span class="ln">编 agent + coding-agent  → AgentMessage = 8 种</span></code></pre></div>
+<p><code>messages.ts:70</code> 那句 <code>declare module</code> 要进入编译图才生效。
+如果某个测试文件没 import 到它，里面的 <code>AgentMessage</code> 还是四个成员，
+写 <code>case &quot;bashExecution&quot;</code> 直接报错。</p>
+<p>三个实际后果：</p>
+<ol>
+<li><strong>不要在 <code>agent</code> 包的单元测试里断言八种消息</strong>——
+那个包看不到自定义类型</li>
+<li><strong><code>agent</code> 包的代码不该 <code>switch</code> 自定义 role</strong>——编译不过，
+除非加 <code>default</code> 兜底</li>
+<li><strong>类型只在&quot;看到那个 import&quot;的地方变宽</strong>，所以声明合并的入口文件
+必须唯一：<code>coding-agent</code> 里就是 <code>core/messages.ts</code></li>
+</ol>
+<p>顺带解释一个怪现象：<code>agent</code> 包和 <code>coding-agent</code> 里都写着
+<code>AgentMessage</code>，在编辑器里点进去是同一个定义，但悬停时看到的展开结果
+可能不一样。<strong>不是 IDE 抽风，是两处看到的合并结果不同。</strong></p>
+<h3 id="sec-18-3-5-非法-details-让它编译不过">3.5 非法 <code>details</code> 让它编译不过</h3>
+<p><code>ToolResultMessage</code> 还带一个条件类型（<code>ai/src/types.ts:640</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ToolResultMessage&lt;TDetails = JsonValue&gt; =</span><span class="ln">	IsJsonCompatible&lt;TDetails&gt; <span class="tok-kw">extends</span> <span class="tok-kw">true</span> ? { ... } : <span class="tok-kw">never</span>;</span></code></pre></div>
+<p><code>details</code> 不是随便挂的。判定分三层（<code>:491-537</code>）：</p>
+<ol>
+<li><strong><code>IsJsonCompatible&lt;T&gt;</code></strong>——递归走一遍，函数、<code>undefined</code>、
+<code>Symbol</code> 之类都判 <code>false</code></li>
+<li><strong><code>InvalidJsonKeys&lt;T&gt;</code></strong>——反向找出<strong>哪个键</strong>不合法，
+报错信息能指到具体字段</li>
+<li><strong><code>never</code></strong>——不合规时整个 <code>ToolResultMessage</code> 变成 <code>never</code>，
+任何赋值都编译失败</li>
+</ol>
+<p>为什么值得写六十行类型体操？因为 <code>details</code> 的唯一归宿是 jsonl 文件（M10）。
+塞一个 <code>Date</code> 进去，落盘时静默变成字符串；塞一个 <code>Map</code> 进去，直接变 <code>{}</code>。
+<strong>错误在落盘那一刻才暴露，而那时类型信息已经找不回来了。</strong></p>
+<p><code>JsonRepresentation&lt;T&gt;</code>（<code>:527-537</code>）是配套的另一半：它把内存类型映射成
+&quot;落盘之后的形态&quot;，让读取方知道会拿到什么。</p>
+<hr>
+<h2 id="sec-19-四-converttollm-那道转换闸门">四、<code>convertToLlm</code>：那道转换闸门</h2>
+<h3 id="sec-20-4-1-四条-case-一种产物">4.1 四条 case，一种产物</h3>
+<p>完整函数（<code>messages.ts:148-196</code>）不长。四条自定义消息的处理：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">switch</span> (m.role) {</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">		<span class="tok-kw">if</span> (m.excludeFromContext) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">		<span class="tok-kw">return</span> {</span><span class="ln">			role: <span class="tok-str">"user"</span>,</span><span class="ln">			content: [{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-fn">bashExecutionToText</span>(m) }],</span><span class="ln">			timestamp: m.timestamp,</span><span class="ln">		};</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"custom"</span>:</span><span class="ln">		<span class="tok-kw">return</span> { role: <span class="tok-str">"user"</span>, content, timestamp: m.timestamp };</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"branchSummary"</span>:</span><span class="ln">		<span class="tok-kw">return</span> { role: <span class="tok-str">"user"</span>, content: [{</span><span class="ln">			<span class="tok-kw">type</span>: <span class="tok-str">"text"</span>,</span><span class="ln">			text: BRANCH_SUMMARY_PREFIX + m.summary + BRANCH_SUMMARY_SUFFIX,</span><span class="ln">		}], timestamp: m.timestamp };</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"compactionSummary"</span>:</span><span class="ln">		<span class="tok-com">// 同上，用 COMPACTION_SUMMARY_PREFIX/SUFFIX 包裹</span></span></code></pre></div>
+<p><strong>四条，全部变成 <code>role: &quot;user&quot;</code>。</strong></p>
+<p>这是整章最反直觉的一点。为什么不变成 <code>system</code>？不新增一个 role？</p>
+<p>因为 role 的集合是<strong>协议层决定的</strong>，不是 Pi 决定的。M04 那十个 api 里，有的只认 <code>user</code> / <code>assistant</code> / <code>system</code> / <code>tool</code>。你造一个新 role，十家都得改。</p>
+<p>而 <code>user</code> 是所有 provider 都必有的、语义最宽的槽位：&quot;这是外部给模型的一段输入&quot;。摘要、bash 记录、扩展通知，本质都是&quot;外部输入&quot;。</p>
+<h3 id="sec-21-4-2-bash-记录变成什么样">4.2 bash 记录变成什么样</h3>
+<p><code>bashExecutionToText</code>（<code>:82-98</code>）的产物：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Ran `ls -la`</span><span class="ln"></span></code></pre></div>
+<p>total 24
+drwxr-xr-x  5 user  staff  160 Nov  2 10:00 .
+...</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"></span><span class="ln">Command exited with code 1</span></code></pre></div>
+<p>三段可选尾巴：<code>(command cancelled)</code>、<code>Command exited with code N</code>、<code>[Output truncated. Full output: /tmp/...]</code>。</p>
+<p>注意它把命令原文用反引号包起来、输出用三反引号围栏——<strong>这是在模仿 markdown 代码块</strong>。模型在训练数据里见过海量这种格式，它会把围栏里的内容当&quot;命令输出&quot;而不是&quot;用户的话&quot;。</p>
+<p>格式不是装饰，是提示。</p>
+<h3 id="sec-22-4-3-默认实现是-quot-丢-quot-不是-quot-转-quot">4.3 默认实现是&quot;丢&quot;，不是&quot;转&quot;</h3>
+<p><code>agent/src/agent.ts:39-47</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">defaultConvertToLlm</span>(messages: AgentMessage[]): Message[] {</span><span class="ln">	<span class="tok-kw">return</span> messages.<span class="tok-fn">filter</span>(</span><span class="ln">		(message) =&gt;</span><span class="ln">			message.role === <span class="tok-str">"system"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"user"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"assistant"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"toolResult"</span>,</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>没用配置时，<code>convertToLlm</code> 是<strong>纯过滤</strong>——四种认识的留下，其他全丢。</p>
+<p>而 <code>coding-agent</code> 显式传入了自己的版本（<code>sdk.ts:411</code>）。</p>
+<p><strong>默认丢、显式转</strong>这个方向选得很对：一个不认识的类型，默认行为应该是&quot;不要发给外部服务&quot;，而不是&quot;试着塞过去&quot;。安全默认值 + 显式覆盖，这是所有&quot;往外部系统发数据&quot;的接口都该有的姿态。</p>
+<h3 id="sec-23-4-4-闸门只有一个-入口有八处">4.4 闸门只有一个，入口有八处</h3>
+<p><code>convertToLlm</code> 在 <code>coding-agent</code> 里被调用八次，分布在六个文件：</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sdk.ts:298</code></td>
+<td>包一层 <code>convertToLlmWithBlockImages</code></td>
+</tr>
+<tr>
+<td><code>agent-session.ts:597</code> <code>:838</code></td>
+<td>估算 token 前先降级</td>
+</tr>
+<tr>
+<td><code>agent-session.ts:1021</code></td>
+<td>发请求前</td>
+</tr>
+<tr>
+<td><code>compaction.ts:721</code> <code>:1076</code></td>
+<td>压缩前的准备</td>
+</tr>
+<tr>
+<td><code>branch-summarization.ts:326</code></td>
+<td>分叉摘要</td>
+</tr>
+<tr>
+<td><code>bug-report.ts:339</code></td>
+<td>生成 bug 报告</td>
+</tr>
+</tbody>
+</table>
+<p>看第四类就明白为什么这么多：<strong>压缩本身也是一次模型调用。</strong>
+M09 会讲，压缩的做法是&quot;把历史摘要成一段话&quot;，那个摘要请求同样得把历史
+降级成 <code>Message[]</code> 才能发给 provider。所以这不是&quot;主循环的门&quot;，
+而是&quot;<strong>所有要把对话发给模型的地方</strong>的门&quot;。</p>
+<p><code>compaction/utils.ts:109</code> 有一行注释把这个约束写死了：</p>
+<blockquote>
+<p>Call <code>convertToLlm()</code> first to handle custom message types.</p>
+</blockquote>
+<p><code>serializeConversation</code> 的签名是 <code>Message[] → string</code>——
+它<strong>不接受 <code>AgentMessage[]</code></strong>。签名本身就是约束：
+想直接把八种消息喂进去，编译不过。</p>
+<hr>
+<h2 id="sec-24-五-两阶段管道">五、两阶段管道</h2>
+<p><code>convertToLlm</code> 不是唯一的转换点。<code>agent-loop.ts:403-406</code> 是两行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> llmMessages = <span class="tok-kw">await</span> config.<span class="tok-fn">convertToLlm</span>(messages);</span><span class="ln"><span class="tok-kw">const</span> llmContext = <span class="tok-fn">normalizeContext</span>({ messages: llmMessages });</span></code></pre></div>
+<p>前面还有一道（<code>AgentLoopConfig.transformContext</code>），完整链条是三级：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">AgentMessage[]        八种，超集</span><span class="ln">   ↓ transformContext    AgentMessage → AgentMessage（可选）</span><span class="ln">AgentMessage[]</span><span class="ln">   ↓ convertToLlm        AgentMessage → Message（必选）</span><span class="ln">Message[]             四种，子集</span><span class="ln">   ↓ normalizeContext    Message → TranscriptContext（M04）</span><span class="ln">TranscriptContext</span></code></pre></div>
+<h3 id="sec-25-5-1-为什么不能合成一步">5.1 为什么不能合成一步</h3>
+<p><code>transformContext</code> 的契约（<code>agent/src/types.ts:224-232</code>）写的是：</p>
+<blockquote>
+<p>Use this for operations that work at the AgentMessage level: context window management (pruning old messages), injecting context from external sources. <strong>Contract: must not throw or reject.</strong></p>
+</blockquote>
+<p>两个阶段的<strong>输入输出类型不同</strong>，所以职责不同：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>transformContext</code></th>
+<th><code>convertToLlm</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入输出</td>
+<td><code>AgentMessage[]</code> → <code>AgentMessage[]</code></td>
+<td><code>AgentMessage[]</code> → <code>Message[]</code></td>
+</tr>
+<tr>
+<td>能不能看见自定义消息</td>
+<td>能</td>
+<td>能（但要丢掉）</td>
+</tr>
+<tr>
+<td>典型用途</td>
+<td>剪枝、注入、压缩（M08/M09）</td>
+<td>降级、过滤</td>
+</tr>
+<tr>
+<td>是否必须</td>
+<td>可选</td>
+<td>必须</td>
+</tr>
+</tbody>
+</table>
+<p>如果合成一步，压缩就没法工作了——压缩要<strong>产出</strong>一条 <code>compactionSummary</code>（自定义类型），但那个函数如果只能输出 <code>Message</code>，就吐不出自定义消息。</p>
+<p><strong>&quot;在超集里改造，在边界处降级&quot;</strong>——分开两步，是因为中间会有&quot;半成品仍是超集&quot;的阶段。</p>
+<h3 id="sec-26-5-2-顺序不能换">5.2 顺序不能换</h3>
+<p><code>transformContext</code> 先跑。这意味着压缩、剪枝这些操作都在<strong>完整信息</strong>上做——包括 <code>bashExecution</code> 的原始 <code>output</code>、<code>compactionSummary</code> 的 <code>tokensBefore</code>。</p>
+<p>换过来会怎样？先降级成 <code>Message</code>，那 <code>bashExecution</code> 已经变成一段文本了，压缩时想按&quot;这条命令输出多长&quot;做决策就没了原始数据。</p>
+<p><strong>信息只减不增，所以减之前要把该做的事做完。</strong></p>
+<h3 id="sec-27-5-3-还有第三次降级-变成纯文本">5.3 还有第三次降级：变成纯文本</h3>
+<p><code>convertToLlm</code> 之后，压缩路径上还有一道更狠的降级：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">AgentMessage[]   八种</span><span class="ln">   ↓ convertToLlm</span><span class="ln">Message[]        四种</span><span class="ln">   ↓ serializeConversation</span><span class="ln">string           "[User]: ...\n[Assistant]: ..."</span></code></pre></div>
+<p><code>serializeConversation</code>（<code>utils.ts:120</code>）把每条消息拼成
+<code>[User]: ...</code> / <code>[Assistant]: ...</code> 的流水账。注释写明了目的（<code>:107-108</code>）：</p>
+<blockquote>
+<p>This prevents the model from treating it as a conversation to continue.</p>
+</blockquote>
+<p><strong>为什么非要打散成文本？</strong> 如果摘要请求原样保留对话结构，模型很可能
+&quot;接着最后一句往下说&quot;，而不是&quot;总结这段对话&quot;。把 role 结构抹掉、
+换成带方括号的流水账，模型就只把它当素材看。</p>
+<p>同一段注释还交代了 thinking 为什么被丢掉（<code>:114-118</code>）：</p>
+<blockquote>
+<p>replayed thinking is often not part of the model's live context ...
+Including it can make the summarization request <strong>larger than the context
+it summarizes</strong>.</p>
+</blockquote>
+<p>这句话点出一个隐蔽的失败模式：<strong>摘要请求比被摘要的内容还大。</strong>
+一份塞满 thinking 的 transcript，重发一遍的成本可能超过原上下文窗口。</p>
+<p>三次降级，每次丢的东西不同：第一次丢&quot;自定义语义&quot;，
+第二次丢&quot;对话结构&quot;，第三次连&quot;块结构&quot;都不要了。
+<strong>每降一级，目标就窄一点，但每一步都还够用。</strong></p>
+<hr>
+<h2 id="sec-28-六-过滤-三个独立开关">六、过滤：三个独立开关</h2>
+<p>&quot;这条消息要不要给模型看&quot;和&quot;要不要给人看&quot;是两个问题。Pi 把它们拆成三个互不相干的开关：</p>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>作用范围</th>
+<th>谁控制</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>excludeFromContext</code></td>
+<td>不进 LLM</td>
+<td>单条消息</td>
+<td><code>!!cmd</code></td>
+</tr>
+<tr>
+<td><code>display</code></td>
+<td>不在 TUI 显示</td>
+<td>单条消息</td>
+<td>扩展的静默通知</td>
+</tr>
+<tr>
+<td><code>blockImages</code></td>
+<td>图片块被剥掉</td>
+<td>全局设置</td>
+<td>隐私/带宽场景</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sec-29-6-1-excludefromcontext-走的是丢弃-不是标记">6.1 <code>excludeFromContext</code> 走的是丢弃，不是标记</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">	<span class="tok-com">// Skip messages excluded from context (!! prefix)</span></span><span class="ln">	<span class="tok-kw">if</span> (m.excludeFromContext) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span></code></pre></div>
+<p>注意它返回 <code>undefined</code>，然后末尾 <code>.filter((m) =&gt; m !== undefined)</code> 把它滤掉。<strong>消息从数组里消失了，不是被标记为隐藏。</strong></p>
+<p>这有后果：发给模型的消息序列里，<code>!!ls</code> 那一轮<strong>完全不存在</strong>。模型看到的上下文是连续的，它会以为是&quot;用户还没说话&quot;。</p>
+<p>这个语义是对的——<code>!!</code> 的用途就是&quot;我跑个命令看看，别让模型知道我在看什么&quot;。</p>
+<h3 id="sec-30-6-2-blockimages-是第二道过滤">6.2 <code>blockImages</code> 是第二道过滤</h3>
+<p><code>sdk.ts:296-302</code> 包了一层：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> convertToLlmWithBlockImages = (messages: AgentMessage[]) =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> converted = <span class="tok-fn">convertToLlm</span>(messages);</span><span class="ln">	<span class="tok-com">// Check setting dynamically so mid-session changes take effect</span></span><span class="ln">	<span class="tok-kw">if</span> (!settingsManager.<span class="tok-fn">getBlockImages</span>()) <span class="tok-kw">return</span> converted;</span><span class="ln">	<span class="tok-com">// ... 把 image 块剥掉，换成文本注释</span></span><span class="ln">};</span></code></pre></div>
+<p>注释里那句 <em>Check setting dynamically so mid-session changes take effect</em> 是重点：<strong>这个开关在每次转换时重新读，不是启动时快照。</strong> 用户中途开了&quot;屏蔽图片&quot;，下一条请求立刻生效。</p>
+<h3 id="sec-31-6-3-display-与上下文无关">6.3 <code>display</code> 与上下文无关</h3>
+<p><code>CustomMessage.display</code> 只影响渲染。一个 <code>display: false</code> 的消息照样进 <code>convertToLlm</code>，照样变成 user 消息发给模型。</p>
+<p>所以&quot;扩展能不能偷偷影响模型&quot;的答案是：<strong>能，而且这是设计允许的。</strong> <code>display</code> 只是让用户看不见，不是让模型看不见。</p>
+<p>这也解释了为什么扩展机制要有信任边界——<code>custom</code> 消息是一条完全开放的注入通道。</p>
+<h3 id="sec-32-6-4-为什么不合并成一个枚举">6.4 为什么不合并成一个枚举</h3>
+<p>三个开关看着可以合成一个字段，比如 <code>visibility: &quot;both&quot; | &quot;ui-only&quot; | ...</code>。
+没合是因为<strong>作用域不同</strong>：前两个是单条消息的属性，
+第三个是全局设置。把全局设置塞进每条消息，就得在写入时快照——
+而 <code>blockImages</code> 明确要求&quot;中途改立刻生效&quot;。</p>
+<p><strong>短命的状态不要存进长命的数据里。</strong> 设置存进 jsonl，就永远追不上它的下一次变化。</p>
+<hr>
+<h2 id="sec-33-七-完整数据流">七、完整数据流</h2>
+<p>把这一路串起来，从用户敲下 <code>!ls</code> 到模型收到请求：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">用户敲 !ls</span><span class="ln">   ↓ 执行（M05 的 bash 工具复用同一套 shell 逻辑）</span><span class="ln">BashExecutionMessage           role: "bashExecution"</span><span class="ln">   ↓ 存进 transcript（M10 的 jsonl）</span><span class="ln">AgentMessage[]                 八种混排</span><span class="ln">   ↓ transformContext          剪枝/压缩（可选）</span><span class="ln">AgentMessage[]</span><span class="ln">   ↓ convertToLlm              四条 case + filter</span><span class="ln">Message[]                      四种</span><span class="ln">   ↓ normalizeContext          systemPrompt/tools 折进首条（M04）</span><span class="ln">TranscriptContext</span><span class="ln">   ↓ stream / streamSimple     十种方言翻译（M04）</span><span class="ln">provider 请求</span></code></pre></div>
+<p>每一步都在<strong>减少</strong>信息：八种变四种，<code>excludeFromContext</code> 的直接消失，<code>details</code> 这种只给 UI 用的字段在转换时被丢掉。</p>
+<p>而反方向——把 provider 的响应存回 transcript——每一步都在<strong>增加</strong>信息：<code>AssistantMessage</code> 带上 <code>usage</code>、<code>provider</code>、<code>durationMs</code>。</p>
+<p><strong>存的时候尽量多，发的时候尽量少。</strong> 这句话可以概括整个消息系统。</p>
+<h3 id="sec-34-7-1-反方向-一次响应怎么变回消息">7.1 反方向：一次响应怎么变回消息</h3>
+<p>以 <code>api/anthropic-messages.ts</code> 为例，一边收 SSE 事件一边往 <code>output</code> 里填：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>来源</th>
+<th>行号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api</code> <code>provider</code> <code>model</code></td>
+<td>请求入参（响应里没有）</td>
+<td><code>:590-591</code></td>
+</tr>
+<tr>
+<td><code>stopReason</code> 初值</td>
+<td>硬编码 <code>&quot;pending&quot;</code></td>
+<td><code>:601</code></td>
+</tr>
+<tr>
+<td><code>rawStopReason</code></td>
+<td><code>delta.stop_reason</code> 原样</td>
+<td><code>:842</code></td>
+</tr>
+<tr>
+<td><code>stopReason</code></td>
+<td><code>mapStopReason()</code> 归一化</td>
+<td><code>:843</code></td>
+</tr>
+<tr>
+<td><code>responseId</code></td>
+<td><code>event.message.id</code></td>
+<td><code>:705</code></td>
+</tr>
+<tr>
+<td><code>responseModel</code></td>
+<td>仅当不等于请求值时</td>
+<td><code>:709</code></td>
+</tr>
+</tbody>
+</table>
+<p>两个细节值得看：</p>
+<p><strong>一，<code>api</code>/<code>provider</code>/<code>model</code> 是回填的。</strong> 响应体里没有&quot;我是被谁请求的&quot;，
+这三项必须由翻译器从请求上下文里写进去。所以身份字段是<strong>请求侧的承诺</strong>，
+不是响应侧的事实。</p>
+<p><strong>二，<code>responseModel</code> 只在不一样时才写</strong>（<code>:709</code>）。用户请求
+<code>claude-sonnet-4</code>，provider 悄悄换成带日期的快照版，这时才记一笔；
+相同就留空，省字节。而 <code>:711-716</code> 会拿这个实际模型名去查 fallback 定价——
+<strong>降级往往也意味着换价</strong>。</p>
+<p><code>mapStopReason</code>（<code>:1660-1682</code>）就是归一化的全部内容：</p>
+<table>
+<thead>
+<tr>
+<th>provider 原文</th>
+<th><code>stopReason</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>end_turn</code></td>
+<td><code>stop</code></td>
+</tr>
+<tr>
+<td><code>max_tokens</code></td>
+<td><code>length</code></td>
+</tr>
+<tr>
+<td><code>tool_use</code></td>
+<td><code>toolUse</code></td>
+</tr>
+<tr>
+<td><code>refusal</code></td>
+<td><code>error</code> + <code>&quot;sensitive&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>stop_sequence</code> 那一支的注释写着 <em>We don't supply stop sequences,
+so this should never happen</em>——<strong>收到一个&quot;不可能发生&quot;的值也照样映射，
+不抛错</strong>。这是&quot;失败也是消息&quot;的又一处落地。</p>
+<hr>
+<h2 id="sec-35-八-暗坑-最后一条必须是-user-或-toolresult">八、暗坑：最后一条必须是 <code>user</code> 或 <code>toolResult</code></h2>
+<p><code>agent-loop.ts:74-79</code> 有一段直白的警告：</p>
+<blockquote>
+<p><strong>Important:</strong> The last message in context must convert to a <code>user</code> or <code>toolResult</code> message via <code>convertToLlm</code>. If it doesn't, the LLM provider will reject the request. <strong>This cannot be validated here since <code>convertToLlm</code> is only called once per turn.</strong></p>
+</blockquote>
+<p>这是 <code>agentLoopContinue</code>（重试入口）的注释。三个事实：</p>
+<ol>
+<li>provider 要求最后一条是 <code>user</code> 或 <code>toolResult</code>（不能让模型接着自己的话往下说）</li>
+<li>这个要求<strong>在转换之后</strong>才成立</li>
+<li>转换每轮只调用一次，所以&quot;调完之后又追加了消息&quot;这种情况没人检查</li>
+</ol>
+<p>真实事故长这样：某处在转换之后往 context 里 push 了一条 <code>AssistantMessage</code>，请求发出去，provider 报 <code>400: last message must have role user</code>。</p>
+<p><strong>校验放在了错误的层级。</strong> 类型系统只知道&quot;这是 <code>Message</code>&quot;，不知道&quot;最后一条有 role 要求&quot;。</p>
+<p>那该放哪里？两个看上去可行的位置都不好：</p>
+<ul>
+<li><strong>放进 <code>normalizeContext</code></strong>——它是所有路径的必经之地，能统一兜底。
+但这等于把一个 provider 的契约写进内核</li>
+<li><strong>放进 <code>transformContext</code> 的契约</strong>——那里已经写着 <em>must not throw</em>，
+放不下硬校验</li>
+</ul>
+<p>Pi 选了第三个：<strong>写进文档注释</strong>，让调用方自己保证。
+这不是偷懒，是承认这个约束<strong>跨越了两个模块</strong>：
+<code>convertToLlm</code> 在 <code>coding-agent</code>，<code>normalizeContext</code> 在 <code>ai</code> 包，
+两头都不知道对方的全部处境。</p>
+<p>遇到同样情况时，先把约束写在最靠近真相的地方，比发明一个假的校验点强。</p>
+<hr>
+<h2 id="sec-36-九-自己动手验证">九、自己动手验证</h2>
+<p><strong>实验 1：数一数 <code>Message</code> 有几个成员。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-main/pi-main/packages/ai/src</span><span class="ln">sed -n '659p' types.ts</span></code></pre></div>
+<p>一行，四个。</p>
+<p><strong>实验 2：确认默认是&quot;空超集&quot;。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">sed -n '365,374p' ../../agent/src/types.ts</span></code></pre></div>
+<p><code>CustomAgentMessages</code> 空接口 + <code>never</code> 在联合里消失。</p>
+<p><strong>实验 3：找出声明合并。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../coding-agent/src/core</span><span class="ln">grep -n -A 8 "declare module" messages.ts</span></code></pre></div>
+<p>四个字段，全部挂在 <code>CustomAgentMessages</code> 上。</p>
+<p><strong>实验 4：看默认转换器丢什么。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../agent/src</span><span class="ln">sed -n '39,47p' agent.ts</span></code></pre></div>
+<p>四个 <code>role</code> 白名单，其余全丢。</p>
+<p><strong>实验 5：数调用点。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../coding-agent/src</span><span class="ln">grep -rn "convertToLlm(" --include=*.ts | wc -l</span></code></pre></div>
+<p>十行命中 = 八处调用 + 一处定义（<code>messages.ts:148</code>）+ 一处注释
+（<code>compaction/utils.ts:109</code>）。六个文件，见 §4.4 的表。</p>
+<p><strong>实验 6：验证穷尽检查。</strong></p>
+<p>把 <code>messages.ts</code> 里 <code>case &quot;branchSummary&quot;</code> 那一支注释掉再编译，会报：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Type 'BranchSummaryMessage' is not assignable to type 'never'</span></code></pre></div>
+<p>这就是那个 <code>_exhaustiveCheck</code> 在工作。</p>
+<p><strong>实验 7：看归一化的兜底。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../ai/src/api</span><span class="ln">sed -n '1674,1684p' anthropic-messages.ts</span></code></pre></div>
+<p><code>refusal</code> 变 <code>error</code> 并带上 <code>&quot;sensitive&quot;</code>；<code>stop_sequence</code> 那支坦然写着
+&quot;这永远不会发生&quot;，但照样 <code>return { stopReason: &quot;stop&quot; }</code>。
+<strong>一个不会发生的分支也必须有返回值</strong>，否则类型检查过不去。</p>
+<p><strong>实验 8：改一处试试——把 <code>!!</code> 找回来。</strong></p>
+<ul>
+<li><strong>改哪里</strong>　<code>messages.ts:154-156</code>，删掉这三行：</li>
+</ul>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (m.excludeFromContext) {</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
+<ul>
+<li><strong>预期</strong>　拿一条 <code>excludeFromContext: true</code> 的 <code>bashExecution</code> 消息
+跑 <code>convertToLlm</code>，本机实测：转换后条数由 <code>0</code> 变 <code>1</code>。</li>
+<li><strong>连带</strong>　<code>!!</code> 前缀的语义就是「跑了但别进上下文」，删掉它是把这条规则
+取消了。连带的影响在 M09：被排除的消息一旦进了上下文，压缩时的 token
+计数会多算，压缩触发点提前。</li>
+<li><strong>回滚</strong>　把三行加回去。</li>
+</ul>
+<p>跑法：两行脚本导入 <code>convertToLlm</code>，造一条带 <code>excludeFromContext: true</code>
+的假消息，打印 <code>convertToLlm([m]).length</code>。用 M01 §7.2 那条
+<code>--import</code> 命令执行。</p>
+<hr>
+<h2 id="sec-37-十-工程暗坑">十、工程暗坑</h2>
+<p><strong>1. <code>AgentMessage</code> 的 <code>switch</code> 里出现&quot;查不到来源&quot;的 case。</strong></p>
+<p>声明合并导致的。搜类型名搜不到定义是正常的——去 <code>declare module</code> 那块找。给新同事讲这一章时，这一条要提前说。</p>
+<p><strong>2. 加了自定义消息类型，忘了改 <code>convertToLlm</code>。</strong></p>
+<p>后果分两种：写了穷尽检查 → 编译报错（好事）；没写 → 消息被 <code>default</code> 分支静默丢弃，模型永远看不到，而且没有任何日志。</p>
+<p><strong>3. <code>display: false</code> 不等于不进上下文。</strong></p>
+<p>它只影响 UI。想不进上下文，用 <code>excludeFromContext</code>。两个名字长得不像，容易搞混。</p>
+<p><strong>4. <code>excludeFromContext</code> 是删除不是标记。</strong></p>
+<p><code>!!ls</code> 之后模型看到的是一段&quot;无间隙&quot;的对话。如果你的扩展依赖&quot;消息索引&quot;做对齐，删除会打乱索引。</p>
+<p><strong>5. 摘要消息的标签不能省。</strong></p>
+<p><code>&lt;summary&gt;</code> 是给模型看的<strong>语义信号</strong>。省掉标签就是一段普通文本，模型会以为&quot;用户刚跟我说了一段总结&quot;，可能顺着往下编。M09 会看到压缩后模型&quot;接着摘要继续总结&quot;的经典故障。</p>
+<p><strong>6. 别把 <code>details</code> 当存储用。</strong></p>
+<p><code>ToolResultMessage.details</code> 的注释是 <em>JsonRepresentation</em>——它要能 JSON 序列化，因为 M10 会把它写进 jsonl。塞一个 <code>Date</code> 或 <code>Map</code> 进去，落盘时会变成字符串或者直接丢。好在 §3.4 那个条件类型会在编译期拦住大部分情况。</p>
+<p><strong>7. <code>exitCode</code> 的 <code>null</code> 幽灵。</strong></p>
+<p>类型写的是 <code>number | undefined</code>（<code>messages.ts:33</code>），但
+<code>bashExecutionToText</code> 判的是 <code>!== null &amp;&amp; !== undefined</code>（<code>:91</code>）。
+防御 <code>null</code> 是历史遗留——从 jsonl 读回的旧记录里可能真有 <code>null</code>。
+<strong>类型收窄了，实现不敢收窄</strong>，这种不一致要留着。</p>
+<p><strong>8. 两个时钟。</strong></p>
+<p><code>AssistantMessage.timestamp</code> 是<strong>请求开始</strong>的时间（<code>:608</code> 注释），
+<code>durationMs</code> 用 <em>monotonic clock</em> 量，不是 <code>Date.now()</code> 相减。
+原因：系统时间会被 NTP 校时、夏令时、用户手改往回拨，
+用墙钟算耗时会算出负数。<strong>记时刻用墙钟，量间隔用单调钟。</strong></p>
+<hr>
+<h2 id="sec-38-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
+<p><strong>方法一：超集用&quot;空接口 + 声明合并&quot;扩展，不要用泛型。</strong></p>
+<p>泛型参数会沿着调用链传染——<code>AgentMessage&lt;T&gt;</code> 传到第十层，中间每个函数都要带 <code>&lt;T&gt;</code>。声明合并是全局的：加一次，全仓库生效，签名不变。</p>
+<p>代价是可发现性变差，用文件头注释和穷尽检查补。</p>
+<p><strong>方法二：降级时全部落到最宽的槽位。</strong></p>
+<p>四种自定义消息全变 <code>role: &quot;user&quot;</code>。不是懒，是&quot;role 的集合由协议决定，不由你决定&quot;。</p>
+<p>设计自己的转换层时，先问：<strong>下游系统认识哪几种类型？</strong> 那是硬约束，你的语义要往里挤，不是反过来。</p>
+<p><strong>方法三：默认安全，显式放开。</strong></p>
+<p>默认 <code>convertToLlm</code> 是过滤器（丢掉不认识的），默认 <code>CustomAgentMessages</code> 是空的。两个默认值都选择&quot;什么都不做&quot;。</p>
+<p><strong>一个往外部系统发数据的接口，默认应该不发。</strong> 想发就显式传一个函数进去——传的那一刻，调用方就知道自己在放开什么。</p>
+<p>两个默认值叠加，结果是&quot;什么都没发生&quot;。而这恰好是最难的默认值：
+<strong>一个什么都不做的接口，必须能被静态检查证明&quot;确实什么都没做&quot;</strong>——
+空接口 + <code>filter</code>，两个都可以用类型和逻辑看完。</p>
+<hr>
+<h2 id="sec-39-下一步">下一步</h2>
+<p>消息有了，工具有了，循环有了。但这些东西怎么跟外面说话？</p>
+<p>用户按了 Esc，循环怎么知道要停？工具跑了 3 秒，进度怎么到 UI？扩展想在&quot;工具调用之前&quot;插一脚，它挂在哪？</p>
+<p>下一章打开事件系统。</p>
+<hr>
+<h2 id="sec-40-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/ai/src/types.ts</code></td>
+<td>918</td>
+<td><code>SystemMessage</code> <code>:561-577</code>、<code>UserMessage</code> <code>:579-583</code>、<code>AssistantMessage</code> <code>:585-616</code>、<code>ToolResultMessage</code> <code>:640-657</code>、<code>Message</code> <code>:659</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/types.ts</code></td>
+<td>—</td>
+<td><code>CustomAgentMessages</code> <code>:365-367</code>、<code>AgentMessage</code> <code>:374</code>、<code>transformContext</code> 契约 <code>:224-232</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent.ts</code></td>
+<td>—</td>
+<td><code>defaultConvertToLlm</code> <code>:39-47</code>、<code>convertToLlm</code> 挂载 <code>:200</code> <code>:242</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>960</td>
+<td>两阶段 <code>:403-406</code>、最后一条约束 <code>:74-79</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/messages.ts</code></td>
+<td>196</td>
+<td>四条 <code>case</code> <code>:151-193</code>、声明合并 <code>:70-77</code>、<code>bashExecutionToText</code> <code>:82-98</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/sdk.ts</code></td>
+<td>—</td>
+<td><code>convertToLlmWithBlockImages</code> <code>:296-302</code>、传入 <code>:411</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/compaction/compaction.ts</code></td>
+<td>—</td>
+<td>摘要前转换 <code>:721</code> <code>:1076</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/compaction/utils.ts</code></td>
+<td>164</td>
+<td><code>Message[]</code> 约束 <code>:109</code>、<code>serializeConversation</code> <code>:120</code>、thinking 取舍 <code>:114-118</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/api/anthropic-messages.ts</code></td>
+<td>1,571</td>
+<td>字段回填 <code>:590-601</code>、<code>responseId</code> <code>:705</code>、<code>responseModel</code> <code>:709</code>、<code>rawStopReason</code> <code>:842</code>、<code>mapStopReason</code> <code>:1660-1682</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m05-tools.html"><span class="lbl">上一篇</span>工具系统 —— 八个工具，一道文件锁</a>
+      <a class="next" href="m07-event-driven.html"><span class="lbl">下一篇</span>事件驱动 —— 十颗钉子，四十一个挂钩</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给模型看的只有四种" class="">一、给模型看的只有四种</a><a href="#sec-2-1-1-字段对照" class="lv3">1.1 字段对照</a><a href="#sec-3-1-2-content-是唯一形状各异的字段" class="lv3">1.2 content 是唯一形状各异的字段</a><a href="#sec-4-1-3-三个-quot-本来不该在这里-quot-的字段" class="lv3">1.3 三个&amp;quot;本来不该在这里&amp;quot;的字段</a><a href="#sec-5-1-4-sections-里别用整数键" class="lv3">1.4 sections 里别用整数键</a><a href="#sec-6-1-5-一条消息-两个消费者" class="lv3">1.5 一条消息，两个消费者</a><a href="#sec-7-二-给系统记的还有四种" class="">二、给系统记的还有四种</a><a href="#sec-8-2-1-bashexecution-命令的记录" class="lv3">2.1 bashExecution：! 命令的记录</a><a href="#sec-9-2-2-custom-扩展的注入口" class="lv3">2.2 custom：扩展的注入口</a><a href="#sec-10-2-3-branchsummary-分叉回退的凭证" class="lv3">2.3 branchSummary：分叉回退的凭证</a><a href="#sec-11-2-4-compactionsummary-压缩后的替身" class="lv3">2.4 compactionSummary：压缩后的替身</a><a href="#sec-12-2-5-三类来源-三种信任等级" class="lv3">2.5 三类来源，三种信任等级</a><a href="#sec-13-三-超集是怎么做到不侵入的" class="">三、超集是怎么做到不侵入的</a><a href="#sec-14-3-1-空接口-声明合并" class="lv3">3.1 空接口 + 声明合并</a><a href="#sec-15-3-2-为什么这个设计值得学" class="lv3">3.2 为什么这个设计值得学</a><a href="#sec-16-3-3-代价-穷尽检查必须写" class="lv3">3.3 代价：穷尽检查必须写</a><a href="#sec-17-3-4-声明合并是-quot-编译单元级-quot-的" class="lv3">3.4 声明合并是&amp;quot;编译单元级&amp;quot;的</a><a href="#sec-18-3-5-非法-details-让它编译不过" class="lv3">3.5 非法 details 让它编译不过</a><a href="#sec-19-四-converttollm-那道转换闸门" class="">四、convertToLlm：那道转换闸门</a><a href="#sec-20-4-1-四条-case-一种产物" class="lv3">4.1 四条 case，一种产物</a><a href="#sec-21-4-2-bash-记录变成什么样" class="lv3">4.2 bash 记录变成什么样</a><a href="#sec-22-4-3-默认实现是-quot-丢-quot-不是-quot-转-quot" class="lv3">4.3 默认实现是&amp;quot;丢&amp;quot;，不是&amp;quot;转&amp;quot;</a><a href="#sec-23-4-4-闸门只有一个-入口有八处" class="lv3">4.4 闸门只有一个，入口有八处</a><a href="#sec-24-五-两阶段管道" class="">五、两阶段管道</a><a href="#sec-25-5-1-为什么不能合成一步" class="lv3">5.1 为什么不能合成一步</a><a href="#sec-26-5-2-顺序不能换" class="lv3">5.2 顺序不能换</a><a href="#sec-27-5-3-还有第三次降级-变成纯文本" class="lv3">5.3 还有第三次降级：变成纯文本</a><a href="#sec-28-六-过滤-三个独立开关" class="">六、过滤：三个独立开关</a><a href="#sec-29-6-1-excludefromcontext-走的是丢弃-不是标记" class="lv3">6.1 excludeFromContext 走的是丢弃，不是标记</a><a href="#sec-30-6-2-blockimages-是第二道过滤" class="lv3">6.2 blockImages 是第二道过滤</a><a href="#sec-31-6-3-display-与上下文无关" class="lv3">6.3 display 与上下文无关</a><a href="#sec-32-6-4-为什么不合并成一个枚举" class="lv3">6.4 为什么不合并成一个枚举</a><a href="#sec-33-七-完整数据流" class="">七、完整数据流</a><a href="#sec-34-7-1-反方向-一次响应怎么变回消息" class="lv3">7.1 反方向：一次响应怎么变回消息</a><a href="#sec-35-八-暗坑-最后一条必须是-user-或-toolresult" class="">八、暗坑：最后一条必须是 user 或 toolResult</a><a href="#sec-36-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-37-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-38-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-39-下一步" class="">下一步</a><a href="#sec-40-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

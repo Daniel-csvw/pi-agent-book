@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>事件驱动 —— 十颗钉子，四十一个挂钩 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="active">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M07</div>
+      <h1>事件驱动 —— 十颗钉子，四十一个挂钩</h1>
+      <div class="module-meta">6,300 字 · 含 283 行代码 · 约 33 分钟</div>
+    </header>
+    <p>M03 讲循环时反复出现一个动作：<code>await emit({ type: &quot;tool_execution_start&quot;, ... })</code>。
+M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
+<p>问题一直挂着：<code>emit</code> 是谁？它把事件发给谁？为什么有的地方 <code>await</code>，有的地方不 <code>await</code>？</p>
+<p>这一章回答。核心结论先说：<strong>内核只发十种事件，扩展能挂四十一个钩子，中间隔着一层
+翻译</strong>。理解这层翻译，你就理解了 Pi 的可扩展性边界在哪——
+那边界不在设计文档里，就在 <code>agent-session.ts:1319</code> 那个函数里。</p>
+<hr>
+<h2 id="sec-1-一-一次工具调用-十颗钉子">一、一次工具调用，十颗钉子</h2>
+<p>先把 <code>AgentEvent</code> 摆全（<code>packages/agent/src/types.ts:521-551</code>）。这个联合类型只有
+十个成员，分四层：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>事件</th>
+<th>附加数据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent</td>
+<td><code>agent_start</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Agent</td>
+<td><code>agent_end</code></td>
+<td><code>messages</code></td>
+</tr>
+<tr>
+<td>Turn</td>
+<td><code>turn_start</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Turn</td>
+<td><code>turn_end</code></td>
+<td><code>message</code> <code>toolResults</code></td>
+</tr>
+<tr>
+<td>Message</td>
+<td><code>message_start</code></td>
+<td><code>message</code></td>
+</tr>
+<tr>
+<td>Message</td>
+<td><code>message_update</code></td>
+<td><code>message</code> <code>assistantMessageEvent</code></td>
+</tr>
+<tr>
+<td>Message</td>
+<td><code>message_end</code></td>
+<td><code>message</code></td>
+</tr>
+<tr>
+<td>Tool</td>
+<td><code>tool_execution_start</code></td>
+<td><code>toolCallId</code> <code>toolName</code> <code>args</code></td>
+</tr>
+<tr>
+<td>Tool</td>
+<td><code>tool_execution_update</code></td>
+<td><code>partialResult</code></td>
+</tr>
+<tr>
+<td>Tool</td>
+<td><code>tool_execution_end</code></td>
+<td><code>result</code> <code>isError</code> <code>durationMs</code></td>
+</tr>
+</tbody>
+</table>
+<p>十种，四层，每层都是「开始 →（更新 ×N）→ 结束」的节奏。跟 M04 的
+<code>AssistantMessageEvent</code> 十二种不同：<strong>那十二种是&quot;内容块&quot;的粒度，
+这十种是&quot;生命周期&quot;的粒度。</strong></p>
+<p>模型写一个 3 行的 <code>read</code> 调用，实际发出的序列是：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">agent_start</span><span class="ln">├── turn_start</span><span class="ln">│   ├── message_start          （user 消息）</span><span class="ln">│   ├── message_end</span><span class="ln">│   ├── message_start          （assistant 消息）</span><span class="ln">│   ├── message_update ×N      （每个 token 一次）</span><span class="ln">│   ├── message_end</span><span class="ln">│   ├── tool_execution_start</span><span class="ln">│   ├── tool_execution_update ×N</span><span class="ln">│   └── tool_execution_end</span><span class="ln">└── turn_end</span></code></pre></div>
+<p><code>agent_end</code> 不在这棵树里——它是整棵树结束后才发的最后一颗。</p>
+<h3 id="sec-2-1-1-为什么没有-thinking-事件">1.1 为什么没有 thinking 事件</h3>
+<p>十二种 <code>AssistantMessageEvent</code> 里有 <code>thinking_start</code> / <code>thinking_delta</code> /
+<code>thinking_end</code>，但十种 <code>AgentEvent</code> 里<strong>没有任何一个专门表示思考</strong>。</p>
+<p>答案在 <code>message_update</code> 身上：它把整个 <code>AssistantMessageEvent</code> 原样塞进了
+<code>assistantMessageEvent</code> 字段（<code>types.ts:538</code>）。于是思考过程的每一个增量，
+都是通过 <code>message_update</code> 递出去的——<strong>十二种套一种</strong>。</p>
+<p>这是个刻意的取舍：如果内核也把十二种摊平成顶层事件，<code>AgentEvent</code> 就变成二十一种，
+而其中十一种只有渲染层关心。<strong>让一个&quot;你不需要认识的事件&quot;当信封，
+比让所有人背二十一个类型名划算。</strong></p>
+<p>这条取舍还能推得更远：<strong>事件的数量应该由&quot;生命周期长度&quot;决定，
+而不是由&quot;东西的种类&quot;决定。</strong> 消息里能装的内容有十二种，
+但消息的生命周期只有三段：开始、更新、结束。
+所以事件按三段切，不按十二种切。</p>
+<h3 id="sec-3-1-2-emit-的签名">1.2 <code>emit</code> 的签名</h3>
+<p><code>AgentEventSink</code> 只有一行（<code>packages/agent/src/agent-loop.ts:35</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> AgentEventSink = (event: AgentEvent) =&gt; Promise&lt;<span class="tok-kw">void</span>&gt; | <span class="tok-kw">void</span>;</span></code></pre></div>
+<p>返回 <code>void | Promise&lt;void&gt;</code>——<strong>返回值永远是空的</strong>。这一行决定了内核事件的性质：
+它是<strong>通知</strong>，不是<strong>调用</strong>。发出去就完事，对方返回什么都不要。</p>
+<p>对比一下 M05 的 <code>beforeToolCall</code>：那个是 <code>Promise&lt;BeforeToolCallResult | undefined&gt;</code>，
+有返回值，能改参数、能拦。<strong>有没有返回值，是&quot;通知&quot;和&quot;钩子&quot;的分界线。</strong></p>
+<hr>
+<h2 id="sec-4-二-三条通道-不是一条">二、三条通道，不是一条</h2>
+<p>如果只记住一句话，记这句：<strong>Pi 有三条并行的通道，能力完全不同。</strong></p>
+<h3 id="sec-5-2-1-通道一-内核事件流">2.1 通道一：内核事件流</h3>
+<p><code>agentLoop()</code> 返回一个 <code>EventStream&lt;AgentEvent, AgentMessage[]&gt;</code>
+（<code>agent-loop.ts:47-70</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> stream = <span class="tok-fn">createAgentStream</span>();</span><span class="ln"><span class="tok-kw">void</span> <span class="tok-fn">runAgentLoop</span>(prompts, context, config,</span><span class="ln">	<span class="tok-kw">async</span> (event) =&gt; { stream.<span class="tok-fn">push</span>(event); },</span><span class="ln">	signal, streamFn,</span><span class="ln">).<span class="tok-fn">then</span>((messages) =&gt; { stream.<span class="tok-fn">end</span>(messages); });</span><span class="ln"></span><span class="ln"><span class="tok-kw">return</span> stream;</span></code></pre></div>
+<p><code>createAgentStream()</code> 定义了什么算&quot;完&quot;（<code>:162-167</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">new</span> EventStream&lt;AgentEvent, AgentMessage[]&gt;(</span><span class="ln">	(event) =&gt; event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span>,</span><span class="ln">	(event) =&gt; (event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span> ? event.messages : []),</span><span class="ln">)</span></code></pre></div>
+<p><code>agent_end</code> 既标记流结束，又把整轮的 <code>messages</code> 作为最终结果。所以
+<code>for await (const event of stream)</code> 读到 <code>agent_end</code> 就停，<code>.result()</code> 拿到全部消息。</p>
+<p>这条通道是<strong>给谁用的</strong>？给&quot;直接调 <code>agentLoop()</code> 的代码&quot;。M03 的
+<code>runAgentLoop</code> 就是一例。它是拉取式的：<strong>你不读，事件就堆在队列里。</strong></p>
+<h3 id="sec-6-2-2-通道二-agent-subscribe">2.2 通道二：<code>Agent.subscribe</code></h3>
+<p><code>Agent</code> 类（<code>packages/agent/src/agent.ts</code>）在内部消费那条流，再广播一遍。
+订阅接口只有三行（<code>:275-278</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">subscribe</span>(listener): () =&gt; <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">this</span>.listeners.<span class="tok-fn">add</span>(listener);</span><span class="ln">	<span class="tok-kw">return</span> () =&gt; <span class="tok-kw">this</span>.listeners.<span class="tok-kw">delete</span>(listener);</span><span class="ln">}</span></code></pre></div>
+<p>关键是它<strong>等</strong>（<code>:619-621</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> listener <span class="tok-kw">of</span> <span class="tok-kw">this</span>.listeners) {</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">listener</span>(event, signal);</span><span class="ln">}</span></code></pre></div>
+<p>串行、<code>await</code>、按注册顺序。所以一个慢 listener 会阻塞后一个，也会阻塞整个循环。</p>
+<p><code>agent_end</code> 的语义还有个坑（<code>types.ts:521-527</code> 的注释明说）：</p>
+<blockquote>
+<p><code>agent_end</code> is the last event emitted for a run, but awaited <code>Agent.subscribe()</code>
+listeners for that event are still part of run settlement.</p>
+</blockquote>
+<p><strong><code>agent_end</code> 不是&quot;结束了&quot;，是&quot;不会再有事件了&quot;。</strong> Agent 真正 idle
+要等这批 listener 全部 resolve。</p>
+<h3 id="sec-7-2-3-通道三-agent-hook">2.3 通道三：agent hook</h3>
+<p><code>Agent</code> 上还有几个可写的属性（<code>agent-session.ts:668-671</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">this</span>.agent.beforeToolCall = (context) =&gt; <span class="tok-kw">this</span>.<span class="tok-fn">_beforeToolCall</span>(context);</span><span class="ln"><span class="tok-kw">this</span>.agent.afterToolCall  = (context) =&gt; <span class="tok-kw">this</span>.<span class="tok-fn">_afterToolCall</span>(context);</span></code></pre></div>
+<p>这些不是事件，是<strong>回调</strong>——有返回值，能改行为。M05 讲的五步管道里，
+<code>beforeToolCall</code> 就是那道&quot;一票否决&quot;的关卡。</p>
+<h3 id="sec-8-2-4-三条通道的分工">2.4 三条通道的分工</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>触发时机</th>
+<th>能否改变行为</th>
+<th>内核等不等</th>
+<th>典型使用者</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>事件流</td>
+<td>循环内 <code>emit</code></td>
+<td>否</td>
+<td>是（同步推）</td>
+<td>直接调 <code>agentLoop</code></td>
+</tr>
+<tr>
+<td><code>subscribe</code></td>
+<td>事件转发后</td>
+<td>否</td>
+<td>是（串行 await）</td>
+<td>TUI 渲染</td>
+</tr>
+<tr>
+<td>hook</td>
+<td>执行前/后</td>
+<td>能</td>
+<td>是</td>
+<td>扩展的拦截</td>
+</tr>
+</tbody>
+</table>
+<p><strong>&quot;能不能改&quot;由签名决定，&quot;等不等&quot;由实现决定。</strong> 记住这两条就不会混。</p>
+<h3 id="sec-9-2-5-一个场景-走一遍三条通道">2.5 一个场景，走一遍三条通道</h3>
+<p>假设你想&quot;每次工具执行完打印一行日志&quot;。三条通道各写一遍：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 通道一：直接读流（只有自己调 agentLoop 时可用）</span></span><span class="ln"><span class="tok-kw">for</span> <span class="tok-kw">await</span> (<span class="tok-kw">const</span> event <span class="tok-kw">of</span> <span class="tok-fn">agentLoop</span>(...)) {</span><span class="ln">	<span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"tool_execution_end"</span>) <span class="tok-fn">log</span>(event);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">// 通道二：订阅</span></span><span class="ln">session.<span class="tok-fn">subscribe</span>((event) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"tool_execution_end"</span>) <span class="tok-fn">log</span>(event);</span><span class="ln">});</span><span class="ln"></span><span class="ln"><span class="tok-com">// 通道三：hook —— 做不到。</span></span><span class="ln"><span class="tok-com">// afterToolCall 存在，但它拿的是 hook context，不是 event；</span></span><span class="ln"><span class="tok-com">// 而且工具被拦时它根本不会走。</span></span></code></pre></div>
+<p>第三条确实做不到。<strong>要观察就选前两条。</strong></p>
+<p>那前两条怎么选？看你要不要&quot;活得比一次循环更长&quot;。</p>
+<ul>
+<li>通道一绑死在一次 <code>agentLoop</code> 调用上，流结束就没了</li>
+<li>通道二绑在 <code>Agent</code> 实例上，可反复订阅、可单独取消</li>
+</ul>
+<p>TUI 选通道二，因为它要在一个长驻进程里反复渲染。测试代码常选通道一，
+因为 <code>for await</code> 写起来最直、生命周期最短。</p>
+<hr>
+<h2 id="sec-10-三-翻译层-十变成四十一">三、翻译层：十变成四十一</h2>
+<p>内核发十种，扩展能挂四十一个钩子。中间少了什么、多了什么？</p>
+<p><code>ExtensionAPI.on()</code> 有四十一个重载（<code>core/extensions/types.ts:1621-1688</code>）。
+<code>ExtensionEvent</code> 联合类型只有三十二个成员（<code>:1425-1457</code>）——比四十一少
+九个，因为 <code>SessionEvent</code> 把十个 <code>session_*</code> 事件收成了一个类型（<code>:882-892</code>）。
+工具亚型（<code>BashToolCallEvent</code>、<code>EditToolCallEvent</code>……九个）藏在
+<code>ToolCallEvent</code> 内部（<code>:1276-1285</code>），在这个联合里只占一个位置。</p>
+<h3 id="sec-11-3-1-翻译发生在一个函数里">3.1 翻译发生在一个函数里</h3>
+<p><code>agent-session.ts:1319</code> 的 <code>_emitExtensionEvent</code> 是这张翻译表的全部实现。
+它有十个分支，正好对应十种 <code>AgentEvent</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">private</span> <span class="tok-kw">async</span> <span class="tok-fn">_emitExtensionEvent</span>(event: AgentEvent): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_start"</span>) {</span><span class="ln">		<span class="tok-kw">this</span>._turnIndex = <span class="tok-num">0</span>;</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>._extensionRunner.<span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"agent_start"</span> });</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span>) {</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>._extensionRunner.<span class="tok-fn">emit</span>({</span><span class="ln">			<span class="tok-kw">type</span>: <span class="tok-str">"agent_end"</span>, messages: event.messages,</span><span class="ln">		});</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"turn_start"</span>) {</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>._extensionRunner.<span class="tok-fn">emit</span>({</span><span class="ln">			<span class="tok-kw">type</span>: <span class="tok-str">"turn_start"</span>,</span><span class="ln">			turnIndex: <span class="tok-kw">this</span>._turnIndex,       <span class="tok-com">// ← 新加的字段</span></span><span class="ln">			timestamp: Date.<span class="tok-fn">now</span>(),            <span class="tok-com">// ← 新加的字段</span></span><span class="ln">		});</span><span class="ln">	} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"turn_end"</span>) {</span><span class="ln">		<span class="tok-com">/* 不转发，转去 boundary，见 3.3 */</span></span><span class="ln">	}</span><span class="ln">	<span class="tok-com">// ... message_* / tool_execution_* 各一支</span></span><span class="ln">}</span></code></pre></div>
+<p>十个分支里，<strong>九个直接转发，一个（<code>turn_end</code>）转去别处</strong>。</p>
+<p>注意 <code>turn_start</code> 那两个新字段：<code>turnIndex</code> 和 <code>timestamp</code> 内核根本没有。
+扩展看到的不是内核事件，是<strong>加工过的事件</strong>。</p>
+<h3 id="sec-12-3-2-tool_call-和-tool_result-不走这里">3.2 <code>tool_call</code> 和 <code>tool_result</code> 不走这里</h3>
+<p>四十一个钩子里，只有这两个<strong>完全不来自事件流</strong>——它们来自 hook：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// agent-session.ts:674-697</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-kw">async</span> <span class="tok-fn">_beforeToolCall</span>({ toolCall, args }) {</span><span class="ln">	<span class="tok-kw">const</span> runner = <span class="tok-kw">this</span>._extensionRunner;</span><span class="ln">	<span class="tok-kw">if</span> (!runner.<span class="tok-fn">hasHandlers</span>(<span class="tok-str">"tool_call"</span>)) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">await</span> runner.<span class="tok-fn">emitToolCall</span>({</span><span class="ln">		<span class="tok-kw">type</span>: <span class="tok-str">"tool_call"</span>,</span><span class="ln">		toolName: toolCall.name,</span><span class="ln">		toolCallId: toolCall.id,</span><span class="ln">		input: args <span class="tok-kw">as</span> Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;,</span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p>这是全章最容易误解的一点：<strong><code>tool_execution_start</code> 和 <code>tool_call</code> 是两个钩子，
+触发时机不同。</strong></p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">tool_call              ← hook，执行前，能拦、能改 input</span><span class="ln">tool_execution_start   ← 事件，已经决定要执行了，只是通知</span></code></pre></div>
+<p>一个只读通知，一个能改。名字很像，能力差一个数量级。</p>
+<h3 id="sec-13-3-3-turn_end-的岔路">3.3 <code>turn_end</code> 的岔路</h3>
+<p><code>turn_end</code> 没被直接转发，而是进了 <code>_dispatchTurnEndBoundary</code>
+（<code>agent-session.ts:862</code>）。它做三件事：</p>
+<ol>
+<li>从 <code>stopReason</code> 算出 <code>outcome</code>（<code>completed</code> / <code>aborted</code> / <code>error</code>）</li>
+<li>找出这一轮的 assistant 消息<strong>已落盘的 entryId</strong></li>
+<li>交给 <code>emitBoundary</code>，拿回 <code>{ entries, continue, context }</code></li>
+</ol>
+<p>第 2 步有个硬约束：<strong><code>messageEntryId</code> 找不到就报错并放弃</strong>（<code>:870-877</code>）。
+也就是说 <code>turn_end</code> 必须在 <code>message_end</code> 落盘之后才可能触发——
+顺序变了，这个钩子就废了。</p>
+<p>而返回的 <code>continue</code> 会被 <code>finishTurn</code> 用上（<code>:906-910</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> extensionContinue = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_dispatchTurnEndBoundary</span>(...);</span><span class="ln"><span class="tok-kw">if</span> (extensionContinue) <span class="tok-kw">return</span> { action: <span class="tok-str">"continue"</span> };</span></code></pre></div>
+<p><strong>扩展在 <code>turn_end</code> 返回 <code>{ continue: true }</code>，能让 agent 自己再转一圈。</strong>
+这是四十一个钩子里权限最大的几个之一——它直接改循环的退出条件。</p>
+<h3 id="sec-14-3-4-为什么翻译层不在-agent-包里">3.4 为什么翻译层不在 <code>agent</code> 包里</h3>
+<p>一个自然的疑问：既然要翻译，为什么不直接在 <code>agent</code> 包里把十种改成四十一种，
+省得两层？</p>
+<p>因为 <code>agent</code> 包<strong>不知道</strong>那四十一个概念。看几个钩子名：
+<code>session_before_fork</code>、<code>before_provider_headers</code>、<code>model_select</code>、
+<code>ui_prompt_start</code>。全是&quot;一个具体 CLI 产品&quot;才有的东西。</p>
+<p><code>agent</code> 包的职责边界在 M02 讲过：它只懂&quot;循环、消息、工具、模型&quot;。
+它不知道什么叫&quot;会话分叉&quot;，不知道 provider 有 headers，也不知道有 UI。</p>
+<p>所以翻译层的落点只能是 <code>AgentSession</code>——它是&quot;一次会话&quot;的所有者，
+同时听得懂两边的话。<strong>它既是调度器，也是翻译器。</strong></p>
+<p>这条边界还解释了为什么 <code>wrapper.ts</code> 只剩 30 行（<code>:3-5</code> 注释）：</p>
+<blockquote>
+<p>These wrappers only adapt tool execution so extension tools receive the
+runner context. Tool call and tool result interception is handled by
+AgentSession via agent-core hooks.</p>
+</blockquote>
+<p><strong>拦截已经从 wrapper 挪到了 AgentSession。</strong> wrapper 现在只干一件事：
+给扩展注册的工具塞一个 <code>ctx</code>。</p>
+<p>分层不是按文件数分的，是按&quot;谁知道什么&quot;分的。</p>
+<hr>
+<h2 id="sec-15-四-四十一个钩子的地图">四、四十一个钩子的地图</h2>
+<p>不用背，按&quot;你什么时候想动手&quot;查：</p>
+<table>
+<thead>
+<tr>
+<th>时机</th>
+<th>钩子</th>
+<th>有无返回值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>启动/会话</td>
+<td><code>session_start</code> <code>session_shutdown</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td></td>
+<td><code>session_before_switch</code> <code>session_before_fork</code></td>
+<td><code>cancel</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>session_before_compact</code> <code>session_before_tree</code></td>
+<td><code>cancel</code></td>
+</tr>
+<tr>
+<td>输入</td>
+<td><code>input</code></td>
+<td>可改写</td>
+</tr>
+<tr>
+<td></td>
+<td><code>user_bash</code></td>
+<td>整套结果</td>
+</tr>
+<tr>
+<td>上下文</td>
+<td><code>context</code> <code>context_with_system</code></td>
+<td>新 messages</td>
+</tr>
+<tr>
+<td></td>
+<td><code>before_agent_start</code></td>
+<td><code>systemPrompt</code></td>
+</tr>
+<tr>
+<td>请求</td>
+<td><code>before_provider_request</code></td>
+<td>改写 payload</td>
+</tr>
+<tr>
+<td></td>
+<td><code>before_provider_headers</code></td>
+<td>就地改 headers</td>
+</tr>
+<tr>
+<td>Agent</td>
+<td><code>agent_start</code> <code>agent_end</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td></td>
+<td><code>agent_before_settle</code> <code>agent_settled</code></td>
+<td><code>continue</code></td>
+</tr>
+<tr>
+<td>Turn</td>
+<td><code>turn_start</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td></td>
+<td><code>turn_end</code></td>
+<td><code>continue</code> + entries</td>
+</tr>
+<tr>
+<td>Message</td>
+<td><code>message_start</code> <code>message_update</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td></td>
+<td><code>message_end</code></td>
+<td>替换消息</td>
+</tr>
+<tr>
+<td>Tool</td>
+<td><code>tool_call</code></td>
+<td><code>block</code> <code>reason</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>tool_result</code></td>
+<td>改 content</td>
+</tr>
+<tr>
+<td></td>
+<td><code>tool_execution_start/_update/_end</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>UI</td>
+<td><code>ui_prompt_start</code> <code>ui_prompt_end</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td></td>
+<td><code>model_select</code> <code>thinking_level_select</code></td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<p>规律很清楚，四个层：</p>
+<ul>
+<li><strong><code>*_start</code> / <code>*_end</code></strong>：纯通知，没有返回值</li>
+<li><strong><code>before_*</code></strong>：有返回值，能取消</li>
+<li><strong><code>tool_call</code> / <code>tool_result</code> / <code>message_end</code></strong>：能改内容</li>
+<li><strong><code>turn_end</code> / <code>agent_before_settle</code></strong>：能改控制流</li>
+</ul>
+<p><strong>越往后，权限越大，能出的事也越大。</strong></p>
+<h3 id="sec-16-4-1-四十一个里-常用的只有六个">4.1 四十一个里，常用的只有六个</h3>
+<p>按 <code>examples/extensions/</code> 那 70 个例子统计，出场率最高的六个：</p>
+<table>
+<thead>
+<tr>
+<th>钩子</th>
+<th>干什么</th>
+<th>代表例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tool_call</code></td>
+<td>拦危险操作、改参数</td>
+<td><code>permission-gate</code></td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>裁剪输出、加标注</td>
+<td><code>truncated-tool</code></td>
+</tr>
+<tr>
+<td><code>session_start</code></td>
+<td>初始化、读配置</td>
+<td>几乎所有</td>
+</tr>
+<tr>
+<td><code>session_shutdown</code></td>
+<td>收尾、提交、清理</td>
+<td><code>auto-commit-on-exit</code></td>
+</tr>
+<tr>
+<td><code>agent_end</code></td>
+<td>统计、汇报</td>
+<td><code>notify</code></td>
+</tr>
+<tr>
+<td><code>input</code></td>
+<td>改写用户输入</td>
+<td><code>input-transform</code></td>
+</tr>
+</tbody>
+</table>
+<p>剩下三十五个大多和 <strong>UI 渲染</strong>有关（<code>custom-header</code>、<code>status-line</code>、
+那一批 widget 相关的），或者和 <strong>provider 定制</strong>有关（<code>debug-provider</code>、
+<code>provider-payload</code>）。这两类是&quot;做产品&quot;，不是&quot;改行为&quot;。</p>
+<p><strong>先掌握这六个，能覆盖八成的扩展需求。</strong> 剩下那些不是不重要，
+是你一时半会不会去碰。</p>
+<h3 id="sec-17-4-2-ctx-是谁">4.2 <code>ctx</code> 是谁</h3>
+<p>每个 handler 都拿两个参数：<code>event</code> 和 <code>ctx</code>。
+<strong><code>event</code> 是数据，<code>ctx</code> 是能力。</strong></p>
+<p><code>ctx</code> 由 <code>createContext()</code>（<code>runner.ts:884</code>）现造，字段分三组：</p>
+<table>
+<thead>
+<tr>
+<th>组</th>
+<th>成员</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>读</td>
+<td><code>sessionManager</code> <code>getSystemPrompt()</code></td>
+<td>看历史、看提示词</td>
+</tr>
+<tr>
+<td>做</td>
+<td><code>ui</code> <code>sendMessage()</code></td>
+<td>弹窗、注入消息</td>
+</tr>
+<tr>
+<td>判</td>
+<td><code>hasUI</code> <code>mode</code></td>
+<td>探测环境能力</td>
+</tr>
+</tbody>
+</table>
+<p>注意它<strong>每次都新建</strong>，不是共享单例。你可以在 handler 里随便用，
+但不能靠 <code>ctx</code> 的对象身份做判断。</p>
+<p>而 <code>ctx</code> 上的&quot;动作&quot;方法都先过一道 <code>assertActive()</code>（<code>runner.ts:1022-1031</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">context.reload = () =&gt; {</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">assertActive</span>();</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.<span class="tok-fn">reloadHandler</span>();</span><span class="ln">};</span></code></pre></div>
+<p>这就是那条长得离谱的错误消息的来历（<code>loader.ts:201</code>）：</p>
+<blockquote>
+<p>This extension ctx is stale after session replacement or reload. Do not use
+a captured <code>pi</code> or command ctx after <code>ctx.newSession()</code>, <code>ctx.fork()</code>,
+<code>ctx.switchSession()</code>, or <code>ctx.reload()</code>. ... move post-replacement work
+into <code>withSession</code> and use the ctx passed to <code>withSession</code>.</p>
+</blockquote>
+<p><strong><code>ctx</code> 有寿命。</strong> 会话一换，旧 ctx 作废。
+这是&quot;用一个对象代表一次会话&quot;必然的代价：对象不会自己知道已经过期，
+只能靠调用时检查。</p>
+<hr>
+<h2 id="sec-18-五-三种错误策略">五、三种错误策略</h2>
+<p>扩展是第三方代码，它会抛错。Pi 对不同的钩子选了<strong>三种不同的态度</strong>，
+这是全章最值得抄的设计。</p>
+<h3 id="sec-19-5-1-观察类-吞掉-记一笔">5.1 观察类：吞掉，记一笔</h3>
+<p><code>ExtensionRunner.emit()</code>（<code>runner.ts:1096-1125</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> { ext, handlers } <span class="tok-kw">of</span> <span class="tok-fn">snapshotEventHandlers</span>(...)) {</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> handler <span class="tok-kw">of</span> handlers) {</span><span class="ln">		<span class="tok-kw">try</span> {</span><span class="ln">			<span class="tok-kw">await</span> <span class="tok-fn">handler</span>(event, ctx);</span><span class="ln">		} <span class="tok-kw">catch</span> (err) {</span><span class="ln">			<span class="tok-kw">this</span>.<span class="tok-fn">emitError</span>({</span><span class="ln">				extensionPath: ext.path,</span><span class="ln">				event: event.<span class="tok-kw">type</span>,</span><span class="ln">				error: <span class="tok-fn">String</span>(err),</span><span class="ln">			});</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p>吞掉，上报，<strong>继续跑下一个 handler</strong>。因为这类钩子本来就不能改变行为——
+它抛错不该影响 agent。一个只想打日志的扩展崩了，不该让整轮对话失败。</p>
+<h3 id="sec-20-5-2-变换类-吞掉-丢掉这次修改">5.2 变换类：吞掉，丢掉这次修改</h3>
+<p><code>emitMessageEnd</code> / <code>emitToolResult</code> / <code>emitContext</code> / <code>emitBoundary</code>
+都是这个策略：catch 之后 <code>emitError</code>，然后<strong>把这次的返回值当没发生</strong>。</p>
+<p><code>emitMessageEnd</code> 还多一道护栏（<code>runner.ts:1163-1170</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (handlerResult.message.role !== currentMessage.role) {</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">emitError</span>({ ..., error: <span class="tok-str">"message_end handlers must return a "</span> +</span><span class="ln">		<span class="tok-str">"message with the same role"</span> });</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p><strong>能改内容，不能改身份。</strong> 把 <code>assistant</code> 换成 <code>user</code> 会让 M06 那套
+&quot;最后一条必须是 user/toolResult&quot;的假设全部失效，所以直接拒。</p>
+<h3 id="sec-21-5-3-拦截类-不吞-让它阻断">5.3 拦截类：不吞，让它阻断</h3>
+<p><code>emitToolCall</code>（<code>:1249-1267</code>）<strong>没有 try/catch</strong>。handler 抛错就一路往上抛：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">await</span> runner.<span class="tok-fn">emitToolCall</span>({ ... });</span><span class="ln">} <span class="tok-kw">catch</span> (err) {</span><span class="ln">	<span class="tok-kw">if</span> (err <span class="tok-kw">instanceof</span> Error) <span class="tok-kw">throw</span> err;</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(</span><span class="ln">		<span class="tok-str">`Extension failed, blocking execution: ${String(err)}`</span>,</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>结果：这次工具调用<strong>不执行</strong>，变成一条 <code>isError: true</code> 的结果消息
+（M05 那七种失败之一）。这是刻意的——<strong>一个负责拦截的守门员自己崩了，
+默认应该拦，不是默认放行。</strong></p>
+<p><code>emitUserBash</code>（<code>:1269-1298</code>）稍有不同：catch → <code>emitError</code> → <strong>重新抛</strong>。
+上报一次是为了让用户看见，重抛是为了让调用方停手。</p>
+<h3 id="sec-22-5-4-一张表">5.4 一张表</h3>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>代表</th>
+<th>抛错后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>观察</td>
+<td><code>emit</code></td>
+<td>吞，继续下一个</td>
+</tr>
+<tr>
+<td>变换</td>
+<td><code>emitMessageEnd</code> <code>emitContext</code></td>
+<td>吞，丢弃本次修改</td>
+</tr>
+<tr>
+<td>拦截</td>
+<td><code>emitToolCall</code> <code>emitUserBash</code></td>
+<td>抛，阻断执行</td>
+</tr>
+</tbody>
+</table>
+<p><strong>越有权限的钩子，越不该宽容。</strong> 这是一条可以搬到任何插件系统的规则。</p>
+<h3 id="sec-23-5-5-四种返回值-四种权力">5.5 四种返回值，四种权力</h3>
+<p>四十一个钩子的返回值，语义只有四种：</p>
+<table>
+<thead>
+<tr>
+<th>返回</th>
+<th>含义</th>
+<th>谁在用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>undefined</code></td>
+<td>没意见，继续</td>
+<td>全部</td>
+</tr>
+<tr>
+<td><code>{ block: true }</code></td>
+<td>停这一条</td>
+<td><code>tool_call</code></td>
+</tr>
+<tr>
+<td><code>{ cancel: true }</code></td>
+<td>停整件事</td>
+<td><code>session_before_*</code></td>
+</tr>
+<tr>
+<td><code>{ continue: true }</code></td>
+<td>反过来，让它继续</td>
+<td><code>turn_end</code></td>
+</tr>
+</tbody>
+</table>
+<p>前三个是&quot;踩刹车&quot;，第四个是&quot;踩油门&quot;。</p>
+<p>第四个最反直觉：<strong>一个叫&quot;结束&quot;的事件里的钩子，能让循环不结束。</strong>
+<code>turn_end</code> 的 <code>continue</code> 被 <code>finishTurn</code> 直接翻译成 <code>{ action: &quot;continue&quot; }</code>
+（<code>agent-session.ts:909</code>），而 M03 讲的外层循环看到这个就再跑一轮。</p>
+<p>它为什么合理？因为 agent 的生命周期本来就不该由&quot;模型说完了&quot;单方面决定。
+<strong>扩展可以在模型停下的那一刻说&quot;还没完&quot;。</strong></p>
+<p>代价是：这是唯一能让 agent 无限循环的钩子。用之前先想清楚退出条件。</p>
+<hr>
+<h2 id="sec-24-六-顺序-快照与并发">六、顺序、快照与并发</h2>
+<h3 id="sec-25-6-1-三路广播的先后">6.1 三路广播的先后</h3>
+<p><code>_handleAgentEvent</code> 里顺序是写死的（<code>agent-session.ts:1158-1160</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Emit to extensions first, then notify public listeners.</span></span><span class="ln"><span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_emitExtensionEvent</span>(event);</span><span class="ln"><span class="tok-kw">this</span>.<span class="tok-fn">_emit</span>(event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span></span><span class="ln">	? { ...event, willRetry: <span class="tok-kw">this</span>.<span class="tok-fn">_willRetryAfterAgentEnd</span>(event) }</span><span class="ln">	: event);</span></code></pre></div>
+<p><strong>扩展先看到，UI 后看到。</strong> 为什么？</p>
+<p>因为 <code>message_end</code> 的扩展可以把消息改掉（<code>emitMessageEnd</code> 返回替换），
+而 UI 应该渲染改过的那一版。顺序反了，UI 会先闪一下原文再变。</p>
+<p>改完之后还要把 agent 内部状态里的那个对象<strong>就地改掉</strong>
+（<code>_replaceMessageInPlace</code>，<code>:1302-1316</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> targetRecord = target <span class="tok-kw">as</span> <span class="tok-kw">unknown</span> <span class="tok-kw">as</span> Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> key <span class="tok-kw">of</span> Object.<span class="tok-fn">keys</span>(targetRecord)) <span class="tok-kw">delete</span> targetRecord[key];</span><span class="ln">Object.<span class="tok-fn">assign</span>(targetRecord, replacement);</span></code></pre></div>
+<p>为什么不能直接赋值成新对象？注释给了答案（<code>:1303-1306</code>）：</p>
+<blockquote>
+<p>Agent-core stores the finalized message object in its state before emitting
+<code>message_end</code>. ... Mutating this object in place keeps agent state, later
+turn/agent events, listeners, and the eventual persistence in sync.</p>
+</blockquote>
+<p><strong>agent 核心在发事件之前就把对象存进 state 了</strong>，你换一个新对象，state 里还是旧的。
+所以只能掏空再填——这是&quot;共享可变对象&quot;的典型代价。</p>
+<h3 id="sec-26-6-2-快照-slice">6.2 快照：<code>slice()</code></h3>
+<p><code>snapshotEventHandlers</code>（<code>runner.ts:276-278</code>）只有两行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">snapshotEventHandlers</span>(extensions, event) {</span><span class="ln">	<span class="tok-kw">return</span> extensions.<span class="tok-kw">map</span>((ext) =&gt; ({</span><span class="ln">		ext, handlers: ext.handlers.<span class="tok-kw">get</span>(event)?.<span class="tok-fn">slice</span>() ?? [],</span><span class="ln">	}));</span><span class="ln">}</span></code></pre></div>
+<p><code>.slice()</code> 是关键。handler 里调用 <code>pi.on()</code> 返回的取消函数，<strong>不会影响当前这一轮</strong>
+——数组已经是副本。同理，handler 里新注册的也不会在本轮生效。</p>
+<p>这让&quot;边遍历边改集合&quot;这个经典 bug 不可能发生。</p>
+<h3 id="sec-27-6-3-没有并行">6.3 没有并行</h3>
+<p>所有 handler 都是串行 <code>await</code>。四十一个钩子，没有一个是 <code>Promise.all</code>。</p>
+<p>代价是慢——十个扩展各花 10ms，一次事件就 100ms。收益是<strong>确定性</strong>：
+后一个扩展能看到前一个的修改，<code>emitMessageEnd</code> 的&quot;链式替换&quot;才成立。</p>
+<p>对一个需要可复现的调试工具来说，这个交换是对的。</p>
+<h3 id="sec-28-6-4-顺序本身就是契约">6.4 顺序本身就是契约</h3>
+<p>&quot;扩展 → UI → 落盘&quot;这个顺序，看着像实现细节，其实是契约。</p>
+<p><strong>一，<code>message_end</code> 改消息。</strong> 扩展先改，UI 渲染改后的版本，落盘也是改后的。
+如果反过来——先落盘再给扩展——那改完的内容<strong>存不进文件</strong>，
+下次打开会话就还原了。</p>
+<p><strong>二，<code>turn_end</code> 要 entryId。</strong> 它必须等落盘完成才能拿到 ID，
+所以它排在落盘后面。这也意味着 <code>turn_end</code> 里读 <code>ctx.sessionManager</code>
+能看到本轮消息，而在 <code>message_end</code> 里读不到。</p>
+<p><strong>三，<code>agent_end</code> 的 <code>willRetry</code> 只有 UI 版有。</strong>
+<code>_handleAgentEvent</code> 给公开 listener 补了个 <code>willRetry</code> 字段（<code>:1160</code>），
+<strong>扩展收到的那份没有</strong>。想让扩展知道会不会重试，得自己判断。</p>
+<p><strong>一个事件，两个版本，三种时序。</strong> 读代码时先问&quot;这个 handler 在第几站&quot;，
+比问&quot;它什么时候触发&quot;更有用。</p>
+<h3 id="sec-29-6-5-没有超时">6.5 没有超时</h3>
+<p>四十一个钩子，<strong>没有一个有超时</strong>。handler 里 <code>await</code> 一个永不 resolve 的
+promise，agent 就永久卡住。</p>
+<p>Pi 没加超时，理由大概是想清楚了：<strong>加了也没用。</strong> 真超时了你只有两个选择——
+吞掉（丢掉用户的拦截意图）或者抛错（连观察类都变致命）。两个都比&quot;卡住&quot;更难排。</p>
+<p>所以责任在写扩展的人身上：<strong>handler 里的每个 await 都得有界。</strong>
+<code>pi.exec</code> 有进程级超时；<code>ctx.ui.confirm()</code> 等用户，天然可能无限期——
+这也是为什么它只该出现在有人、有 UI 的环境里（§8.3 那道 <code>ctx.hasUI</code>）。</p>
+<hr>
+<h2 id="sec-30-七-写一个扩展">七、写一个扩展</h2>
+<p><code>ExtensionAPI</code> 的入口是一个工厂函数（<code>types.ts:2069</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ExtensionFactory = (pi: ExtensionAPI) =&gt; <span class="tok-kw">void</span> | Promise&lt;<span class="tok-kw">void</span>&gt;;</span></code></pre></div>
+<p>下面这个扩展干三件事：拦危险命令、给结果打标记、退出时汇报。
+它覆盖了三种错误策略对应的三个钩子。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> {</span><span class="ln">	isToolCallEventType, <span class="tok-kw">type</span> ExtensionAPI,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> DANGEROUS = /rm\s+-rf\s+\/(?!tmp)|:\(\)\{.*\}:|mkfs\./;</span><span class="ln"><span class="tok-kw">let</span> blocked = <span class="tok-num">0</span>;</span><span class="ln"><span class="tok-kw">let</span> calls = <span class="tok-num">0</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi: ExtensionAPI) {</span><span class="ln">	<span class="tok-com">// ① 拦截类：能改 input、能拦</span></span><span class="ln">	pi.<span class="tok-fn">on</span>(<span class="tok-str">"tool_call"</span>, <span class="tok-kw">async</span> (event, ctx) =&gt; {</span><span class="ln">		calls++;</span><span class="ln">		<span class="tok-kw">if</span> (!<span class="tok-fn">isToolCallEventType</span>(<span class="tok-str">"bash"</span>, event)) <span class="tok-kw">return</span>;</span><span class="ln">		<span class="tok-kw">const</span> cmd = <span class="tok-fn">String</span>(event.input.command ?? <span class="tok-str">""</span>);</span><span class="ln"></span><span class="ln">		<span class="tok-com">// 改参数：就地改 event.input</span></span><span class="ln">		<span class="tok-kw">if</span> (cmd.<span class="tok-fn">includes</span>(<span class="tok-str">"npm"</span>)) {</span><span class="ln">			event.input.command = cmd.<span class="tok-fn">replace</span>(/\bnpm\b/g, <span class="tok-str">"pnpm"</span>);</span><span class="ln">		}</span><span class="ln"></span><span class="ln">		<span class="tok-kw">if</span> (DANGEROUS.<span class="tok-fn">test</span>(cmd)) {</span><span class="ln">			blocked++;</span><span class="ln">			<span class="tok-kw">await</span> ctx.ui.<span class="tok-fn">notify</span>(<span class="tok-str">`已拦截危险命令：${cmd}`</span>, <span class="tok-str">"warning"</span>);</span><span class="ln">			<span class="tok-kw">return</span> { block: <span class="tok-kw">true</span>, reason: <span class="tok-str">"危险命令，生产环境禁止"</span> };</span><span class="ln">		}</span><span class="ln">	});</span><span class="ln"></span><span class="ln">	<span class="tok-com">// ② 变换类：改内容，不改身份</span></span><span class="ln">	pi.<span class="tok-fn">on</span>(<span class="tok-str">"tool_result"</span>, <span class="tok-kw">async</span> (event) =&gt; {</span><span class="ln">		<span class="tok-kw">if</span> (!<span class="tok-fn">isToolCallEventType</span>(<span class="tok-str">"bash"</span>, event)) <span class="tok-kw">return</span>;</span><span class="ln">		<span class="tok-kw">const</span> text = event.content</span><span class="ln">			.<span class="tok-fn">filter</span>((c) =&gt; c.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>)</span><span class="ln">			.<span class="tok-kw">map</span>((c) =&gt; c.text)</span><span class="ln">			.<span class="tok-fn">join</span>(<span class="tok-str">"\n"</span>);</span><span class="ln">		<span class="tok-kw">return</span> {</span><span class="ln">			content: [{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">`${text}\n\n[audited]`</span> }],</span><span class="ln">		};</span><span class="ln">	});</span><span class="ln"></span><span class="ln">	<span class="tok-com">// ③ 观察类：只读，返回值被忽略</span></span><span class="ln">	pi.<span class="tok-fn">on</span>(<span class="tok-str">"agent_end"</span>, <span class="tok-kw">async</span> (_event, ctx) =&gt; {</span><span class="ln">		<span class="tok-kw">await</span> ctx.ui.<span class="tok-fn">notify</span>(</span><span class="ln">			<span class="tok-str">`本轮 ${calls} 次调用，拦截 ${blocked} 次`</span>, <span class="tok-str">"info"</span>,</span><span class="ln">		);</span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p>几个必须知道的细节：</p>
+<p><strong>「改参数」和「拦」是两种操作。</strong> 想改参数就<strong>就地改 <code>event.input</code></strong>
+（注释见 <code>types.ts:1475</code>），返回 <code>{ block }</code> 只负责拦。返回一个 <code>input</code>
+字段是没用的——<code>ToolCallEventResult</code> 里没有这个字段。</p>
+<p><strong><code>tool_result</code> 的 <code>event.content</code> 已经是数组</strong>，不是 <code>Message</code>。
+<code>ToolResultEventResult</code> 里还有 <code>details</code> / <code>structuredContent</code> / <code>isError</code> /
+<code>usage</code> 四个可选字段（<code>types.ts:1503-1509</code>）。</p>
+<p><strong>换掉 <code>content</code> 会连带丢掉 <code>structuredContent</code></strong>（同上注释）。因为它可能
+和新内容对不上了。想留就一起返回。</p>
+<p><strong>判断工具类型必须用 <code>isToolCallEventType</code>。</strong> 类型注释解释了为什么
+（<code>types.ts:1405-1406</code>）：</p>
+<blockquote>
+<p>Direct narrowing via <code>event.toolName === &quot;bash&quot;</code> doesn't work because
+<code>CustomToolCallEvent.toolName</code> is <code>string</code> which overlaps with all literals.</p>
+</blockquote>
+<p>自定义工具的 <code>toolName</code> 是宽 <code>string</code>，所以直接比较永远不能收窄类型。
+得走显式的类型守卫函数。</p>
+<h3 id="sec-31-7-1-用-turn_end-让-agent-继续">7.1 用 <code>turn_end</code> 让 agent 继续</h3>
+<p>验收要求&quot;在指定事件点插入行为&quot;，最能把这条讲透的是 <code>turn_end</code>——
+因为它能改控制流。</p>
+<p>场景：模型觉得&quot;干完了&quot;但其实没验证。你想在它停下的那一刻推它一把。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> nudges = <span class="tok-num">0</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi: ExtensionAPI) {</span><span class="ln">	pi.<span class="tok-fn">on</span>(<span class="tok-str">"turn_end"</span>, <span class="tok-kw">async</span> (event) =&gt; {</span><span class="ln">		<span class="tok-com">// ① 只为正常结束的一轮兜底</span></span><span class="ln">		<span class="tok-kw">if</span> (event.outcome !== <span class="tok-str">"completed"</span>) <span class="tok-kw">return</span>;</span><span class="ln">		<span class="tok-com">// ② 最多催两次，避免无限循环</span></span><span class="ln">		<span class="tok-kw">if</span> (nudges &gt;= <span class="tok-num">2</span>) <span class="tok-kw">return</span>;</span><span class="ln">		<span class="tok-com">// ③ 这轮调过工具 = 它在干活，不用催</span></span><span class="ln">		<span class="tok-kw">if</span> (event.toolResults.length &gt; <span class="tok-num">0</span>) <span class="tok-kw">return</span>;</span><span class="ln"></span><span class="ln">		nudges++;</span><span class="ln">		<span class="tok-kw">return</span> {</span><span class="ln">			<span class="tok-kw">continue</span>: <span class="tok-kw">true</span>,</span><span class="ln">			entries: [{</span><span class="ln">				<span class="tok-kw">type</span>: <span class="tok-str">"custom_message"</span>,</span><span class="ln">				customType: <span class="tok-str">"self-check"</span>,</span><span class="ln">				content: <span class="tok-str">"收尾前再查一遍：测试跑了吗？"</span>,</span><span class="ln">				display: <span class="tok-kw">false</span>,</span><span class="ln">			}],</span><span class="ln">		};</span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p>三个细节：</p>
+<p><strong><code>event.outcome</code> 只有三种值</strong>（<code>types.ts:990</code>）：<code>completed</code> / <code>aborted</code> /
+<code>error</code>。后两种不该催——用户按了 Esc，或模型报错了，你再说&quot;继续&quot;就是添乱。</p>
+<p><strong><code>entries</code> 的类型是 <code>SessionBoundaryDraft</code></strong>（<code>:1021-1025</code>），四选一：
+<code>custom</code> / <code>custom_message</code> / <code>context_edit</code> / <code>compaction</code>。
+注意给人看的自定义消息用的是 <strong><code>custom_message</code></strong>，不是 <code>custom</code>——
+后者是纯数据块，不进对话。</p>
+<p><strong>必须有递减的计数器。</strong> <code>continue: true</code> 没有上限，这就是 §5.5 说的&quot;踩油门&quot;。
+没有退出条件的 <code>turn_end</code> 扩展，会让 agent 永远转下去。</p>
+<hr>
+<h2 id="sec-32-八-扩展从哪来">八、扩展从哪来</h2>
+<p><code>discoverAndLoadExtensions</code>（<code>loader.ts:832-880</code>）按三处找：</p>
+<ol>
+<li><strong>项目级</strong>：<code>&lt;cwd&gt;/.pi/extensions/</code>（目录名来自 <code>CONFIG_DIR_NAME</code>，
+<code>config.ts:606</code> 读 <code>pkg.piConfig?.configDir</code>，默认 <code>&quot;.pi&quot;</code>）</li>
+<li><strong>全局</strong>：<code>&lt;agentDir&gt;/extensions/</code></li>
+<li><strong>显式配置的路径</strong>：可以是目录（找 <code>package.json</code> 的 pi 清单或 <code>index.ts</code>），
+也可以直接是文件</li>
+</ol>
+<p>去重靠 <code>seen</code> 集合（<code>:841-851</code>），所以同名文件在两个位置只会加载一次。</p>
+<p><code>.ts</code> 文件靠 <code>jiti</code> 在运行时转译（<code>:580-585</code>），不需要预先编译：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> <span class="tok-kw">module</span> = <span class="tok-kw">await</span> jiti.<span class="tok-kw">import</span>(extensionPath, { <span class="tok-kw">default</span>: <span class="tok-kw">true</span> });</span></code></pre></div>
+<p>这也是为什么你可以直接把 <code>.ts</code> 丢进 <code>.pi/extensions/</code> 就用。</p>
+<h3 id="sec-33-8-1-加载期的-quot-半成品-quot-状态">8.1 加载期的&quot;半成品&quot;状态</h3>
+<p><code>createExtensionAPI</code>（<code>:248-272</code>）里有个状态机：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> state: <span class="tok-str">"loading"</span> | <span class="tok-str">"active"</span> | <span class="tok-str">"failed"</span> = <span class="tok-str">"loading"</span>;</span><span class="ln"><span class="tok-kw">const</span> applyRuntimeChange = (change: () =&gt; <span class="tok-kw">void</span>) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (state === <span class="tok-str">"loading"</span>) pendingRuntimeChanges.<span class="tok-fn">push</span>(change);</span><span class="ln">	<span class="tok-kw">else</span> <span class="tok-fn">change</span>();</span><span class="ln">};</span></code></pre></div>
+<p>扩展加载过程中调用的&quot;动作类&quot; API（发消息、改设置）不会立刻生效，而是<strong>排队</strong>，
+等加载完 <code>commit()</code> 时一起放。加载失败就 <code>discard()</code> 全部丢弃。</p>
+<p><strong>一个半死不活的扩展，不该留下半个副作用。</strong></p>
+<h3 id="sec-34-8-2-70-个现成例子">8.2 70 个现成例子</h3>
+<p><code>packages/coding-agent/examples/extensions/</code> 下有 70 个 <code>.ts</code> 扩展：
+<code>hello.ts</code>（26 行，最小可运行）、<code>confirm-destructive.ts</code>（59 行，用
+<code>cancel: true</code> 拦会话切换）、<code>auto-commit-on-exit.ts</code>（49 行，<code>session_shutdown</code>
+时自动 commit）、<code>event-bus.ts</code>（43 行，扩展之间互相发消息）。</p>
+<p><strong>读扩展比读框架快。</strong> 每个文件都是&quot;一个钩子 + 一段业务&quot;。</p>
+<h3 id="sec-35-8-3-拆三个例子">8.3 拆三个例子</h3>
+<p><strong><code>hello.ts</code>（26 行）：最小可运行。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> helloTool = <span class="tok-fn">defineTool</span>({</span><span class="ln">	name: <span class="tok-str">"hello"</span>,</span><span class="ln">	label: <span class="tok-str">"Hello"</span>,</span><span class="ln">	description: <span class="tok-str">"A simple greeting tool"</span>,</span><span class="ln">	parameters: Type.<span class="tok-fn">Object</span>({ name: Type.<span class="tok-fn">String</span>() }),</span><span class="ln">	<span class="tok-kw">async</span> <span class="tok-fn">execute</span>(_id, params) {</span><span class="ln">		<span class="tok-kw">return</span> {</span><span class="ln">			content: [{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">`Hello, ${params.name}!`</span> }],</span><span class="ln">			details: { greeted: params.name },</span><span class="ln">		};</span><span class="ln">	},</span><span class="ln">});</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi: ExtensionAPI) {</span><span class="ln">	pi.<span class="tok-fn">registerTool</span>(helloTool);</span><span class="ln">}</span></code></pre></div>
+<p><code>defineTool</code> 只做类型推导，运行时什么都不干。返回值里 <code>details</code> 就是 M06 讲的
+那个&quot;不发给模型、只给 UI 和落盘&quot;的槽位。</p>
+<p>注意 <code>execute</code> 有六个参数，最后一个是 <code>_ctx</code>。这正是扩展工具比内置工具多的
+那一个：<code>AgentTool.execute</code> 只有五个（M05）。
+<strong><code>wrapRegisteredTool</code> 干的就是把 <code>ctx</code> 塞进去这一件事</strong>（<code>wrapper.ts:17-21</code>）。</p>
+<p><strong><code>confirm-destructive.ts</code>（59 行）：用 <code>cancel</code> 拦。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi.<span class="tok-fn">on</span>(<span class="tok-str">"session_before_switch"</span>, <span class="tok-kw">async</span> (event, ctx) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (!ctx.hasUI) <span class="tok-kw">return</span>;              <span class="tok-com">// ← 关键</span></span><span class="ln">	<span class="tok-com">// ... 问一句，用户说不就 cancel</span></span><span class="ln">	<span class="tok-kw">return</span> { cancel: <span class="tok-kw">true</span> };</span><span class="ln">});</span></code></pre></div>
+<p><code>ctx.hasUI</code> 那道检查很重要：没有 UI 的环境（<code>--print</code> / <code>rpc</code>）里
+<code>ctx.ui.confirm()</code> 会直接抛。<strong>能问就问，问不了就放行。</strong></p>
+<p><strong><code>auto-commit-on-exit.ts</code>（49 行）：<code>session_shutdown</code> 里做收尾。</strong></p>
+<p>它在关闭时跑 <code>git status</code>，有改动就 <code>git add -A</code> 再 <code>commit</code>，
+提交信息取最后一条 assistant 消息的第一行（截断到 50 字）。</p>
+<p>这个例子演示两件事：一是 <code>pi.exec</code> 可以在扩展里跑外部命令；
+二是 <code>ctx.sessionManager.getEntries()</code> 能读全部历史——包括 M06 那八种消息。</p>
+<h3 id="sec-36-8-4-扩展之间也能说话">8.4 扩展之间也能说话</h3>
+<p><code>createEventBus()</code>（<code>core/event-bus.ts</code>，33 行）是扩展之间的独立通道，
+和那四十一个钩子<strong>完全无关</strong>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi.events.<span class="tok-fn">emit</span>(<span class="tok-str">"my:notification"</span>, { message, <span class="tok-kw">from</span>: <span class="tok-str">"/emit"</span> });</span><span class="ln">pi.events.<span class="tok-fn">on</span>(<span class="tok-str">"my:notification"</span>, (data) =&gt; { <span class="tok-com">/* ... */</span> });</span></code></pre></div>
+<p>实现是 Node 的 <code>EventEmitter</code> 加一层保护（<code>:19-25</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> safeHandler = <span class="tok-kw">async</span> (data: <span class="tok-kw">unknown</span>) =&gt; {</span><span class="ln">	<span class="tok-kw">try</span> { <span class="tok-kw">await</span> <span class="tok-fn">handler</span>(data); }</span><span class="ln">	<span class="tok-kw">catch</span> (err) {</span><span class="ln">		console.<span class="tok-fn">error</span>(<span class="tok-str">`Event handler error (${channel}):`</span>, err);</span><span class="ln">	}</span><span class="ln">};</span></code></pre></div>
+<p>又是一个&quot;吞掉&quot;策略。但注意它是 <code>async</code> 却没人 <code>await</code>——
+所以总线事件<strong>不保证顺序，也不保证完成</strong>。</p>
+<p><strong>它是广播，不是 RPC。</strong> 想让另一个扩展&quot;回你一句&quot;，得自己再发一条。</p>
+<hr>
+<h2 id="sec-37-九-完整数据流">九、完整数据流</h2>
+<p>从内核一颗钉子，到扩展拿到它：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">agent-loop.ts</span><span class="ln">  emit({ type: "tool_execution_end", ... })</span><span class="ln">     ↓  AgentEventSink（通道一：EventStream）</span><span class="ln">Agent.subscribe 的 listeners       （通道二：UI 渲染）</span><span class="ln">     ↓</span><span class="ln">AgentSession._handleAgentEvent           ← agent-session.ts:1119</span><span class="ln">     ├── 1. 内部记账（nestedCalls、队列清理）</span><span class="ln">     ├── 2. _emitExtensionEvent</span><span class="ln">     │      ↓  十分支翻译，加 turnIndex/timestamp</span><span class="ln">     │   ExtensionRunner.emit()        ← runner.ts:1096</span><span class="ln">     │      ↓  snapshotEventHandlers（.slice()）</span><span class="ln">     │   handler(event, ctx)  ×N       串行 await</span><span class="ln">     │      ↓  异常 → emitError（吞 or 抛）</span><span class="ln">     ├── 3. this._emit()               公开 subscriber</span><span class="ln">     └── 4. SessionManager.appendMessage   落盘</span></code></pre></div>
+<p>注意第 2 步和第 4 步的顺序：<strong>扩展先于落盘</strong>。所以 <code>message_end</code> 的 handler
+能看到还没写盘的消息，而 <code>turn_end</code> 就必须等落盘完成（要 entryId）。</p>
+<p>同一个 <code>message_end</code> 事件，在第 2 步里&quot;消息还没进文件&quot;，在第 3 步里
+&quot;扩展可能已经改过它了&quot;。<strong>时序是这套系统的隐性契约。</strong></p>
+<p>反过来看也成立：这套设计能撑住 70 个示例扩展，靠的就是这三条通道的分工——
+想观察的去 <code>subscribe</code>，想拦的去 <code>tool_call</code>，想改上下文的去 <code>context</code>。
+<strong>每一类需求都有且只有一个正确入口</strong>，别的地方虽然能实现，但会让时序乱掉。</p>
+<hr>
+<h2 id="sec-38-十-自己动手验证">十、自己动手验证</h2>
+<p><strong>实验 1：数一数内核事件。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-main/pi-main/packages/agent/src</span><span class="ln">sed -n '528,551p' types.ts</span></code></pre></div>
+<p>十个 <code>type:</code>，四个注释分组。</p>
+<p><strong>实验 2：确认钩子数量。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../coding-agent/src/core/extensions</span><span class="ln">grep -c 'on(event: "' types.ts</span></code></pre></div>
+<p>四十一个 <code>on</code> 重载。</p>
+<p><strong>实验 3：找翻译层。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../..</span><span class="ln">grep -n "_emitExtensionEvent" core/agent-session.ts</span></code></pre></div>
+<p>定义在 <code>:1319</code>，调用在 <code>:1159</code>——调用点里那句注释就是&quot;扩展先于 UI&quot;。</p>
+<p><strong>实验 4：对比两个易混钩子。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd core/extensions</span><span class="ln">sed -n '1474,1483p' types.ts</span></code></pre></div>
+<p><code>ToolCallEventResult</code> 只有 <code>block</code> / <code>reason</code> / <code>terminate</code> 三个字段，
+<strong>没有</strong> <code>input</code>。这就证明了&quot;改参数靠就地改，不靠返回值&quot;。</p>
+<p><strong>实验 5：确认错误策略的差异。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">grep -n "async emitToolCall" -A 6 runner.ts</span><span class="ln">grep -n "async emit(" -A 8 runner.ts</span></code></pre></div>
+<p>前者没有 <code>try</code>，后者有。</p>
+<p><strong>实验 6：跑一个扩展。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">mkdir -p .pi/extensions</span><span class="ln">cp examples/extensions/hello.ts .pi/extensions/</span></code></pre></div>
+<p>重启后让模型调 <code>hello</code>，它会回 <code>Hello, &lt;name&gt;!</code>。</p>
+<p><strong>实验 7：改一处试试——把「扩展先于 UI」这条顺序反过来。</strong></p>
+<ul>
+<li><strong>改哪里</strong>　<code>packages/coding-agent/src/core/agent-session.ts:1159-1160</code>，
+两行对调：</li>
+</ul>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 原样</span></span><span class="ln"><span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_emitExtensionEvent</span>(event);</span><span class="ln"><span class="tok-kw">this</span>.<span class="tok-fn">_emit</span>(event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span></span><span class="ln">	? { ...event, willRetry: <span class="tok-kw">this</span>.<span class="tok-fn">_willRetryAfterAgentEnd</span>(event) }</span><span class="ln">	: event);</span></code></pre></div>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// 对调后</span></span><span class="ln"><span class="tok-kw">this</span>.<span class="tok-fn">_emit</span>(event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span></span><span class="ln">	? { ...event, willRetry: <span class="tok-kw">this</span>.<span class="tok-fn">_willRetryAfterAgentEnd</span>(event) }</span><span class="ln">	: event);</span><span class="ln"><span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_emitExtensionEvent</span>(event);</span></code></pre></div>
+<ul>
+<li><strong>准备一个能改消息的扩展</strong>　在 <code>message_end</code> 里给 assistant 末尾加 <code>[改]</code>：</li>
+</ul>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi.<span class="tok-fn">on</span>(<span class="tok-str">"message_end"</span>, <span class="tok-kw">async</span> (event) =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> m = event.message;</span><span class="ln">	<span class="tok-kw">if</span> (m.role !== <span class="tok-str">"assistant"</span>) <span class="tok-kw">return</span>;</span><span class="ln">	<span class="tok-kw">if</span> (!Array.<span class="tok-fn">isArray</span>(m.content)) <span class="tok-kw">return</span>;</span><span class="ln">	<span class="tok-kw">const</span> content = m.content.<span class="tok-kw">map</span>((c) =&gt;</span><span class="ln">		c.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span> ? { ...c, text: c.text + <span class="tok-str">"[改]"</span> } : c);</span><span class="ln">	<span class="tok-kw">return</span> { message: { ...m, content } };</span><span class="ln">});</span></code></pre></div>
+<p>用 <code>DefaultResourceLoader</code> 的 <code>extensionFactories</code> 挂上就行，不用往
+<code>~/.pi/agent/extensions/</code> 里塞文件。</p>
+<ul>
+<li>
+<p><strong>预期</strong>　原顺序下 UI 拿到改过的版本；对调后 UI 拿到原文。</p>
+</li>
+<li>
+<p><strong>实测</strong>　原顺序：</p>
+</li>
+</ul>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">subscribe 看到尾部: "收到[改]"</span><span class="ln">state 里最后一条: assistant "收到[改]"</span></code></pre></div>
+<p>对调后：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">subscribe 看到尾部: "收到"</span><span class="ln">state 里最后一条: assistant "收到[改]"</span></code></pre></div>
+<p>这就是 §6.1 那句注释的字面证据。注意第二行<strong>没变</strong>——
+<code>_replaceMessageInPlace</code>（<code>:1302</code>）事后改的是 agent state 里那个对象，
+和顺序无关。</p>
+<ul>
+<li><strong>连带</strong>　不报错、不崩、没有任何警告。前端只会在那一瞬间渲染出原文，
+随后被就地改写覆盖。这就是注释里说的「UI 会先闪一下原文再变」——
+<strong>如果你的 UI 已经按旧文本算好了布局，它会闪一下，或者干脆停在旧版本。</strong>
+顺序看着像实现细节，错位了就是渲染 bug。</li>
+<li><strong>回滚</strong>　两行换回去。改回来再跑一次，<code>subscribe</code> 又变回 <code>&quot;收到[改]&quot;</code>。</li>
+</ul>
+<hr>
+<h2 id="sec-39-十一-工程暗坑">十一、工程暗坑</h2>
+<p><strong>1. 以为 <code>tool_execution_start</code> 能拦。</strong></p>
+<p>不能。它是通知，返回值被丢弃。要拦用 <code>tool_call</code>。</p>
+<p><strong>2. 以为 <code>subscribe</code> 的 listener 抛错会中断。</strong></p>
+<p>会。<code>Agent.processEvents</code> 里是裸 <code>await listener(...)</code>（<code>agent.ts:619-621</code>），
+没有 try/catch。一个渲染 bug 能让整轮对话挂掉。自己包一层 try。</p>
+<p><strong>3. <code>message_end</code> 返回新对象，结果没生效。</strong></p>
+<p>因为 agent 核心已经存了旧引用。Pi 用 <code>_replaceMessageInPlace</code> 解决，
+你自己的 listener 遇到的同类问题要自己处理——<strong>共享可变对象的世界里，
+&quot;返回新值&quot;和&quot;改掉旧值&quot;不是一回事。</strong></p>
+<p><strong>4. <code>context</code> handler 里看不到 system 消息。</strong></p>
+<p><code>emitContext</code> 传给 handler 的是过滤后的列表（<code>runner.ts:1312</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> visibleMessages = currentMessages.<span class="tok-fn">filter</span>(</span><span class="ln">	(message) =&gt; message.role !== <span class="tok-str">"system"</span>,</span><span class="ln">);</span></code></pre></div>
+<p>想连 system 一起看，用 <code>context_with_system</code>——那个拿的是全量，
+但<strong>删掉首条 system 会触发一条告警</strong>（<code>:1345-1351</code>），因为 provider
+从首条 system 里读提示词和工具声明（M04 讲过）。</p>
+<p><strong>5. 在 handler 里 <code>pi.on()</code> 不会立刻生效。</strong></p>
+<p><code>slice()</code> 快照。想在下一轮生效，就得等下一个事件。</p>
+<p><strong>6. 扩展加载期调 <code>pi.sendMessage()</code> 会抛。</strong></p>
+<p><code>runtime</code> 还是 <code>notInitialized</code>（<code>loader.ts:162-164</code>）。要在加载期排队的操作用
+<code>applyRuntimeChange</code>——不过那是内部 API，扩展侧的做法是<strong>在 <code>session_start</code>
+里做</strong>，别在工厂函数体里做。</p>
+<p><strong>7. <code>turn_end</code> 拿不到 entryId 就整轮跳过。</strong></p>
+<p><code>_dispatchTurnEndBoundary</code> 找不到落盘记录会 <code>emitError</code> 然后 <code>return false</code>
+（<code>agent-session.ts:870-877</code>）。如果你的扩展依赖 <code>turn_end</code>，先确认
+<code>message_end</code> 的落盘没被别人吞掉。</p>
+<p><strong>8. <code>subscribe</code> 的 listener 拿到的是&quot;同一个对象&quot;，不是副本。</strong></p>
+<p><code>processEvents</code> 直接把 <code>event</code> 传给每个 listener（<code>agent.ts:619-620</code>）。
+你在 A 里改了 <code>event.message.content</code>，B 会看到改后的。
+想隔离就自己 <code>structuredClone</code>——但那样你也看不到扩展的修改了，
+属于另一头的取舍。</p>
+<p><strong>9. 自定义消息能在 <code>message_end</code> 里换掉内置消息。</strong></p>
+<p><code>emitMessageEnd</code> 只校验 role 相同，没有限制&quot;必须是四种内置类型&quot;。
+所以扩展可以把一条 <code>assistant</code> 消息换成 <code>custom</code> 消息（M06 的八种之一），
+<code>_replaceMessageInPlace</code> 接受，<code>SessionManager</code> 会按 custom 分支落盘
+（<code>agent-session.ts:1166-1173</code>）。</p>
+<p>这条路径很隐蔽：<strong>一条 assistant 消息可以变成 custom，而 UI 大概率会渲染崩。</strong></p>
+<p><strong>10. <code>message_update</code> 每个 token 都走完整分发链路。</strong></p>
+<p>流式响应时，每产出一个增量就是一颗 <code>message_update</code>。而 <code>emit()</code> 一进去就
+<code>this.createContext()</code>（<code>runner.ts:1097</code>），再造一遍 handler 快照数组——
+<strong>即使一个 handler 都没注册</strong>。</p>
+<p>只有 <code>tool_call</code>（<code>agent-session.ts:679</code>）和 <code>turn_end</code>（<code>:869</code>）做了
+<code>hasHandlers</code> 快路径。高频的 <code>message_update</code> 没有。</p>
+<p>所以装了十个扩展时，流式会明显变顿——不是 handler 慢，是每 token 建两次大对象。
+<strong>高频事件要优先加空检查。</strong></p>
+<p><strong>11. 把 <code>ctx</code> 存到模块级变量里。</strong></p>
+<p><code>examples/extensions/event-bus.ts:14</code> 就这么干了：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">let</span> currentCtx: ExtensionContext | <span class="tok-kw">undefined</span>;</span><span class="ln">pi.<span class="tok-fn">on</span>(<span class="tok-str">"session_start"</span>, <span class="tok-kw">async</span> (_event, ctx) =&gt; {</span><span class="ln">	currentCtx = ctx;</span><span class="ln">});</span></code></pre></div>
+<p>单会话场景下能用，但 <code>ctx.newSession()</code> 之后它就是 stale 的了，
+再调 <code>currentCtx.ui.notify()</code> 会抛 <code>assertActive</code> 的错误。</p>
+<p>没有更好的办法吗？有——把&quot;用完这个 ctx&quot;的代码搬进 <code>withSession</code>，
+用回调里传进来的新 ctx。错误消息里就是这么建议的。</p>
+<p><strong>存一个有能力对象的时候，就要准备好它会被吊销。</strong></p>
+<p><strong>13. handler 的执行顺序 = 扩展的加载顺序，而加载顺序是拼出来的。</strong></p>
+<p><code>discoverAndLoadExtensions</code> 按&quot;项目 → 全局 → 显式配置&quot;三段拼（<code>loader.ts:853-877</code>），
+<code>snapshotEventHandlers</code> 再按这个数组顺序遍历。</p>
+<p>所以两个扩展都挂 <code>tool_call</code> 时，谁先跑取决于它们在哪——
+项目级的先于全局的。<strong>别把拦截逻辑写成&quot;我一定在别人之前&quot;。</strong>
+要保证顺序，就在同一个扩展里注册两个 handler（<code>pi.on</code> 可多次调用，
+顺序按注册先后）。</p>
+<hr>
+<h2 id="sec-40-十二-三个可以带走的方法">十二、三个可以带走的方法</h2>
+<p><strong>方法一：通知用一个空返回值的签名，钩子用带返回值的签名。</strong></p>
+<p><code>AgentEventSink = (event) =&gt; Promise&lt;void&gt; | void</code> 和
+<code>beforeToolCall = (ctx) =&gt; Promise&lt;Result | undefined&gt;</code> 的差别只有一处：
+有没有返回值。但调用方的代码形态完全不同——前者可以 <code>void emit(...)</code>，
+后者必须 <code>const r = await hook(...)</code>。</p>
+<p><strong>类型签名是能力的声明书。</strong> 别用 <code>any</code> 糊过去，那等于放弃了这个区分。</p>
+<p><strong>方法二：按&quot;权限&quot;给异常定策略，不按&quot;重要性&quot;。</strong></p>
+<p>观察类吞、变换类丢、拦截类抛。三层对应三种权限，
+而不是&quot;这个钩子重不重要&quot;。</p>
+<p>一个只打日志的扩展崩了，用户不该看到报错；一个负责拦截的扩展崩了，
+用户必须看到报错。<strong>判断依据是&quot;它本来能做什么&quot;，不是&quot;它多重要&quot;。</strong></p>
+<p><strong>方法三：越权的地方，加一道形状校验。</strong></p>
+<p><code>message_end</code> 只能换内容不能换 role（<code>:1163-1170</code>），
+<code>context_with_system</code> 删了首条 system 会告警（<code>:1345-1351</code>）。</p>
+<p>这两处的共同点：<strong>允许修改，但校验&quot;改完还满足下游假设吗&quot;。</strong>
+扩展系统不可能不开放，但可以在开放的口子上装一道形状检查——
+比事后 debug 便宜得多。</p>
+<p>写自己的插件系统时，先列一遍&quot;下游依赖什么&quot;：</p>
+<ul>
+<li>消息的 role 变了 → M06 那套 <code>convertToLlm</code> 的假设失效</li>
+<li>首条 system 没了 → provider 收不到提示词和工具声明（M04）</li>
+<li>工具参数在 hook 里被改了 → 校验已经跑过，没人再验一遍</li>
+</ul>
+<p>第三类 Pi 没拦，因为 <code>tool_call</code> 排在 <code>validateToolArguments</code> 之后（M05）。
+<strong>能拦的别放过，拦不到的写进文档。</strong></p>
+<hr>
+<h2 id="sec-41-下一步">下一步</h2>
+<p>事件系统讲完，内核部分就齐了：循环在前面转，模型在后面调，
+工具在手里，消息在账上，事件在血管里流。</p>
+<p>下一章开始往上走。模型每次请求都要带上&quot;系统提示词&quot;——那段几千字的、
+告诉模型它是谁的文本，是怎么拼出来的？谁往里加东西？顺序能不能改？</p>
+<p>打开上下文装配。</p>
+<hr>
+<h2 id="sec-42-本章源码索引">本章源码索引</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/agent/src/types.ts</code></td>
+<td>551</td>
+<td><code>AgentEvent</code> <code>:521-551</code>、<code>agent_end</code> 语义 <code>:521-527</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>959</td>
+<td><code>AgentEventSink</code> <code>:35</code>、<code>createAgentStream</code> <code>:162-167</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent.ts</code></td>
+<td>623</td>
+<td><code>listeners</code> <code>:196</code>、<code>subscribe</code> <code>:275-278</code>、<code>processEvents</code> <code>:575-622</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/agent-session.ts</code></td>
+<td>4,480</td>
+<td><code>_handleAgentEvent</code> <code>:1119</code>、三路广播 <code>:1158-1160</code>、<code>_replaceMessageInPlace</code> <code>:1302</code>、<code>_emitExtensionEvent</code> <code>:1319-1397</code>、工具 hook <code>:668-740</code>、<code>_dispatchTurnEndBoundary</code> <code>:862-892</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/types.ts</code></td>
+<td>2,329</td>
+<td><code>ExtensionAPI.on</code> 四十一重载 <code>:1621-1688</code>、<code>ExtensionEvent</code> <code>:1425-1457</code>、<code>ToolCallEventResult</code> <code>:1474-1483</code>、<code>ToolResultEventResult</code> <code>:1503-1509</code>、<code>isToolCallEventType</code> <code>:1408-1422</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/runner.ts</code></td>
+<td>1,565</td>
+<td><code>snapshotEventHandlers</code> <code>:276-278</code>、<code>hasHandlers</code> <code>:772-780</code>、<code>emit</code> <code>:1096</code>、<code>emitMessageEnd</code> <code>:1151</code>、<code>emitToolResult</code> <code>:1190</code>、<code>emitToolCall</code> <code>:1249</code>、<code>emitUserBash</code> <code>:1269</code>、<code>emitContext</code> <code>:1305-1360</code>、<code>emitBoundary</code> <code>:1036</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/loader.ts</code></td>
+<td>880</td>
+<td><code>createExtensionAPI</code> 状态机 <code>:248-272</code>、<code>createExtension</code> <code>:599-615</code>、jiti <code>:580-585</code>、<code>discoverAndLoadExtensions</code> <code>:832-880</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/wrapper.ts</code></td>
+<td>30</td>
+<td><code>wrapRegisteredTool</code> <code>:17-21</code>（只做 execute 适配）</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/event-bus.ts</code></td>
+<td>33</td>
+<td><code>createEventBus</code>、handler 异常隔离 <code>:19-25</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/config.ts</code></td>
+<td>681</td>
+<td><code>CONFIG_DIR_NAME</code> <code>:606</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/examples/extensions/</code></td>
+<td>70 个文件</td>
+<td><code>hello.ts</code> <code>confirm-destructive.ts</code> <code>auto-commit-on-exit.ts</code> <code>event-bus.ts</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="pager">
+      <a class="prev" href="m06-messages.html"><span class="lbl">上一篇</span>消息系统 —— 四种给模型看，八种给系统记</a>
+      <a class="next" href="m08-context.html"><span class="lbl">下一篇</span>上下文装配 —— 八节提示词，一条目录链</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一次工具调用-十颗钉子" class="">一、一次工具调用，十颗钉子</a><a href="#sec-2-1-1-为什么没有-thinking-事件" class="lv3">1.1 为什么没有 thinking 事件</a><a href="#sec-3-1-2-emit-的签名" class="lv3">1.2 emit 的签名</a><a href="#sec-4-二-三条通道-不是一条" class="">二、三条通道，不是一条</a><a href="#sec-5-2-1-通道一-内核事件流" class="lv3">2.1 通道一：内核事件流</a><a href="#sec-6-2-2-通道二-agent-subscribe" class="lv3">2.2 通道二：Agent.subscribe</a><a href="#sec-7-2-3-通道三-agent-hook" class="lv3">2.3 通道三：agent hook</a><a href="#sec-8-2-4-三条通道的分工" class="lv3">2.4 三条通道的分工</a><a href="#sec-9-2-5-一个场景-走一遍三条通道" class="lv3">2.5 一个场景，走一遍三条通道</a><a href="#sec-10-三-翻译层-十变成四十一" class="">三、翻译层：十变成四十一</a><a href="#sec-11-3-1-翻译发生在一个函数里" class="lv3">3.1 翻译发生在一个函数里</a><a href="#sec-12-3-2-tool_call-和-tool_result-不走这里" class="lv3">3.2 tool_call 和 tool_result 不走这里</a><a href="#sec-13-3-3-turn_end-的岔路" class="lv3">3.3 turn_end 的岔路</a><a href="#sec-14-3-4-为什么翻译层不在-agent-包里" class="lv3">3.4 为什么翻译层不在 agent 包里</a><a href="#sec-15-四-四十一个钩子的地图" class="">四、四十一个钩子的地图</a><a href="#sec-16-4-1-四十一个里-常用的只有六个" class="lv3">4.1 四十一个里，常用的只有六个</a><a href="#sec-17-4-2-ctx-是谁" class="lv3">4.2 ctx 是谁</a><a href="#sec-18-五-三种错误策略" class="">五、三种错误策略</a><a href="#sec-19-5-1-观察类-吞掉-记一笔" class="lv3">5.1 观察类：吞掉，记一笔</a><a href="#sec-20-5-2-变换类-吞掉-丢掉这次修改" class="lv3">5.2 变换类：吞掉，丢掉这次修改</a><a href="#sec-21-5-3-拦截类-不吞-让它阻断" class="lv3">5.3 拦截类：不吞，让它阻断</a><a href="#sec-22-5-4-一张表" class="lv3">5.4 一张表</a><a href="#sec-23-5-5-四种返回值-四种权力" class="lv3">5.5 四种返回值，四种权力</a><a href="#sec-24-六-顺序-快照与并发" class="">六、顺序、快照与并发</a><a href="#sec-25-6-1-三路广播的先后" class="lv3">6.1 三路广播的先后</a><a href="#sec-26-6-2-快照-slice" class="lv3">6.2 快照：slice()</a><a href="#sec-27-6-3-没有并行" class="lv3">6.3 没有并行</a><a href="#sec-28-6-4-顺序本身就是契约" class="lv3">6.4 顺序本身就是契约</a><a href="#sec-29-6-5-没有超时" class="lv3">6.5 没有超时</a><a href="#sec-30-七-写一个扩展" class="">七、写一个扩展</a><a href="#sec-31-7-1-用-turn_end-让-agent-继续" class="lv3">7.1 用 turn_end 让 agent 继续</a><a href="#sec-32-八-扩展从哪来" class="">八、扩展从哪来</a><a href="#sec-33-8-1-加载期的-quot-半成品-quot-状态" class="lv3">8.1 加载期的&amp;quot;半成品&amp;quot;状态</a><a href="#sec-34-8-2-70-个现成例子" class="lv3">8.2 70 个现成例子</a><a href="#sec-35-8-3-拆三个例子" class="lv3">8.3 拆三个例子</a><a href="#sec-36-8-4-扩展之间也能说话" class="lv3">8.4 扩展之间也能说话</a><a href="#sec-37-九-完整数据流" class="">九、完整数据流</a><a href="#sec-38-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-39-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-40-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-41-下一步" class="">下一步</a><a href="#sec-42-本章源码索引" class="">本章源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>
