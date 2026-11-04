@@ -20,7 +20,7 @@
 </div>
 
 <p align="center">
-  <img src="assets/home-light.png" width="900" alt="教程首页">
+  <img src="assets/home-light-34bcb87d.png" width="900" alt="教程首页">
 </p>
 
 ---
@@ -146,7 +146,7 @@ flowchart TB
 
 | 章节页：左侧导航 / 中间正文 / 右侧本章目录 | 深色模式 |
 | --- | --- |
-| <img src="assets/chapter-m03.png" width="430" alt="章节页"> | <img src="assets/home-dark.png" width="430" alt="深色模式"> |
+| <img src="assets/chapter-m03.png" width="430" alt="章节页"> | <img src="assets/home-dark-d99f9158.png" width="430" alt="深色模式"> |
 
 本仓库是**构建产物**（`index.html` + `modules/*.html` + `styles.css`），只用于 GitHub Pages 托管。内容源与生成脚本在源工程里，改文章请改 Markdown 后重新构建，不要直接编辑这里的 HTML。
 
