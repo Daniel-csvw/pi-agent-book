@@ -41,13 +41,19 @@
 <header class="module-header">
       <div class="module-eyebrow">APX</div>
       <h1>附录 B —— 读源码用的 TypeScript 速查</h1>
-      <div class="module-meta">1,600 字 · 含 80 行代码 · 约 12 分钟</div>
+      <div class="module-meta">3,600 字 · 含 166 行代码 · 约 27 分钟</div>
     </header>
     <p>这本书的代码块全部来自 v1.4.0 源码，不是伪代码。所以读之前，你得能
 看懂两种东西：<strong>TypeScript 的类型写法</strong>，和<strong>Node 运行时的几个内建对象</strong>。</p>
 <p>不用会写。会认就行。</p>
-<p>这一页只列正文里真正出现过、且 Python 里没有对应物的写法。每条三行：
-写法长什么样 / 书里哪儿用过（可点坐标）/ Python 里怎么对应。</p>
+<p>这一页分两层：</p>
+<ul>
+<li><strong>§二 八种</strong>：正文里点过名的写法，每条三行——写法长什么样 / 书里哪儿用过
+（可点坐标）/ Python 里怎么对应</li>
+<li><strong>§三 十种</strong>：正文一笔带过、源码里却高频的写法，重点讲「它在替谁兜底」</li>
+</ul>
+<p>所有例子都按 <code>文件:行号</code> 给坐标，可以直接点到源码。Python 没有对应物的
+直接写「没有」——那本身就是一条信息。</p>
 <blockquote>
 <p>领域术语不在这里——<code>差分</code>、<code>两阶段提交</code>、<code>幂等</code>这些是业务概念，
 各自在正文首次出现时给了定义，查它们请回对应章节。</p>
@@ -173,7 +179,202 @@ contract 的类型参数掏出来。</p>
 进入编译图，<code>AgentMessage</code> 就从 4 种变 8 种。</p>
 <p>M06 §3 整节讲它的收益与三个副作用（<code>m06:340-365</code>）。Python 无对应机制。</p>
 <hr>
-<h2 id="sec-11-三-符号速查表">三、符号速查表</h2>
+<h2 id="sec-11-三-进阶十种-源码里就那么写">三、进阶十种：源码里就那么写</h2>
+<p>下面十种在 1,004 个源文件（不含测试与脚本）里合计出现 <strong>2,001 次</strong>，
+正文却大多只说了一句「这里用了 X」。它们的难点不是认出符号，而是知道
+去掉它会坏在哪。</p>
+<h3 id="sec-12-3-1-x-真私有-类外拿不到-1-043-处">3.1 <code>#x</code>：真私有，类外拿不到（1,043 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/durable/src/session/session.ts:262-277（节选）</span></span><span class="ln">#current: Job | <span class="tok-kw">undefined</span>;</span><span class="ln">#fence: Promise&lt;<span class="tok-kw">void</span>&gt; = Promise.<span class="tok-fn">resolve</span>();</span><span class="ln">#outstanding = <span class="tok-num">0</span>;</span><span class="ln"><span class="tok-kw">readonly</span> #ownOutcomes = <span class="tok-kw">new</span> Set&lt;<span class="tok-kw">number</span>&gt;();</span><span class="ln">#failure: { <span class="tok-kw">readonly</span> error: <span class="tok-kw">unknown</span> } | <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">readonly</span> #failed = Promise.withResolvers&lt;<span class="tok-kw">never</span>&gt;();</span></code></pre></div>
+<p><code>private</code> 只是编译期约定：产物里还是普通属性，<code>(x as any).foo</code> 摸得到，
+<code>Object.keys</code> 也看得见。<code>#x</code> 是语言级私有：类外访问直接是语法错误，子类
+也拿不到。</p>
+<p>上面这段是教科书级用法——<code>#fence</code>（等所有 job 落地的闸门）、<code>#outstanding</code>
+（未交付计数）、<code>#failed</code>（失败信号）全是内部状态机，一个都不该出现在公开
+形状里。</p>
+<p><code>readonly #x</code> 是两者叠加：外部可读、不可写，写只发生在字段初始化与构造器。
+注意它锁的是引用，<code>#ownOutcomes</code> 那个 <code>Set</code> 照样能往里加。</p>
+<p>Python：<code>_x</code> 是约定，<code>__x</code> 只是改名（<code>_Class__x</code> 仍可访问）。没有真私有。</p>
+<h3 id="sec-13-3-2-get-set-调用时不带括号-347-处">3.2 <code>get</code> / <code>set</code>：调用时不带括号（347 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/agent-session.ts:1461-1478（节选）</span></span><span class="ln"><span class="tok-kw">get</span> <span class="tok-fn">state</span>(): AgentState {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.agent.state;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">get</span> <span class="tok-fn">cacheWarmingStatus</span>(): CacheWarmingStatus | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>._cacheWarmer?.status;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">get</span> <span class="tok-fn">model</span>(): Model&lt;<span class="tok-kw">any</span>&gt; | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.agent.state.model;</span><span class="ln">}</span></code></pre></div>
+<p>调用处写 <code>session.state</code>，不写 <code>session.state()</code>。读代码时看到没有括号的
+属性访问，先怀疑它是 getter。</p>
+<p>三个 getter 都在<strong>转发</strong>，不是复制：<code>state</code> 每次现取底下的 agent 状态，
+<code>cacheWarmingStatus</code> 现算，底层一改立刻可见。这是刻意的——session 是可重放
+的投影层，缓存一份状态，迟早和真相不一致。</p>
+<p>判据：getter 内部只要有 <code>if</code>、<code>?.</code> 或函数调用，它就是「惰性计算 + 只读视图」，
+不是字段。源码里 347 处 getter 大半是这个用途。</p>
+<p>Python：<code>@property</code>，一模一样。</p>
+<h3 id="sec-14-3-3-async-yield-手写异步迭代器-160-处">3.3 <code>async *</code> / <code>yield</code>：手写异步迭代器（160 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/utils/event-stream.ts:72-84（长行按版面折过）</span></span><span class="ln"><span class="tok-kw">async</span> *[Symbol.asyncIterator](): AsyncIterator&lt;T&gt; {</span><span class="ln">	<span class="tok-kw">while</span> (<span class="tok-kw">true</span>) {</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.queue.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">			<span class="tok-kw">yield</span> <span class="tok-kw">this</span>.queue.<span class="tok-fn">dequeue</span>()!;</span><span class="ln">		} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.done) {</span><span class="ln">			<span class="tok-kw">return</span>;</span><span class="ln">		} <span class="tok-kw">else</span> {</span><span class="ln">			<span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-kw">new</span> Promise&lt;IteratorResult&lt;T&gt;&gt;(</span><span class="ln">				(resolve) =&gt; <span class="tok-kw">this</span>.waiting.<span class="tok-fn">enqueue</span>(resolve),</span><span class="ln">			);</span><span class="ln">			<span class="tok-kw">if</span> (result.done) <span class="tok-kw">return</span>;</span><span class="ln">			<span class="tok-kw">yield</span> result.value;</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p><code>yield x</code> 不是「返回」，是把 x 交给调用方然后<strong>停在这一行</strong>，下次 <code>.next()</code>
+从下一行继续。所以 <code>while (true)</code> 里没有 break，靠 <code>return</code> 结束。</p>
+<p>这段挂在 <code>[Symbol.asyncIterator]</code> 上，意思是「这个对象可以被 <code>for await</code> 吃」。
+M04 里那句 <code>for await (const event of stream)</code> 走的就是这十几行：队列有货就
+<code>yield</code>，已结束就 <code>return</code>，都没有就挂起，把 <code>resolve</code> 塞进 <code>waiting</code> 队列
+——另一头是 <code>push()</code>（<code>:52-57</code>），谁先来谁唤醒谁。</p>
+<p>Python：<code>async def</code> + <code>yield</code> 几乎同构，<code>return</code> 对应 <code>StopAsyncIteration</code>。
+差别只在 Python 会把它写成独立函数，TS 这里直接写在类上。</p>
+<h3 id="sec-15-3-4-as-unknown-as-跨家族断言-138-处">3.4 <code>as unknown as</code>：跨家族断言（138 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/durable/src/codemode/codemode.ts:431</span></span><span class="ln">start: <span class="tok-fn">copyJson</span>(run.start <span class="tok-kw">as</span> <span class="tok-kw">unknown</span> <span class="tok-kw">as</span> JsonValue) <span class="tok-kw">as</span> <span class="tok-kw">unknown</span> <span class="tok-kw">as</span> Start,</span></code></pre></div>
+<p>单次 <code>as</code> 只能在同一家族里换说法：子类型转父类型、联合转成员。<code>Start</code> 和
+<code>JsonValue</code> 互不包含，直接 <code>as JsonValue</code> 编译器会拒，理由是「两个类型没有
+充分重叠」。走 <code>unknown</code> 中转，等于明说「这两者没关系，我知道自己在干什么」。</p>
+<p>这里不是骗编译器：<code>copyJson()</code> 真的做了一次 JSON 深拷贝（下一行 <code>:432</code> 的
+journal 同理），断言断的是「往返一次之后，形状还是原来那个」。这类位置
+值得信任。</p>
+<p>判据：看到 <code>as unknown as</code> 先问中间是不是过了序列化、反射或代理。是，就是
+合法逃生舱；不是，多半是懒得写类型，值得怀疑。</p>
+<p>Python：<code>cast(Any, x)</code> 再 <code>cast(Start, x)</code>，或者干脆
+<code>json.loads(json.dumps(x))</code>。</p>
+<h3 id="sec-16-3-5-override-覆写要写出来-108-处">3.5 <code>override</code>：覆写要写出来（108 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/tui/src/tui-alt-screen.ts:335-347（节选）</span></span><span class="ln"><span class="tok-kw">override</span> <span class="tok-fn">render</span>(width: <span class="tok-kw">number</span>): <span class="tok-kw">string</span>[] {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.layoutRoot?.<span class="tok-fn">render</span>(width) ?? <span class="tok-kw">super</span>.<span class="tok-fn">render</span>(width);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">protected</span> <span class="tok-kw">override</span> <span class="tok-fn">getMountedRoots</span>(): <span class="tok-kw">readonly</span> Component[] {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.layoutRoot ? [<span class="tok-kw">this</span>.layoutRoot] : <span class="tok-kw">this</span>.children;</span><span class="ln">}</span></code></pre></div>
+<p>它不改变运行时行为，只加一条编译期检查：父类必须真有同名成员。开了
+<code>noImplicitOverride</code> 之后，漏写 <code>override</code> 也报错。</p>
+<p>读法：看到 <code>override</code> 就知道「这一层改写了父类行为」，往上翻一层看原版。
+<code>super.render(width)</code> 配合 <code>??</code>，是「没有自定义布局就交回父类」。</p>
+<p>Python：没有对应关键字。覆写是隐式的，父类改了名，子类会静默变成新方法
+——这正是 TS 加这个关键字的理由。</p>
+<h3 id="sec-17-3-6-promise-withresolvers-把开关留在自己手里-41-处">3.6 <code>Promise.withResolvers</code>：把开关留在自己手里（41 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/durable/src/session/session.ts:276-281</span></span><span class="ln"><span class="tok-kw">readonly</span> #failed = Promise.withResolvers&lt;<span class="tok-kw">never</span>&gt;();</span><span class="ln"><span class="tok-kw">readonly</span> #closed = Promise.withResolvers&lt;SessionEnd&gt;();</span><span class="ln"></span><span class="ln"><span class="tok-kw">get</span> <span class="tok-fn">closed</span>(): Promise&lt;SessionEnd&gt; {</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.#closed.promise;</span><span class="ln">}</span></code></pre></div>
+<p>老写法要先声明一个 <code>let resolve!</code>，再 <code>new Promise((r) =&gt; (resolve = r))</code>，
+还得跟「构造器里回调一定执行过」的类型问题较劲。<code>withResolvers()</code> 一次给出
+<code>{ promise, resolve, reject }</code>：<code>promise</code> 挂字段上给外面 await，<code>resolve</code>
+藏在私有方法里，只有类自己能让它落地。</p>
+<p>两个细节值得记：<code>&lt;never&gt;</code> 表示这个 promise <strong>只会 reject</strong>（<code>resolve</code> 的
+参数类型是 <code>never</code>，正常调用写不出来）；<code>get closed()</code> 每次返回<strong>同一个</strong>
+promise，不是新建一个。</p>
+<p>Python：<code>asyncio.Future()</code>，<code>set_result</code> / <code>set_exception</code> 一一对应。</p>
+<h3 id="sec-18-3-7-lt-const-t-gt-让字面量别被放宽-39-处">3.7 <code>&lt;const T&gt;</code>：让字面量别被放宽（39 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/schema/src/builders.ts:85-109（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> lit&lt;<span class="tok-kw">const</span> V <span class="tok-kw">extends</span> <span class="tok-kw">string</span> | <span class="tok-kw">number</span> | <span class="tok-kw">boolean</span> | <span class="tok-kw">null</span>&gt;(</span><span class="ln">	value: V,</span><span class="ln">	options: Annotations&lt;V&gt; = {},</span><span class="ln">): Schema&lt;V&gt; {</span><span class="ln">	<span class="tok-kw">return</span> { <span class="tok-kw">const</span>: value, ...options };</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> union&lt;<span class="tok-kw">const</span> S <span class="tok-kw">extends</span> <span class="tok-kw">readonly</span> Schema[]&gt;(</span><span class="ln">	schemas: S,</span><span class="ln">	options: Annotations&lt;Static&lt;S[<span class="tok-kw">number</span>]&gt;&gt; = {},</span><span class="ln">): Schema&lt;Static&lt;S[<span class="tok-kw">number</span>]&gt;&gt; {</span><span class="ln">	<span class="tok-kw">return</span> { anyOf: schemas, ...options };</span><span class="ln">}</span></code></pre></div>
+<p>没有 <code>const</code> 时，数组实参会被推成 <code>Schema[]</code>、<code>string[]</code> 这种宽类型，
+<code>S[number]</code> 也就退化成 <code>Schema</code>、<code>string</code> 了：校验还在，<strong>类型提示全丢</strong>。
+加了 <code>const</code>，实参保留成 <code>readonly […]</code>，<code>S[number]</code> 才能精确到具体成员。
+<code>oneOf([&quot;text&quot;, &quot;image&quot;])</code>（<code>:93</code>）就是同一个道理：不加 <code>const</code> 拿到的是
+<code>Schema&lt;string&gt;</code>，加了才是 <code>Schema&lt;&quot;text&quot; | &quot;image&quot;&gt;</code>。</p>
+<p>把它当成「函数参数版的 <code>as const</code>」最好记：调用处不用再写 <code>as const</code>，
+由签名负责把字面量钉住。这是 TS 5.0 的语法，本书对应版本里已经用得很顺
+（<code>contract.ts:72</code>、<code>declare.ts:71-76</code> 也是）。</p>
+<p>为什么非它不可：M15 讲「编译产物与类型同源」，靠的就是 <code>Static&lt;S&gt;</code> 能
+一路推到字面量。放宽成 <code>string</code>，那套推断就断了。</p>
+<p>Python：<code>Literal[&quot;text&quot;]</code> 天生精确，没有「放宽」这回事。</p>
+<h3 id="sec-19-3-8-函数重载-一个名字-几份目录-33-处">3.8 函数重载：一个名字，几份目录（33 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/chord/src/next/contracts/schema.ts:79-80（签名）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">num</span>(</span><span class="ln">	options: Bounds &amp; { <span class="tok-kw">readonly</span> <span class="tok-kw">default</span>: <span class="tok-kw">number</span> },</span><span class="ln">): NumberSchema &amp; Defaulted&lt;<span class="tok-kw">number</span>&gt;;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">num</span>(options?: Bounds): NumberSchema;</span></code></pre></div>
+<p>同一个 <code>num</code> 写了三遍：前两段<strong>没有函数体</strong>，是给调用者看的目录；第三段
+（<code>:81</code>）才有 <code>{ ... }</code>，是唯一实现，参数类型是
+<code>Bounds &amp; { readonly default?: number }</code>，必须同时接住上两种调用。</p>
+<p>为什么不用条件类型写返回值：<code>num({ default: 3 })</code> 要返回
+<code>NumberSchema &amp; Defaulted&lt;number&gt;</code>（能直接取值），<code>num()</code> 只要 <code>NumberSchema</code>。
+两行签名比一个三层条件类型好读得多。</p>
+<p>读法：看到同名函数连着出现、前面的都以 <code>;</code> 结尾，就是重载。正文里的
+<code>streamSimple</code> / <code>complete</code> 也是这个写法（M04 §三）。</p>
+<p>Python：<code>@overload</code> 堆 stub + 一个实现，思路完全一样。</p>
+<h3 id="sec-20-3-9-映射类型-索引访问-在类型层面遍历键-82-处">3.9 映射类型 + 索引访问：在类型层面遍历键（82 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/chord/src/contract.ts:79-81</span></span><span class="ln"><span class="tok-kw">type</span> StringKeys&lt;I&gt; = {</span><span class="ln">	[K <span class="tok-kw">in</span> <span class="tok-kw">keyof</span> I]-?: I[K] <span class="tok-kw">extends</span> <span class="tok-kw">string</span> ? K : <span class="tok-kw">never</span>;</span><span class="ln">}[<span class="tok-kw">keyof</span> I] &amp; <span class="tok-kw">string</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> PlacementFor&lt;I&gt; = HostNamed | HostFamily&lt;StringKeys&lt;I&gt;&gt;;</span></code></pre></div>
+<p>一行四件事：<code>[K in keyof I]</code> 遍历所有键、<code>-?</code> 去掉可选、
+<code>I[K] extends string ? K : never</code> 把「值不是 string」的键变成 <code>never</code>、
+最后的 <code>[keyof I]</code> 把这张表按所有键索引，取出值的联合。<code>never</code> 会从
+联合里自动消失，剩下的就是「必填且为 string 的键名」。<code>&amp; string</code> 再把
+数字键筛掉。</p>
+<p>读法：<strong>先看结尾有没有 <code>[keyof X]</code></strong>。有，整个映射类型就是在「筛键」；
+没有，结果是一张同形状的新表。这里拿它约束 <code>hostFamily</code> 只能用「输入里
+必填的字符串字段」当宿主名，运行时那段 <code>:84-89</code> 正好对应。</p>
+<p>另一种用法在 <code>packages/chord/src/cell.ts:308</code>：
+<code>{ [K in keyof S]: S[K] extends Readable&lt;infer T&gt; ? T : never }</code>，
+把「一组 Readable」变成「一组值」，<code>infer</code> 就是 §2.5 那个。</p>
+<p>Python：没有。这类「类型层遍历」只能手写每个类。</p>
+<h3 id="sec-21-3-10-unique-symbol-给-number-贴标签-10-处">3.10 <code>unique symbol</code>：给 number 贴标签（10 处）</h3>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/durable/src/types.ts:18-26（节选）</span></span><span class="ln"><span class="tok-kw">declare</span> <span class="tok-kw">const</span> idBrand: unique <span class="tok-kw">symbol</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Id&lt;Kind <span class="tok-kw">extends</span> <span class="tok-kw">string</span>, Type = <span class="tok-kw">unknown</span>&gt; = <span class="tok-kw">number</span> &amp; {</span><span class="ln">	<span class="tok-kw">readonly</span> [idBrand]: { <span class="tok-kw">readonly</span> kind: Kind; <span class="tok-kw">readonly</span> <span class="tok-kw">type</span>: Type };</span><span class="ln">};</span></code></pre></div>
+<p><code>unique symbol</code> 是类型层面的常量：<code>declare const</code> 保证它运行时不存在、
+不占一个字节，但类型系统里独一无二。于是 <code>number &amp; { [idBrand]: ... }</code>
+在结构上仍是 number（能算、能比较、能落盘），却和裸 <code>number</code> 不兼容：
+把 <code>EntryId</code> 传给要 <code>ConversationId</code> 的地方，直接报错。</p>
+<p>这叫品牌类型（branded type）。TS 没有 <code>nominal</code> 关键字，这是标准做法。</p>
+<p>进入这个类型的方式只有断言一次：<code>types.ts:40</code> 那句
+<code>ROOT_CONVERSATION_ID = 1 as ConversationId</code>。全库只在那一处允许，
+之后所有 id 都带着标签流转（M11 的会话树全靠这个）。</p>
+<p>Python：<code>NewType(&quot;EntryId&quot;, int)</code>，运行时不检查，思路一致。</p>
+<h3 id="sec-22-3-11-剩下几种-一句话过">3.11 剩下几种，一句话过</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>写法</th>
+<th>含义</th>
+<th>坐标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>asserts x is T</code></td>
+<td>调用即收窄，假则抛</td>
+<td><code>model-operations.ts:27</code></td>
+</tr>
+<tr>
+<td><code>this: unknown</code></td>
+<td>先把 <code>this</code> 钉成未知</td>
+<td><code>tracker.ts:1252</code></td>
+</tr>
+<tr>
+<td><code>NoInfer&lt;T&gt;</code></td>
+<td>此位置不参与反推</td>
+<td><code>declare.ts:80</code></td>
+</tr>
+<tr>
+<td><code>abstract class</code></td>
+<td>只准继承，不准 <code>new</code></td>
+<td><code>native-source.ts:44</code></td>
+</tr>
+<tr>
+<td><code>keyof typeof</code></td>
+<td>常量键变成联合</td>
+<td><code>keybindings.ts:173</code></td>
+</tr>
+<tr>
+<td><code>ReturnType&lt;F&gt;</code></td>
+<td>取函数返回值类型</td>
+<td><code>env/node.ts:164</code></td>
+</tr>
+<tr>
+<td><code>Awaited&lt;P&gt;</code></td>
+<td>剥掉 Promise 外壳</td>
+<td><code>env/node.ts:397</code></td>
+</tr>
+<tr>
+<td><code>string &amp; {}</code></td>
+<td>留补全又允许任意串</td>
+<td><code>ai/src/types.ts:76</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>asserts</code> 和 <code>is</code> 的区别值得单独记：<code>is</code> 写在<strong>返回值</strong>位置，用在 <code>if</code> 里；
+<code>asserts</code> 也写在返回值位置，但它描述的是<strong>副作用</strong>——用在语句里，
+<code>assertChatModel(m)</code> 一旦返回，后面所有代码里 <code>m</code> 都已经是 <code>Model&lt;Api&gt;</code>，
+不用再写 <code>if</code>。</p>
+<p><code>this: unknown</code> 那 9 处全在 <code>tracker.ts</code> 的 <code>arrayMutators</code> 里：这些函数
+不是挂在对象上的方法，而是被 <code>Reflect.apply(fn, proxy, args)</code> 借去执行的，
+<code>this</code> 到底是什么由调用方决定，所以签名里先钉成 <code>unknown</code>，第一行再用
+<code>mutatorNode(this)</code> 校验。</p>
+<hr>
+<h2 id="sec-23-四-符号速查表">四、符号速查表</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -243,10 +444,55 @@ contract 的类型参数掏出来。</p>
 <td>只拿类型，运行时不存在</td>
 <td><code>messages.ts:8-9</code></td>
 </tr>
+<tr>
+<td><code>override</code></td>
+<td>覆写父类成员（会检查）</td>
+<td><code>tui-alt-screen.ts:335</code></td>
+</tr>
+<tr>
+<td><code>get x()</code></td>
+<td>属性语法，函数实现</td>
+<td><code>agent-session.ts:1461</code></td>
+</tr>
+<tr>
+<td><code>#x</code></td>
+<td>真私有，类外拿不到</td>
+<td><code>session.ts:262</code></td>
+</tr>
+<tr>
+<td><code>&lt;const T&gt;</code></td>
+<td>参数版 <code>as const</code></td>
+<td><code>builders.ts:85</code></td>
+</tr>
+<tr>
+<td><code>asserts x is T</code></td>
+<td>不成立就抛</td>
+<td><code>model-operations.ts:27</code></td>
+</tr>
+<tr>
+<td><code>NoInfer&lt;T&gt;</code></td>
+<td>此位置不参与反推</td>
+<td><code>declare.ts:80</code></td>
+</tr>
+<tr>
+<td><code>T[K]</code></td>
+<td>按这个键取类型</td>
+<td><code>I[K]</code>（<code>contract.ts:79</code>）</td>
+</tr>
+<tr>
+<td><code>ReturnType&lt;F&gt;</code></td>
+<td>函数返回值类型</td>
+<td><code>env/node.ts:164</code></td>
+</tr>
+<tr>
+<td><code>string &amp; {}</code></td>
+<td>留补全又允许任意串</td>
+<td><code>ai/src/types.ts:76</code></td>
+</tr>
 </tbody>
 </table></div>
 <hr>
-<h2 id="sec-12-四-node-运行时-四个绕不开的内建对象">四、Node 运行时：四个绕不开的内建对象</h2>
+<h2 id="sec-24-五-node-运行时-四个绕不开的内建对象">五、Node 运行时：四个绕不开的内建对象</h2>
 <p>源码里出现频率最高、Python 里又没有直接对应物的四个：</p>
 <p><strong><code>Buffer</code></strong>——字节数组。M13 的 stdio 传输整节都在用它拼字节
 （<code>stdio.ts:181-207</code>）。Python 里是 <code>bytes</code> + <code>bytearray</code>。</p>
@@ -263,7 +509,7 @@ contract 的类型参数掏出来。</p>
 <p>M11 §五讲了这个循环的全部意义：<strong>没有 <code>while</code>，靠「再排一次」驱动</strong>。
 Python 里最接近 <code>asyncio.call_soon</code>。</p>
 <hr>
-<h2 id="sec-13-五-python-程序员的三个真陷阱">五、Python 程序员的三个真陷阱</h2>
+<h2 id="sec-25-六-python-程序员的三个真陷阱">六、Python 程序员的三个真陷阱</h2>
 <p><strong>一，<code>[]</code> 和 <code>{}</code> 是 truthy。</strong> Python 里空列表是假值，JS 里是<strong>真值</strong>。
 所以源码判断空数组一律 <code>.length === 0</code>，不会写 <code>if (!arr)</code>。</p>
 <p><strong>二，<code>==</code> 会隐式转换，<code>===</code> 不会。</strong> 源码里清一色 <code>===</code>（biome 有规则拦着）。
@@ -271,7 +517,7 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
 <p><strong>三，<code>.map()</code> 返回新数组，<code>.forEach()</code> 返回 <code>undefined</code>。</strong> Python 的
 列表推导返回列表，生成器函数返回迭代器——JS 没有同款惰性版。</p>
 <hr>
-<h2 id="sec-14-六-正文里哪些地方该回这一页">六、正文里哪些地方该回这一页</h2>
+<h2 id="sec-26-七-正文里哪些地方该回这一页">七、正文里哪些地方该回这一页</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -309,21 +555,61 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
 <td>2.2</td>
 </tr>
 <tr>
-<td>看到 <code>#drain</code> 这种井号开头的方法</td>
-<td>三（符号表）</td>
+<td>看到 <code>#drain</code>、<code>#failed</code> 这种井号成员</td>
+<td>3.1</td>
+</tr>
+<tr>
+<td>看到 <code>session.state</code> 不带括号</td>
+<td>3.2</td>
+</tr>
+<tr>
+<td>看到 <code>[Symbol.asyncIterator]</code>、<code>yield</code></td>
+<td>3.3</td>
+</tr>
+<tr>
+<td>看到 <code>as unknown as</code></td>
+<td>3.4</td>
+</tr>
+<tr>
+<td>看到 <code>override</code></td>
+<td>3.5</td>
+</tr>
+<tr>
+<td>看到 <code>Promise.withResolvers</code></td>
+<td>3.6</td>
+</tr>
+<tr>
+<td>看到 <code>&lt;const V extends …&gt;</code></td>
+<td>3.7</td>
+</tr>
+<tr>
+<td>看到同名函数多段签名、无函数体</td>
+<td>3.8</td>
+</tr>
+<tr>
+<td>看到 <code>{ [K in keyof …]: … }[keyof …]</code></td>
+<td>3.9</td>
+</tr>
+<tr>
+<td>看到 <code>unique symbol</code>、<code>number &amp; { … }</code></td>
+<td>3.10</td>
+</tr>
+<tr>
+<td>看到 <code>asserts</code>、<code>NoInfer</code>、<code>this: unknown</code></td>
+<td>3.11</td>
 </tr>
 <tr>
 <td>看到 <code>Buffer.concat</code>、<code>spawn</code>、<code>signal.aborted</code></td>
-<td>四</td>
+<td>五</td>
 </tr>
 <tr>
 <td>看到 <code>if (!arr.length)</code> 而不是 <code>if (!arr)</code></td>
-<td>五</td>
+<td>六</td>
 </tr>
 </tbody>
 </table></div>
 <hr>
-<h2 id="sec-15-源码索引">源码索引</h2>
+<h2 id="sec-27-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -373,6 +659,76 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
 <td>64</td>
 <td><code>McpTransport</code> <code>:18-26</code></td>
 </tr>
+<tr>
+<td><code>packages/ai/src/utils/event-stream.ts</code></td>
+<td>135</td>
+<td>手写异步迭代器 <code>:72-84</code></td>
+</tr>
+<tr>
+<td><code>packages/ai/src/utils/model-operations.ts</code></td>
+<td>81</td>
+<td><code>assertChatModel</code> <code>:27</code></td>
+</tr>
+<tr>
+<td><code>packages/schema/src/builders.ts</code></td>
+<td>200</td>
+<td><code>&lt;const V&gt;</code> <code>:85</code>、<code>union</code> <code>:104</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/types.ts</code></td>
+<td>1,445</td>
+<td><code>idBrand</code> <code>:18-26</code>、<code>ROOT_CONVERSATION_ID</code> <code>:40</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/session/session.ts</code></td>
+<td>2,104</td>
+<td>私有字段 <code>:262-277</code>、<code>withResolvers</code> <code>:276-281</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/codemode/codemode.ts</code></td>
+<td>1,042</td>
+<td>双向断言 <code>:431-432</code></td>
+</tr>
+<tr>
+<td><code>packages/durable/src/env/node.ts</code></td>
+<td>1,235</td>
+<td><code>ReturnType&lt;typeof spawn&gt;</code> <code>:164</code></td>
+</tr>
+<tr>
+<td><code>packages/chord/src/cell.ts</code></td>
+<td>402</td>
+<td><code>SourceValues</code> <code>:308</code></td>
+</tr>
+<tr>
+<td><code>packages/chord/src/next/contracts/schema.ts</code></td>
+<td>201</td>
+<td>重载 <code>num</code> <code>:79-81</code></td>
+</tr>
+<tr>
+<td><code>packages/chord/src/next/contracts/declare.ts</code></td>
+<td>235</td>
+<td><code>NoInfer</code> <code>:80</code>、<code>:83</code></td>
+</tr>
+<tr>
+<td><code>packages/chord/src/next/state/native-source.ts</code></td>
+<td>291</td>
+<td><code>abstract class</code> <code>:44</code></td>
+</tr>
+<tr>
+<td><code>packages/chord/src/delta/tracker.ts</code></td>
+<td>2,319</td>
+<td><code>this: unknown</code> <code>:1252</code></td>
+</tr>
+<tr>
+<td><code>packages/tui/src/tui-alt-screen.ts</code></td>
+<td>1,800</td>
+<td><code>override</code> <code>:335-347</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/agent-session.ts</code></td>
+<td>4,479</td>
+<td>getter <code>:1461</code>、<code>:1466</code>、<code>:1477</code></td>
+</tr>
 </tbody>
 </table></div>
 
@@ -381,7 +737,7 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
       <a class="next" href="appendix-service.html"><span class="lbl">下一篇</span>附录 C —— 把 Agent 装进你的服务</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-第一件事-类型标注是注释" class="">一、第一件事：类型标注是注释</a><a href="#sec-2-二-八种只有读源码才会遇到的写法" class="">二、八种只有读源码才会遇到的写法</a><a href="#sec-3-2-1-联合类型-a-b-一个变量几种形状" class="lv3">2.1 联合类型 A | B：一个变量几种形状</a><a href="#sec-4-2-2-判别联合-never-漏一种就编译不过" class="lv3">2.2 判别联合 + never：漏一种就编译不过</a><a href="#sec-5-2-3-泛型-lt-t-gt-待填的类型参数" class="lv3">2.3 泛型 &amp;lt;T&amp;gt;：待填的类型参数</a><a href="#sec-6-2-4-类型谓词-is-收窄的开关" class="lv3">2.4 类型谓词 is：收窄的开关</a><a href="#sec-7-2-5-条件类型-类型层面的-if" class="lv3">2.5 条件类型：类型层面的 if</a><a href="#sec-8-2-6-satisfies-检查-但别改我的类型" class="lv3">2.6 satisfies：检查，但别改我的类型</a><a href="#sec-9-2-7-as-const-把字面量冻成常量" class="lv3">2.7 as const：把字面量冻成常量</a><a href="#sec-10-2-8-declare-module-声明合并" class="lv3">2.8 declare module：声明合并</a><a href="#sec-11-三-符号速查表" class="">三、符号速查表</a><a href="#sec-12-四-node-运行时-四个绕不开的内建对象" class="">四、Node 运行时：四个绕不开的内建对象</a><a href="#sec-13-五-python-程序员的三个真陷阱" class="">五、Python 程序员的三个真陷阱</a><a href="#sec-14-六-正文里哪些地方该回这一页" class="">六、正文里哪些地方该回这一页</a><a href="#sec-15-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-第一件事-类型标注是注释" class="">一、第一件事：类型标注是注释</a><a href="#sec-2-二-八种只有读源码才会遇到的写法" class="">二、八种只有读源码才会遇到的写法</a><a href="#sec-3-2-1-联合类型-a-b-一个变量几种形状" class="lv3">2.1 联合类型 A | B：一个变量几种形状</a><a href="#sec-4-2-2-判别联合-never-漏一种就编译不过" class="lv3">2.2 判别联合 + never：漏一种就编译不过</a><a href="#sec-5-2-3-泛型-lt-t-gt-待填的类型参数" class="lv3">2.3 泛型 &amp;lt;T&amp;gt;：待填的类型参数</a><a href="#sec-6-2-4-类型谓词-is-收窄的开关" class="lv3">2.4 类型谓词 is：收窄的开关</a><a href="#sec-7-2-5-条件类型-类型层面的-if" class="lv3">2.5 条件类型：类型层面的 if</a><a href="#sec-8-2-6-satisfies-检查-但别改我的类型" class="lv3">2.6 satisfies：检查，但别改我的类型</a><a href="#sec-9-2-7-as-const-把字面量冻成常量" class="lv3">2.7 as const：把字面量冻成常量</a><a href="#sec-10-2-8-declare-module-声明合并" class="lv3">2.8 declare module：声明合并</a><a href="#sec-11-三-进阶十种-源码里就那么写" class="">三、进阶十种：源码里就那么写</a><a href="#sec-12-3-1-x-真私有-类外拿不到-1-043-处" class="lv3">3.1 #x：真私有，类外拿不到（1,043 处）</a><a href="#sec-13-3-2-get-set-调用时不带括号-347-处" class="lv3">3.2 get / set：调用时不带括号（347 处）</a><a href="#sec-14-3-3-async-yield-手写异步迭代器-160-处" class="lv3">3.3 async * / yield：手写异步迭代器（160 处）</a><a href="#sec-15-3-4-as-unknown-as-跨家族断言-138-处" class="lv3">3.4 as unknown as：跨家族断言（138 处）</a><a href="#sec-16-3-5-override-覆写要写出来-108-处" class="lv3">3.5 override：覆写要写出来（108 处）</a><a href="#sec-17-3-6-promise-withresolvers-把开关留在自己手里-41-处" class="lv3">3.6 Promise.withResolvers：把开关留在自己手里（41 处）</a><a href="#sec-18-3-7-lt-const-t-gt-让字面量别被放宽-39-处" class="lv3">3.7 &amp;lt;const T&amp;gt;：让字面量别被放宽（39 处）</a><a href="#sec-19-3-8-函数重载-一个名字-几份目录-33-处" class="lv3">3.8 函数重载：一个名字，几份目录（33 处）</a><a href="#sec-20-3-9-映射类型-索引访问-在类型层面遍历键-82-处" class="lv3">3.9 映射类型 + 索引访问：在类型层面遍历键（82 处）</a><a href="#sec-21-3-10-unique-symbol-给-number-贴标签-10-处" class="lv3">3.10 unique symbol：给 number 贴标签（10 处）</a><a href="#sec-22-3-11-剩下几种-一句话过" class="lv3">3.11 剩下几种，一句话过</a><a href="#sec-23-四-符号速查表" class="">四、符号速查表</a><a href="#sec-24-五-node-运行时-四个绕不开的内建对象" class="">五、Node 运行时：四个绕不开的内建对象</a><a href="#sec-25-六-python-程序员的三个真陷阱" class="">六、Python 程序员的三个真陷阱</a><a href="#sec-26-七-正文里哪些地方该回这一页" class="">七、正文里哪些地方该回这一页</a><a href="#sec-27-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

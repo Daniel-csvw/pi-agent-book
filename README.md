@@ -4,15 +4,15 @@
 
 **对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent**
 
-<sub>19 篇 · 137,600 字 · 7,032 行源码引用 · 约 11 小时读完</sub>
+<sub>19 篇 · 139,600 字 · 7,118 行源码引用 · 约 12 小时读完</sub>
 
 <br>
 
 [![read online](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%98%85%E8%AF%BB-daniel--csvw.github.io-eb6c36?style=for-the-badge&labelColor=1a1d28)](https://daniel-csvw.github.io/pi-agent-book/)
 
 [![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-19-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-137%2C600-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![source lines](https://img.shields.io/badge/%E6%BA%90%E7%A0%81%E5%BC%95%E7%94%A8-7%2C032%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-139%2C600-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![source lines](https://img.shields.io/badge/%E6%BA%90%E7%A0%81%E5%BC%95%E7%94%A8-7%2C118%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
 [![pi-agent](https://img.shields.io/badge/pi--agent-v1.4.0-4f5d75?style=flat-square)](https://github.com/earendil-works/pi)
 
 **[马上开始读 →](https://daniel-csvw.github.io/pi-agent-book/)**
@@ -64,6 +64,7 @@
 | 终端渲染 | 一个 spinner 只该写 99 个字节，主题色是问终端要来的还是算出来的 |
 | 契约与遥测 | 一份声明，五种解释，schema 与 telemetry 的配合 |
 | 依赖与发布 | `save-exact` 加两天冷静期，一条供应链是怎么被钉住的 |
+| TypeScript 语法（附录 B） | `#` 私有字段、`<const T>`、重载、映射类型：源码为什么非得这么写 |
 | 合龙（附录 D） | 一条请求依次落过二十五个落点，每站都标了出处章节 |
 
 ---
@@ -112,7 +113,7 @@
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
 | APX-1 | [附录 A —— v0.80 → v1.4 迁移对照](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-migration.html) | 3,200 字 · 73 行 |
-| APX-2 | [附录 B —— 读源码用的 TypeScript 速查](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-typescript.html) | 1,600 字 · 80 行 |
+| APX-2 | [附录 B —— 读源码用的 TypeScript 速查](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-typescript.html) | 3,600 字 · 166 行 |
 | APX-3 | [附录 C —— 把 Agent 装进你的服务](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-service.html) | 2,900 字 · 220 行 |
 | APX-4 | [附录 D —— 合龙：一次请求，二十五个落点](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-integration.html) | 1,600 字 · 7 行 |
 
