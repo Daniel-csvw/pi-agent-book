@@ -41,7 +41,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M02</div>
       <h1>三层架构 —— 十二个包各自站在哪一层</h1>
-      <div class="module-meta">6,500 字 · 含 206 行代码 · 约 36 分钟</div>
+      <div class="module-meta">7,100 字 · 含 251 行代码 · 约 39 分钟</div>
     </header>
     <p>上一章给了一张体量表。但体量只回答&quot;哪里代码多&quot;，不回答&quot;哪块代码归谁管&quot;。</p>
 <p>这一章给的是后者：一张能定位任何文件的图。</p>
@@ -520,10 +520,37 @@
 <li><code>coding-agent</code> 和 <code>env</code> 之间<strong>没有边</strong>——它们都是产品，但服务不同场景（本地 CLI vs 远端部署）</li>
 </ul>
 <p>还有 <code>evals</code>（1,452 行，深度 0）不在图里。它是测试工具，不参与构建，也不被任何包依赖。</p>
+<h3 id="sec-22-8-1-箭头是依赖-不是调用">8.1 箭头是依赖，不是调用</h3>
+<p>这张图极容易被读错一层。把箭头当成&quot;调用方向&quot;，会得出两个错误结论：
+<code>agent</code> 自己挑 provider、<code>agent</code> 自己实现 bash。两件事都是反的。</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">① 依赖方向（package.json 定的，编译期就锁死）</span><span class="ln"></span><span class="ln">   coding-agent ─────▶ agent ─────▶ ai ─────▶ schema</span><span class="ln">   上层 import 下层；箭头指谁，谁就必须先 build。</span><span class="ln"></span><span class="ln">② 运行时的两个缝：实现在上层，被塞进下层</span><span class="ln"></span><span class="ln">   模型调用                              工具调用</span><span class="ln">   ┌────────────────────────────┐        ┌────────────────────────────┐</span><span class="ln">   │ coding-agent/              │        │ coding-agent/              │</span><span class="ln">   │  src/core/sdk.ts:46        │        │  src/core/tools/bash.ts    │</span><span class="ln">   │ setDefaultStreamFn(...)    │        │ createBashToolDefinition   │</span><span class="ln">   └───────────┬────────────────┘        └───────────┬────────────────┘</span><span class="ln">               │                                     │</span><span class="ln">               ▼                                     ▼</span><span class="ln">   ┌────────────────────────────┐        ┌────────────────────────────┐</span><span class="ln">   │ agent/src/stream-fn.ts     │        │ agent/src/types.ts:495     │</span><span class="ln">   │ let defaultStreamFn        │        │ execute: (...) =&gt; ...      │</span><span class="ln">   └───────────┬────────────────┘        └───────────┬────────────────┘</span><span class="ln">               │                                     │</span><span class="ln">               ▼                                     ▼</span><span class="ln">   agent-loop.ts:412                     agent-loop.ts:842</span><span class="ln">   await streamFunction(...)             await tool.execute(...)</span></code></pre></div>
+<p>两条补丁：</p>
+<ul>
+<li><code>agent</code> 不认识 anthropic、openai，也不认识 bash。它只认识两个<strong>类型</strong>：
+<code>StreamFn</code>（<code>packages/agent/src/stream-fn.ts:3</code>），以及一个带 <code>execute</code>
+的 <code>AgentTool</code>（<code>packages/agent/src/types.ts:495</code>）。</li>
+<li>实现是宿主塞进来的。<code>packages/coding-agent/src/core/sdk.ts:46</code> 那一行
+<code>setDefaultStreamFn(streamSimple)</code> 就是&quot;塞&quot;这个动作本身；工具更直接，
+<code>createBashToolDefinition</code>
+（<code>packages/coding-agent/src/core/tools/bash.ts:426</code>）造出一个对象，
+随 <code>tools</code> 数组传进循环。</li>
+</ul>
+<p>所以&quot;深度 2 的 <code>agent</code> 驱动深度 3 的 <code>coding-agent</code>&quot;这句话成立，
+&quot;深度 3 的 <code>coding-agent</code> 依赖深度 2 的 <code>agent</code>&quot;也成立。
+<strong>依赖定的是编译边界，调用由注入决定，两件事不冲突。</strong></p>
+<p>M03 讲 agent loop 时会直接用到这条：换 provider 不用动 <code>agent</code>，
+加一个工具也不用动 <code>agent</code>。</p>
 <hr>
-<h2 id="sec-22-九-三条反直觉的边">九、三条反直觉的边</h2>
-<p>图里有一条边画出来会让人愣一下，另有两条<strong>该有却没有</strong>。</p>
-<h3 id="sec-23-9-1-有-agent-schema">9.1 有：<code>agent → schema</code></h3>
+<h2 id="sec-23-九-三条反直觉的边">九、三条反直觉的边</h2>
+<p>图里有一条边画出来会让人愣一下，另有两条<strong>该有却没有</strong>。
+§八 那张图看不出&quot;哪条边缺席&quot;，所以单独拎出来画：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  agent         ───────────&gt; schema   有，只为一个 import type（9.1）</span><span class="ln">  coding-agent  ┄┄┄┄┄┄┄┄┄┄┄&gt; durable  无，各有各的会话实现（9.2）</span><span class="ln">  coding-agent  ┄┄┄┄┄┄┄┄┄┄┄&gt; schema   无，那个 import 走 ai 转手（9.3）</span><span class="ln"></span><span class="ln">  实线 = dependencies 里写着；虚线 = 没有，但你八成以为有。</span></code></pre></div>
+<p>下面逐条说为什么。</p>
+<h3 id="sec-24-9-1-有-agent-schema">9.1 有：<code>agent → schema</code></h3>
 <p>旧版里 <code>agent</code> 只依赖 <code>ai</code>。v1.4.0 多了一条指向 <code>schema</code> 的边，用途单一（<code>packages/agent/src/types.ts:17</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -535,7 +562,7 @@
 <p>就能拿到 <code>{ path: string }</code> 而不是 <code>unknown</code>。</p>
 <p><strong>这条边为什么值得单说？</strong> 因为它是&quot;类型安全链&quot;的前半截。后半截在 <code>coding-agent</code>：工具作者写一个 JSON Schema，参数类型、运行时校验、给模型的工具描述，<strong>全都从同一份 schema 生成</strong>。三处一致，靠的就是这条边。</p>
 <p>如果没有它，工具参数就只能手写 TS 类型 + 手写校验 + 手写文档，三份东西迟早不一致。</p>
-<h3 id="sec-24-9-2-没有-coding-agent-durable">9.2 没有：<code>coding-agent → durable</code></h3>
+<h3 id="sec-25-9-2-没有-coding-agent-durable">9.2 没有：<code>coding-agent → durable</code></h3>
 <p>这是最容易误判的一条。直觉是&quot;会话管理在 <code>durable</code>，所以 CLI 要依赖它&quot;。</p>
 <p>事实：</p>
 <div class="code-block" data-lang="bash">
@@ -576,10 +603,10 @@
 </table></div>
 <p>一个交互式 CLI，用户按 Ctrl+C 就停了，不需要&quot;在第 7 次工具调用之后精确恢复&quot;。所以它选了最简的 JSONL。而 <code>durable</code> 是给&quot;跑一小时的自动化任务&quot;用的，那个才需要事务。</p>
 <p><strong>两条线各自演化，比强行统一成本低。</strong> M10 讲前者，M11 讲后者，最后会对比一次。</p>
-<h3 id="sec-25-9-3-没有-coding-agent-schema">9.3 没有：<code>coding-agent → schema</code></h3>
+<h3 id="sec-26-9-3-没有-coding-agent-schema">9.3 没有：<code>coding-agent → schema</code></h3>
 <p><code>coding-agent</code> 依赖 <code>agent</code>，<code>agent</code> 依赖 <code>schema</code>，所以它<strong>间接</strong>能拿到 <code>schema</code>。但它的 <code>dependencies</code> 里没有直接写 <code>schema</code>。</p>
 <p>这是 npm 的常规做法：不依赖你没直接 import 的包。反过来说，如果你在 <code>coding-agent</code> 里想用 <code>Static&lt;&gt;</code>，应该确认它是否 re-export 了——<strong>跨两跳的类型引用是 monorepo 里最脆的东西</strong>。</p>
-<h3 id="sec-26-9-4-没有-readme-里公示的包只有七个">9.4 没有：README 里公示的包只有七个</h3>
+<h3 id="sec-27-9-4-没有-readme-里公示的包只有七个">9.4 没有：README 里公示的包只有七个</h3>
 <p>上一章提过：README 的 Packages 表只列了 7 个，仓库里有 12 个。换个角度看，这不是&quot;忘了写&quot;，而是<strong>公示标准与代码存在时间差</strong>。</p>
 <p>公示的 7 个：<code>chord</code> <code>telemetry</code> <code>ai</code> <code>durable</code> <code>agent-core</code> <code>coding-agent</code> <code>tui</code></p>
 <p>没公示的 5 个：<code>schema</code> <code>mcp</code> <code>codemode</code> <code>env</code> <code>evals</code></p>
@@ -591,7 +618,7 @@
 <p>&quot;standalone&quot;和&quot;other applications&quot;两个词直接声称它是个通用库。而它没进 README 表格。</p>
 <p><strong>这条矛盾本身就是情报</strong>：README 的表格是滞后于代码的。读这类仓库时，宁可相信 <code>package.json</code> 的 <code>description</code>，也别只信 README 的汇总表——后者是人手维护的，前者是发布流程的一部分。</p>
 <hr>
-<h2 id="sec-27-十-验证-没有一条箭头反向">十、验证：没有一条箭头反向</h2>
+<h2 id="sec-28-十-验证-没有一条箭头反向">十、验证：没有一条箭头反向</h2>
 <p>上一章说 build 顺序是一张倒过来的依赖图。现在可以严格验证这句话。</p>
 <p>规则：<strong>对任意一条边 A → B，B 在 build 序列里必须排在 A 前面。</strong></p>
 <p>build 序列（<code>package.json:15</code>，11 步）：</p>
@@ -724,7 +751,7 @@
 <p>这说明 <strong>build 顺序是拓扑序，不是分层序</strong>。拓扑序只保证&quot;依赖在前&quot;，不强求&quot;同层相邻&quot;。<code>env</code> 排在 <code>agent</code> 之前完全合法，因为它们之间没有边。</p>
 <p>这条区别很重要：如果你按&quot;深度 0 → 1 → 2 → 3&quot;去排 build，会得到另一个也能跑的顺序；但仓库选了现在这个，因为 <code>agent</code> 排在 <code>coding-agent</code> 前面更符合人的阅读顺序。<strong>拓扑序不唯一，选哪个都能跑。</strong></p>
 <hr>
-<h2 id="sec-28-十一-离仓那条边-依赖是怎么出去的">十一、离仓那条边：依赖是怎么出去的</h2>
+<h2 id="sec-29-十一-离仓那条边-依赖是怎么出去的">十一、离仓那条边：依赖是怎么出去的</h2>
 <p>§十 验证的 18 条边全在仓里。但依赖图还有一条<strong>朝外的边</strong>：
 <code>packages/*</code> → npm 上的 tarball。这条边不在任何 <code>dependencies</code> 字段里，
 所以前面那些验证方法一条都管不到它。</p>
@@ -735,8 +762,13 @@ README 的包表只公示 <strong>7</strong> 个；而 <code>private: true</code
 这四个包既不在包表里、也没标 private，它们只是没被推荐出口——
 跟能不能发布没关系。看包表能知道&quot;作者想让你用哪几个&quot;，但想知
 道&quot;实际上能装哪几个&quot;，得去看 <code>private</code> 字段。</p>
-<p>接下来是五条纪律。顺序按&quot;能拦住多少事故&quot;排。</p>
-<h3 id="sec-29-11-1-不许-quot-今天刚发布的依赖-quot">11.1 不许&quot;今天刚发布的依赖&quot;</h3>
+<p>接下来是五条纪律。它们不是并列的五条，是<strong>同一根管道上的五个卡点</strong>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  源码 packages/</span><span class="ln">      │</span><span class="ln">      │ 11.1 解析期   .npmrc：save-exact + min-release-age=2</span><span class="ln">      ▼</span><span class="ln">  锁文件</span><span class="ln">      │</span><span class="ln">      │ 11.2 提交期   check-lockfile-commit.mjs 拦锁文件变更</span><span class="ln">      ▼</span><span class="ln">  tarball（pack:packages 打出来的）</span><span class="ln">      │</span><span class="ln">      │ 11.5 发布前   check:package-install 先装进真项目跑一遍</span><span class="ln">      ▼</span><span class="ln">  npm registry</span><span class="ln">      │</span><span class="ln">      │ 11.4 安装期   install-lock 的 lifecycle 白名单，双向断言</span><span class="ln">      ├─────────▶ 官方安装器：走 install-lock 假根，传递依赖全钉死</span><span class="ln">      └─────────▶ npm i -g：只钉直接依赖，传递依赖当场解析（11.3）</span></code></pre></div>
+<p>到用户机器这一步分了两条路，11.3 讲的就是这件事。
+下面是按&quot;能拦住多少事故&quot;排的，不是按管道顺序排的。</p>
+<h3 id="sec-30-11-1-不许-quot-今天刚发布的依赖-quot">11.1 不许&quot;今天刚发布的依赖&quot;</h3>
 <p><code>.npmrc</code> 只有两行：</p>
 <div class="code-block" data-lang="ini">
 <div class="code-head"><span class="lang">ini</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -747,7 +779,7 @@ README 的包表只公示 <strong>7</strong> 个；而 <code>private: true</code
 里塞币的版本。它靠的就是前几小时大量项目自动升级。2 天冷静期买的是
 &quot;让别人先踩雷&quot;的时间。代价也真实：上游修完安全漏洞，你也得等两天才能
 用上。</p>
-<h3 id="sec-30-11-2-锁文件是代码-得-review">11.2 锁文件是代码，得 review</h3>
+<h3 id="sec-31-11-2-锁文件是代码-得-review">11.2 锁文件是代码，得 review</h3>
 <p><code>.husky/pre-commit</code> 的第一件事不是格式化，是查锁文件：</p>
 <div class="code-block" data-lang="sh">
 <div class="code-head"><span class="lang">sh</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -785,7 +817,7 @@ README 的包表只公示 <strong>7</strong> 个；而 <code>private: true</code
 <p>拦下来的时候它不只说&quot;不行&quot;，还告诉你具体怎么放行：
 <code>PI_ALLOW_LOCKFILE_CHANGE=1 git commit ...</code>。放行需要显式写一个环境变量，
 而不是点一下&quot;我知道了&quot;。</p>
-<h3 id="sec-31-11-3-installer-装的-和-npm-装的不是同一个东西">11.3 installer 装的，和 npm 装的不是同一个东西</h3>
+<h3 id="sec-32-11-3-installer-装的-和-npm-装的不是同一个东西">11.3 installer 装的，和 npm 装的不是同一个东西</h3>
 <p>同一个版本号 1.4.0，两条安装路径拿到的东西不一样：</p>
 <ul>
 <li><strong>官方安装器</strong>：从 <code>packages/coding-agent/install-lock/</code> 装。那是个
@@ -801,7 +833,7 @@ README 的包表只公示 <strong>7</strong> 个；而 <code>private: true</code
 的根：<strong>能钉就钉，钉不了就明说钉不了。</strong></p>
 <p>那个 <code>overrides</code> 也不是摆设。<code>protobufjs</code> 不在直接依赖里，是被拉进来的
 传递依赖；把它写成常量，等于在告诉 npm：不管上游谁要它，都用这个版本。</p>
-<h3 id="sec-32-11-4-lifecycle-script-白名单是双向的">11.4 lifecycle script 白名单是双向的</h3>
+<h3 id="sec-33-11-4-lifecycle-script-白名单是双向的">11.4 lifecycle script 白名单是双向的</h3>
 <p>依赖可能在安装时执行任意代码（<code>postinstall</code>），所以白名单本身也是
 攻击面。<code>scripts/generate-coding-agent-install-lock.mjs</code>（456 行）
 两个方向都拦：</p>
@@ -811,7 +843,7 @@ README 的包表只公示 <strong>7</strong> 个；而 <code>private: true</code
 </ul>
 <p>只做第一个方向的话，白名单只会越来越长，最后长到没人看。<strong>双向断言是
 所有白名单的防腐剂。</strong></p>
-<h3 id="sec-33-11-5-测的和发的-必须是同一份">11.5 测的和发的，必须是同一份</h3>
+<h3 id="sec-34-11-5-测的和发的-必须是同一份">11.5 测的和发的，必须是同一份</h3>
 <ul>
 <li><code>npm run pack:packages</code> 把包打成一堆 tarball；</li>
 <li><code>check:package-install</code> 把它们装进一个真项目跑一遍；</li>
@@ -823,7 +855,7 @@ README 的包表只公示 <strong>7</strong> 个；而 <code>private: true</code
 然后 <code>npm audit --omit=dev</code> 查漏洞、查签名；时间表是每天 07:37
 （<code>.github/workflows/npm-audit.yml</code> 的 cron）。<strong>漏洞库天天在长，审计就必须
 有定时器，不能只靠发版那天跑一次。</strong></p>
-<h3 id="sec-34-11-6-为什么一个-agent-仓库要这么狠">11.6 为什么一个 agent 仓库要这么狠</h3>
+<h3 id="sec-35-11-6-为什么一个-agent-仓库要这么狠">11.6 为什么一个 agent 仓库要这么狠</h3>
 <p>因为 <strong>agent 会自己跑 <code>npm install</code>，也会自己改 <code>package.json</code></strong>。</p>
 <p>人类仓库里，&quot;锁文件变更要过目&quot;是个软约定，靠自觉，漏一次也没人发现。
 agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;，但 pre-commit
@@ -832,7 +864,7 @@ agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;
 <strong>这条边管不住，上一节那 18 个 ✅ 都白搭。</strong> 仓内拓扑序再干净，也挡
 不住一个被投毒的传递依赖——而它照样能通过全部类型检查。</p>
 <hr>
-<h2 id="sec-35-十二-自己动手验证">十二、自己动手验证</h2>
+<h2 id="sec-36-十二-自己动手验证">十二、自己动手验证</h2>
 <p><strong>实验 1：把图算出来。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -848,7 +880,7 @@ agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;
 <pre><code><span class="ln">grep -c "pi-durable" packages/coding-agent/package.json</span><span class="ln">grep -rl "pi-durable" packages/coding-agent/src | wc -l</span></code></pre></div>
 <p>两条都应该是 0。</p>
 <hr>
-<h2 id="sec-36-十三-工程暗坑">十三、工程暗坑</h2>
+<h2 id="sec-37-十三-工程暗坑">十三、工程暗坑</h2>
 <p><strong>1. npm 名和目录名对不上，重命名映射写在代码里。</strong></p>
 <div class="table-wrap"><table>
 <thead>
@@ -886,7 +918,7 @@ agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;
 <p><strong>5. 五个零依赖包里有一个其实&quot;有依赖&quot;。</strong></p>
 <p><code>tui</code> 的 <code>dependencies</code> 是空的，但它运行时需要<strong>原生二进制</strong>（<code>native-module-path.ts</code>、<code>build:native:win32</code> 那几条脚本）。这属于&quot;运行时隐式依赖&quot;，<code>dependencies</code> 看不出来，只有 build 顺序知道——<code>tui</code> 排在 <code>coding-agent</code> 前面就是这个原因。</p>
 <hr>
-<h2 id="sec-37-十四-四个可以带走的方法">十四、四个可以带走的方法</h2>
+<h2 id="sec-38-十四-四个可以带走的方法">十四、四个可以带走的方法</h2>
 <p><strong>方法一：用 <code>dependencies</code> 当&quot;能看见什么&quot;的尺子。</strong></p>
 <p>一个包能犯什么错，取决于它能 import 什么。<code>agent</code> 只有两个依赖，所以它写不出文件、拿不到网络、碰不到 session——这不是靠自觉，是编译器拦着。</p>
 <p><strong>读一个陌生 backend 项目，先看最内层那个包的 <code>dependencies</code>。它短，说明边界画得清；它长，说明边界已经糊了。</strong></p>
@@ -905,7 +937,7 @@ agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;
 </ul>
 <p>这条规则在 12 个包上全部命中。它不是玄学：切文件的方式就是作者对&quot;什么是同一个东西&quot;的理解，而理解方式直接决定了你该用什么策略去读。</p>
 <hr>
-<h2 id="sec-38-读完自检">读完自检</h2>
+<h2 id="sec-39-读完自检">读完自检</h2>
 <p>四条，能不能不看稿说出来？说不出来的那条，回右边一格重读。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -938,11 +970,11 @@ agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-39-下一步">下一步</h2>
+<h2 id="sec-40-下一步">下一步</h2>
 <p>图有了，接下来该下潜了。</p>
 <p>Part B 从 <code>agent-loop.ts</code> 开始——960 行，两个循环，三条出路。那是整张图里最瘦的节点，也是唯一一个&quot;少一行就少一个能力&quot;的地方。</p>
 <hr>
-<h2 id="sec-40-源码索引">源码索引</h2>
+<h2 id="sec-41-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1025,7 +1057,7 @@ agent 仓库里它必须是硬闸门：它不会&quot;顺手看一眼 diff&quot;
       <a class="next" href="m03-agent-loop.html"><span class="lbl">下一篇</span>Agent Loop —— 两层循环，三条出路</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给一个路径-你能说出它在哪层吗" class="">一、给一个路径，你能说出它在哪层吗</a><a href="#sec-2-1-1-三步判层法" class="lv3">1.1 三步判层法</a><a href="#sec-3-二-先把词对齐-包-层-边" class="">二、先把词对齐：包、层、边</a><a href="#sec-4-三-层不是画的-是算出来的" class="">三、层不是画的，是算出来的</a><a href="#sec-5-四-基础层-五个零依赖包" class="">四、基础层：五个零依赖包</a><a href="#sec-6-4-1-schema-的结构暴露了它的野心" class="lv3">4.1 schema 的结构暴露了它的野心</a><a href="#sec-7-4-2-telemetry-只有-5-个文件-但结构很讲究" class="lv3">4.2 telemetry 只有 5 个文件，但结构很讲究</a><a href="#sec-8-4-3-tui-的文件名就是一份需求清单" class="lv3">4.3 tui 的文件名就是一份需求清单</a><a href="#sec-9-4-4-mcp-里最大的不是-client" class="lv3">4.4 mcp 里最大的不是 client</a><a href="#sec-10-4-5-codemode-的-2-3-在-sandbox" class="lv3">4.5 codemode 的 2/3 在 sandbox</a><a href="#sec-11-五-中间层-两个归一层-方向相反" class="">五、中间层：两个归一层，方向相反</a><a href="#sec-12-5-1-ai-归一的是-quot-南北向差异-quot" class="lv3">5.1 ai 归一的是&amp;quot;南北向差异&amp;quot;</a><a href="#sec-13-5-2-96-个-provider-文件只有-4-020-行" class="lv3">5.2 96 个 provider 文件只有 4,020 行</a><a href="#sec-14-5-3-chord-归一的是-quot-东西向差异-quot" class="lv3">5.3 chord 归一的是&amp;quot;东西向差异&amp;quot;</a><a href="#sec-15-六-深度-2-内核与运行时" class="">六、深度 2：内核与运行时</a><a href="#sec-16-6-1-agent-只认两样东西" class="lv3">6.1 agent 只认两样东西</a><a href="#sec-17-6-2-durable-依赖-5-个包-因为它是运行时" class="lv3">6.2 durable 依赖 5 个包，因为它是运行时</a><a href="#sec-18-七-深度-3-两个产品" class="">七、深度 3：两个产品</a><a href="#sec-19-7-1-coding-agent-是产品-所以它最大" class="lv3">7.1 coding-agent 是产品，所以它最大</a><a href="#sec-20-7-2-env-把-durable-搬到远端" class="lv3">7.2 env 把 durable 搬到远端</a><a href="#sec-21-八-全景图" class="">八、全景图</a><a href="#sec-22-九-三条反直觉的边" class="">九、三条反直觉的边</a><a href="#sec-23-9-1-有-agent-schema" class="lv3">9.1 有：agent → schema</a><a href="#sec-24-9-2-没有-coding-agent-durable" class="lv3">9.2 没有：coding-agent → durable</a><a href="#sec-25-9-3-没有-coding-agent-schema" class="lv3">9.3 没有：coding-agent → schema</a><a href="#sec-26-9-4-没有-readme-里公示的包只有七个" class="lv3">9.4 没有：README 里公示的包只有七个</a><a href="#sec-27-十-验证-没有一条箭头反向" class="">十、验证：没有一条箭头反向</a><a href="#sec-28-十一-离仓那条边-依赖是怎么出去的" class="">十一、离仓那条边：依赖是怎么出去的</a><a href="#sec-29-11-1-不许-quot-今天刚发布的依赖-quot" class="lv3">11.1 不许&amp;quot;今天刚发布的依赖&amp;quot;</a><a href="#sec-30-11-2-锁文件是代码-得-review" class="lv3">11.2 锁文件是代码，得 review</a><a href="#sec-31-11-3-installer-装的-和-npm-装的不是同一个东西" class="lv3">11.3 installer 装的，和 npm 装的不是同一个东西</a><a href="#sec-32-11-4-lifecycle-script-白名单是双向的" class="lv3">11.4 lifecycle script 白名单是双向的</a><a href="#sec-33-11-5-测的和发的-必须是同一份" class="lv3">11.5 测的和发的，必须是同一份</a><a href="#sec-34-11-6-为什么一个-agent-仓库要这么狠" class="lv3">11.6 为什么一个 agent 仓库要这么狠</a><a href="#sec-35-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-36-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-37-十四-四个可以带走的方法" class="">十四、四个可以带走的方法</a><a href="#sec-38-读完自检" class="">读完自检</a><a href="#sec-39-下一步" class="">下一步</a><a href="#sec-40-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给一个路径-你能说出它在哪层吗" class="">一、给一个路径，你能说出它在哪层吗</a><a href="#sec-2-1-1-三步判层法" class="lv3">1.1 三步判层法</a><a href="#sec-3-二-先把词对齐-包-层-边" class="">二、先把词对齐：包、层、边</a><a href="#sec-4-三-层不是画的-是算出来的" class="">三、层不是画的，是算出来的</a><a href="#sec-5-四-基础层-五个零依赖包" class="">四、基础层：五个零依赖包</a><a href="#sec-6-4-1-schema-的结构暴露了它的野心" class="lv3">4.1 schema 的结构暴露了它的野心</a><a href="#sec-7-4-2-telemetry-只有-5-个文件-但结构很讲究" class="lv3">4.2 telemetry 只有 5 个文件，但结构很讲究</a><a href="#sec-8-4-3-tui-的文件名就是一份需求清单" class="lv3">4.3 tui 的文件名就是一份需求清单</a><a href="#sec-9-4-4-mcp-里最大的不是-client" class="lv3">4.4 mcp 里最大的不是 client</a><a href="#sec-10-4-5-codemode-的-2-3-在-sandbox" class="lv3">4.5 codemode 的 2/3 在 sandbox</a><a href="#sec-11-五-中间层-两个归一层-方向相反" class="">五、中间层：两个归一层，方向相反</a><a href="#sec-12-5-1-ai-归一的是-quot-南北向差异-quot" class="lv3">5.1 ai 归一的是&amp;quot;南北向差异&amp;quot;</a><a href="#sec-13-5-2-96-个-provider-文件只有-4-020-行" class="lv3">5.2 96 个 provider 文件只有 4,020 行</a><a href="#sec-14-5-3-chord-归一的是-quot-东西向差异-quot" class="lv3">5.3 chord 归一的是&amp;quot;东西向差异&amp;quot;</a><a href="#sec-15-六-深度-2-内核与运行时" class="">六、深度 2：内核与运行时</a><a href="#sec-16-6-1-agent-只认两样东西" class="lv3">6.1 agent 只认两样东西</a><a href="#sec-17-6-2-durable-依赖-5-个包-因为它是运行时" class="lv3">6.2 durable 依赖 5 个包，因为它是运行时</a><a href="#sec-18-七-深度-3-两个产品" class="">七、深度 3：两个产品</a><a href="#sec-19-7-1-coding-agent-是产品-所以它最大" class="lv3">7.1 coding-agent 是产品，所以它最大</a><a href="#sec-20-7-2-env-把-durable-搬到远端" class="lv3">7.2 env 把 durable 搬到远端</a><a href="#sec-21-八-全景图" class="">八、全景图</a><a href="#sec-22-8-1-箭头是依赖-不是调用" class="lv3">8.1 箭头是依赖，不是调用</a><a href="#sec-23-九-三条反直觉的边" class="">九、三条反直觉的边</a><a href="#sec-24-9-1-有-agent-schema" class="lv3">9.1 有：agent → schema</a><a href="#sec-25-9-2-没有-coding-agent-durable" class="lv3">9.2 没有：coding-agent → durable</a><a href="#sec-26-9-3-没有-coding-agent-schema" class="lv3">9.3 没有：coding-agent → schema</a><a href="#sec-27-9-4-没有-readme-里公示的包只有七个" class="lv3">9.4 没有：README 里公示的包只有七个</a><a href="#sec-28-十-验证-没有一条箭头反向" class="">十、验证：没有一条箭头反向</a><a href="#sec-29-十一-离仓那条边-依赖是怎么出去的" class="">十一、离仓那条边：依赖是怎么出去的</a><a href="#sec-30-11-1-不许-quot-今天刚发布的依赖-quot" class="lv3">11.1 不许&amp;quot;今天刚发布的依赖&amp;quot;</a><a href="#sec-31-11-2-锁文件是代码-得-review" class="lv3">11.2 锁文件是代码，得 review</a><a href="#sec-32-11-3-installer-装的-和-npm-装的不是同一个东西" class="lv3">11.3 installer 装的，和 npm 装的不是同一个东西</a><a href="#sec-33-11-4-lifecycle-script-白名单是双向的" class="lv3">11.4 lifecycle script 白名单是双向的</a><a href="#sec-34-11-5-测的和发的-必须是同一份" class="lv3">11.5 测的和发的，必须是同一份</a><a href="#sec-35-11-6-为什么一个-agent-仓库要这么狠" class="lv3">11.6 为什么一个 agent 仓库要这么狠</a><a href="#sec-36-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-37-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-38-十四-四个可以带走的方法" class="">十四、四个可以带走的方法</a><a href="#sec-39-读完自检" class="">读完自检</a><a href="#sec-40-下一步" class="">下一步</a><a href="#sec-41-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

@@ -4,7 +4,7 @@
 
 **对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent**
 
-<sub>19 篇 · 139,600 字 · 7,118 行源码引用 · 约 12 小时读完</sub>
+<sub>19 篇 · 140,200 字 · 7,163 行源码引用 · 约 12 小时读完</sub>
 
 <br>
 
@@ -78,7 +78,7 @@
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
 | M01 | [开篇 —— 为什么 Pi-Agent 值得你花时间](https://daniel-csvw.github.io/pi-agent-book/modules/m01-overview.html) | 7,100 字 · 145 行 |
-| M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 6,500 字 · 206 行 |
+| M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 7,100 字 · 251 行 |
 
 ### Part B · 内核
 
