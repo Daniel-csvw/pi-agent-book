@@ -34,63 +34,117 @@
           <a class="btn btn-primary" href="modules/m01-overview.html">从 M01 开始读</a>
           <a class="btn" href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">源码 github.com/earendil-works/pi</a>
         </div>
-        <p class="hero-note">这不是 API 速查，也不是概念综述。全书只做一件事：把 Pi-Agent 这个 23 万行的真实 Agent 拆开，指着源码讲清楚每一层为什么这么写。Part A 先把十二个包摆到三层架构上（M01–M02）；Part B 钻进内核，看 Agent Loop 的两层循环、模型调用的十层翻译、工具锁与事件总线（M03–M07）；Part C 处理上下文：装配、压缩与会话（M08–M10）；Part D 落到运行时与生态：持久运行时、对象热重载、MCP 与 codemode、终端渲染、契约与遥测（M11–M15）。每章的代码块都标了真实文件与行号，可一键复制；三篇附录负责版本迁移对照、读源码用的 TypeScript 速查，以及把 Agent 装进你自己的服务。</p>
+        <p class="hero-note">不是 API 速查，也不是概念综述。全书只做一件事：把 Pi-Agent 这个 23 万行的真实 Agent 拆开，指着源码讲清楚每一层为什么这么写。每段代码都标了真实文件与行号，可一键复制去验证。</p>
+        <p class="hero-needs">需要：会读 TypeScript。不需要：事先读过这份源码。</p>
       </div>
-      <div class="part-block"><div class="part-title">Part A · 全景</div><div class="card-grid"><a class="card" href="modules/m01-overview.html">
+      <section class="questions">
+    <div class="q-head">
+      <div class="kicker">带着问题读</div>
+      <h2>四个真问题，四章有答案</h2>
+      <p>先带着一个具体问题翻一章，比从第一章顺读更容易读进去。</p>
+    </div>
+    <div class="q-grid"><a class="q-card" href="modules/m03-agent-loop.html">
+        <span class="q-no">Q1</span>
+        <p>模型调用和工具执行，到底谁包着谁？</p>
+        <span class="q-go">M03 · Agent Loop →</span></a><a class="q-card" href="modules/m05-tools.html">
+        <span class="q-no">Q2</span>
+        <p>并发改同一个文件，锁加在哪一层？</p>
+        <span class="q-go">M05 · 工具系统 →</span></a><a class="q-card" href="modules/m09-compaction.html">
+        <span class="q-no">Q3</span>
+        <p>上下文超了，先截断还是先摘要？</p>
+        <span class="q-go">M09 · 上下文压缩 →</span></a><a class="q-card" href="modules/m11-durable.html">
+        <span class="q-no">Q4</span>
+        <p>一个 while 循环，怎么变成能恢复的状态机？</p>
+        <span class="q-go">M11 · 持久运行时 →</span></a></div>
+  </section>
+      <section class="part-block" id="part-1">
+        <h2 class="part-title"><span>Part A · 全景</span><span class="count">2 章</span></h2>
+        <div class="card-grid is-two"><a class="card" href="modules/m01-overview.html">
             <span class="num">M01</span>
-            <span class="ttl">开篇 —— 为什么 Pi-Agent 值得你花时间</span>
-            <span class="meta">7,100 字 · 含 145 行代码 · 约 34 分钟</span></a><a class="card" href="modules/m02-package-map.html">
+            <span class="ttl">开篇</span>
+            <span class="desc">为什么 Pi-Agent 值得你花时间</span>
+            <span class="card-foot"><span class="meta">7,100 字 · 145 行代码 · 34 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m02-package-map.html">
             <span class="num">M02</span>
-            <span class="ttl">三层架构 —— 十二个包各自站在哪一层</span>
-            <span class="meta">5,400 字 · 含 191 行代码 · 约 30 分钟</span></a></div></div><div class="part-block"><div class="part-title">Part B · 内核</div><div class="card-grid"><a class="card" href="modules/m03-agent-loop.html">
+            <span class="ttl">三层架构</span>
+            <span class="desc">十二个包各自站在哪一层</span>
+            <span class="card-foot"><span class="meta">5,400 字 · 191 行代码 · 30 分钟</span><span class="go">阅读 →</span></span></a></div>
+      </section><section class="part-block" id="part-2">
+        <h2 class="part-title"><span>Part B · 内核</span><span class="count">5 章</span></h2>
+        <div class="card-grid"><a class="card" href="modules/m03-agent-loop.html">
             <span class="num">M03</span>
-            <span class="ttl">Agent Loop —— 两层循环，三条出路</span>
-            <span class="meta">10,100 字 · 含 589 行代码 · 约 46 分钟</span></a><a class="card" href="modules/m04-model-call.html">
+            <span class="ttl">Agent Loop</span>
+            <span class="desc">两层循环，三条出路</span>
+            <span class="card-foot"><span class="meta">10,100 字 · 589 行代码 · 46 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m04-model-call.html">
             <span class="num">M04</span>
-            <span class="ttl">模型调用 —— 一行代码背后的十层翻译</span>
-            <span class="meta">8,200 字 · 含 463 行代码 · 约 41 分钟</span></a><a class="card" href="modules/m05-tools.html">
+            <span class="ttl">模型调用</span>
+            <span class="desc">一行代码背后的十层翻译</span>
+            <span class="card-foot"><span class="meta">8,200 字 · 463 行代码 · 41 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m05-tools.html">
             <span class="num">M05</span>
-            <span class="ttl">工具系统 —— 八个工具，一道文件锁</span>
-            <span class="meta">6,200 字 · 含 218 行代码 · 约 30 分钟</span></a><a class="card" href="modules/m06-messages.html">
+            <span class="ttl">工具系统</span>
+            <span class="desc">八个工具，一道文件锁</span>
+            <span class="card-foot"><span class="meta">6,200 字 · 218 行代码 · 30 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m06-messages.html">
             <span class="num">M06</span>
-            <span class="ttl">消息系统 —— 四种给模型看，八种给系统记</span>
-            <span class="meta">6,200 字 · 含 166 行代码 · 约 31 分钟</span></a><a class="card" href="modules/m07-event-driven.html">
+            <span class="ttl">消息系统</span>
+            <span class="desc">四种给模型看，八种给系统记</span>
+            <span class="card-foot"><span class="meta">6,200 字 · 166 行代码 · 31 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m07-event-driven.html">
             <span class="num">M07</span>
-            <span class="ttl">事件驱动 —— 十颗钉子，四十一个挂钩</span>
-            <span class="meta">6,300 字 · 含 283 行代码 · 约 33 分钟</span></a></div></div><div class="part-block"><div class="part-title">Part C · 上下文工程</div><div class="card-grid"><a class="card" href="modules/m08-context.html">
+            <span class="ttl">事件驱动</span>
+            <span class="desc">十颗钉子，四十一个挂钩</span>
+            <span class="card-foot"><span class="meta">6,300 字 · 283 行代码 · 33 分钟</span><span class="go">阅读 →</span></span></a></div>
+      </section><section class="part-block" id="part-3">
+        <h2 class="part-title"><span>Part C · 上下文工程</span><span class="count">3 章</span></h2>
+        <div class="card-grid"><a class="card" href="modules/m08-context.html">
             <span class="num">M08</span>
-            <span class="ttl">上下文装配 —— 八节提示词，一条目录链</span>
-            <span class="meta">8,400 字 · 含 533 行代码 · 约 42 分钟</span></a><a class="card" href="modules/m09-compaction.html">
+            <span class="ttl">上下文装配</span>
+            <span class="desc">八节提示词，一条目录链</span>
+            <span class="card-foot"><span class="meta">8,400 字 · 533 行代码 · 42 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m09-compaction.html">
             <span class="num">M09</span>
-            <span class="ttl">上下文压缩 —— 两道闸门，两种摘要</span>
-            <span class="meta">10,100 字 · 含 1,062 行代码 · 约 55 分钟</span></a><a class="card" href="modules/m10-session.html">
+            <span class="ttl">上下文压缩</span>
+            <span class="desc">两道闸门，两种摘要</span>
+            <span class="card-foot"><span class="meta">10,100 字 · 1,062 行代码 · 55 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m10-session.html">
             <span class="num">M10</span>
-            <span class="ttl">会话 —— 从会话树到持久运行时</span>
-            <span class="meta">10,700 字 · 含 495 行代码 · 约 52 分钟</span></a></div></div><div class="part-block"><div class="part-title">Part D · 运行时与生态</div><div class="card-grid"><a class="card" href="modules/m11-durable.html">
+            <span class="ttl">会话</span>
+            <span class="desc">从会话树到持久运行时</span>
+            <span class="card-foot"><span class="meta">10,700 字 · 495 行代码 · 52 分钟</span><span class="go">阅读 →</span></span></a></div>
+      </section><section class="part-block" id="part-4">
+        <h2 class="part-title"><span>Part D · 运行时与生态</span><span class="count">5 章</span></h2>
+        <div class="card-grid"><a class="card" href="modules/m11-durable.html">
             <span class="num">M11</span>
-            <span class="ttl">持久运行时 —— 把 Agent Loop 拆成状态机</span>
-            <span class="meta">9,300 字 · 含 364 行代码 · 约 45 分钟</span></a><a class="card" href="modules/m12-chord.html">
+            <span class="ttl">持久运行时</span>
+            <span class="desc">把 Agent Loop 拆成状态机</span>
+            <span class="card-foot"><span class="meta">9,300 字 · 364 行代码 · 45 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m12-chord.html">
             <span class="num">M12</span>
-            <span class="ttl">对象与热重载 —— 改代码为什么不用重启</span>
-            <span class="meta">9,000 字 · 含 329 行代码 · 约 45 分钟</span></a><a class="card" href="modules/m13-mcp-codemode.html">
+            <span class="ttl">对象与热重载</span>
+            <span class="desc">改代码为什么不用重启</span>
+            <span class="card-foot"><span class="meta">9,000 字 · 329 行代码 · 45 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m13-mcp-codemode.html">
             <span class="num">M13</span>
-            <span class="ttl">扩展入口 —— MCP 连出去，codemode 收进来</span>
-            <span class="meta">10,000 字 · 含 944 行代码 · 约 50 分钟</span></a><a class="card" href="modules/m14-tui.html">
+            <span class="ttl">扩展入口</span>
+            <span class="desc">MCP 连出去，codemode 收进来</span>
+            <span class="card-foot"><span class="meta">10,000 字 · 944 行代码 · 50 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m14-tui.html">
             <span class="num">M14</span>
-            <span class="ttl">终端渲染 —— 一个 spinner 只该写 99 个字节</span>
-            <span class="meta">8,300 字 · 含 299 行代码 · 约 35 分钟</span></a><a class="card" href="modules/m15-schema-telemetry.html">
+            <span class="ttl">终端渲染</span>
+            <span class="desc">一个 spinner 只该写 99 个字节</span>
+            <span class="card-foot"><span class="meta">8,300 字 · 299 行代码 · 35 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m15-schema-telemetry.html">
             <span class="num">M15</span>
-            <span class="ttl">契约与遥测 —— 一份声明，五种解释</span>
-            <span class="meta">9,700 字 · 含 518 行代码 · 约 45 分钟</span></a></div></div><div class="part-block"><div class="part-title">附录</div><div class="card-grid"><a class="card" href="modules/appendix-migration.html">
+            <span class="ttl">契约与遥测</span>
+            <span class="desc">一份声明，五种解释</span>
+            <span class="card-foot"><span class="meta">9,700 字 · 518 行代码 · 45 分钟</span><span class="go">阅读 →</span></span></a></div>
+      </section><section class="part-block" id="part-5">
+        <h2 class="part-title"><span>附录</span><span class="count">3 章</span></h2>
+        <div class="card-grid"><a class="card" href="modules/appendix-migration.html">
             <span class="num">APX</span>
-            <span class="ttl">附录 —— v0.80 → v1.4 迁移对照</span>
-            <span class="meta">3,200 字 · 含 73 行代码 · 约 15 分钟</span></a><a class="card" href="modules/appendix-typescript.html">
+            <span class="ttl">附录</span>
+            <span class="desc">v0.80 → v1.4 迁移对照</span>
+            <span class="card-foot"><span class="meta">3,200 字 · 73 行代码 · 15 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-typescript.html">
             <span class="num">APX</span>
-            <span class="ttl">附录 B —— 读源码用的 TypeScript 速查</span>
-            <span class="meta">1,600 字 · 含 80 行代码 · 约 12 分钟</span></a><a class="card" href="modules/appendix-service.html">
+            <span class="ttl">附录 B</span>
+            <span class="desc">读源码用的 TypeScript 速查</span>
+            <span class="card-foot"><span class="meta">1,600 字 · 80 行代码 · 12 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-service.html">
             <span class="num">APX</span>
-            <span class="ttl">附录 C —— 把 Agent 装进你的服务</span>
-            <span class="meta">2,900 字 · 含 220 行代码 · 约 19 分钟</span></a></div></div>
+            <span class="ttl">附录 C</span>
+            <span class="desc">把 Agent 装进你的服务</span>
+            <span class="card-foot"><span class="meta">2,900 字 · 220 行代码 · 19 分钟</span><span class="go">阅读 →</span></span></a></div>
+      </section>
       <footer class="site-foot">
         <div class="foot-grid">
           <section class="foot-card author">
@@ -110,6 +164,7 @@
         </div>
         <p>内容对应 Pi-Agent v1.4.0 源码 · <a href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">github.com/earendil-works/pi</a></p>
         <p>最近更新 2026-11-04 · 共 18 章 · 由 site/build.mjs 生成</p>
+        <p class="foot-feedback">发现错漏、或想补一章？写信给 <a href="mailto:luhui215@hotmail.com">luhui215@hotmail.com</a>，或在 <a href="https://github.com/Daniel-csvw/pi-agent-book/issues" target="_blank" rel="noopener">GitHub Issues</a> 里提。</p>
       </footer>
 
 </main>

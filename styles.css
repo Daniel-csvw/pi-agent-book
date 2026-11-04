@@ -486,14 +486,23 @@ body.is-index .main {
 }
 body.is-index .prose { max-width: none; }
 
+/* 首页四块（hero / questions / part-block / site-foot）统一：max-width 1200 + 水平 padding 0，
+   左右留白全部交给 body.is-index .main 的内边距 —— 只要内层再叠一层 padding，左线就会错开 24px */
 .hero {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: var(--space-12) var(--space-6) var(--space-8);
+  /* 下内边距 64：与 .questions 的 margin-bottom 同一节奏，hero 与下方区块间隔不再只有 48 */
+  padding: var(--space-12) 0 var(--space-16);
   text-align: center;
 }
 .hero h1 { font-size: 56px; margin-bottom: var(--space-4); }
-.hero .sub { color: var(--muted); font-size: var(--fs-body); line-height: var(--lh-prose); margin-bottom: var(--space-8); }
+.hero .sub {
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-prose);
+  max-width: 760px;
+  margin: 0 auto var(--space-8);
+}
 .hero-eyebrow {
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -552,7 +561,7 @@ body.is-index .prose { max-width: none; }
 
 /* 说明段落：居中容器里靠左排，避免长文每行都居中 */
 .hero-note {
-  max-width: 760px;
+  max-width: 820px;
   margin: 0 auto;
   text-align: left;
   font-size: var(--fs-small);
@@ -560,10 +569,81 @@ body.is-index .prose { max-width: none; }
   color: var(--muted);
 }
 
+/* 前置知识一行：比塞进说明段更显眼，也挡住“我能不能读”的疑问 */
+.hero-needs {
+  max-width: 820px;
+  margin: var(--space-3) auto 0;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--soft);
+}
+
+/* ---------- 首页·四个真问题 ---------- */
+.questions {
+  max-width: 1200px;
+  margin: 0 auto var(--space-16);
+  padding: 0;
+}
+.q-head { margin-bottom: var(--space-6); }
+.q-head .kicker {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+/* h2 全局带 border-top / padding-top，这里得显式清掉，否则顶部多一条横线 */
+.q-head h2 {
+  font-size: 26px;
+  margin: var(--space-2) 0 var(--space-2);
+  padding-top: 0;
+  border-top: 0;
+}
+.q-head p { font-size: var(--fs-small); color: var(--muted); margin: 0; }
+.q-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.q-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition: all var(--dur-base) var(--ease);
+}
+.q-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-2);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.q-card .q-no {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.q-card p {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.45;
+  color: var(--ink-strong);
+}
+.q-card .q-go { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--soft); }
+
 .site-foot {
   max-width: 1200px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-6) var(--space-12);
+  padding: var(--space-8) 0 var(--space-12);
   border-top: 1px solid var(--rule);
   text-align: center;
   font-size: var(--fs-xs);
@@ -571,13 +651,15 @@ body.is-index .prose { max-width: none; }
 }
 .site-foot p { margin: 0 0 var(--space-2); }
 .site-foot p:last-child { margin-bottom: 0; }
+.site-foot .foot-feedback { margin-top: var(--space-4); }
 
 /* 页脚：作者 + 致谢 两张卡片，宽屏并排、窄屏堆叠 */
 .foot-grid {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: var(--space-4);
-  max-width: 1100px;
+  /* 不能再用 1100：那会在 1200 的容器里再缩进 26px，和上方卡片左线错开 */
+  max-width: none;
   margin: 0 auto var(--space-8);
   text-align: left;
 }
@@ -626,18 +708,31 @@ body.is-index .prose { max-width: none; }
 .part-block {
   max-width: 1200px;
   margin: 0 auto var(--space-16);
-  padding: 0 var(--space-6);
+  padding: 0;
 }
 .part-block .part-title {
+  /* 这是 h2：全局 h2 带 border-top + padding-top + 大字号，这里全部重置回小标题 */
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
   font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.08em;
+  font-size: 13px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--soft);
+  color: var(--muted);
   font-weight: 600;
+  line-height: 1.5;
   margin: 0 0 var(--space-4);
-  padding-bottom: var(--space-2);
+  padding: 0 0 var(--space-2);
+  border-top: 0;
   border-bottom: 1px solid var(--rule);
+}
+.part-block .part-title .count {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--soft);
 }
 
 .card-grid {
@@ -648,17 +743,22 @@ body.is-index .prose { max-width: none; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-4);
 }
+/* 只有两章的组（Part A）铺两列：三列会空出一整格 */
+.card-grid.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 1080px) {
   .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
-  .card-grid { grid-template-columns: minmax(0, 1fr); }
+  .card-grid, .card-grid.is-two { grid-template-columns: minmax(0, 1fr); }
+  .q-grid { grid-template-columns: minmax(0, 1fr); }
   /* 窄屏下内联代码允许断行：nowrap 会让超长文件路径 chip（476px+）
      把整个文档撑出横向滚动条（实测 480 宽溢出 76px） */
   code { white-space: normal; overflow-wrap: anywhere; }
 }
 .card {
-  display: block;
+  display: flex;
+  flex-direction: column;
   padding: var(--space-5);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
@@ -683,10 +783,38 @@ body.is-index .prose { max-width: none; }
   font-family: var(--font-display);
   font-size: 20px;
   color: var(--ink-strong);
-  margin: var(--space-2) 0;
+  margin: var(--space-2) 0 var(--space-1);
   line-height: 1.3;
 }
-.card .meta { font-size: var(--fs-xs); color: var(--soft); }
+/* 副标题（「——」后半句）降一级：卡片从“一大坨长标题”变成主次两层 */
+.card .desc {
+  display: block;
+  font-size: var(--fs-small);
+  color: var(--muted);
+  line-height: 1.65;
+}
+/* meta 推到底部：同组卡片文字长短不一，但字数行始终对齐 */
+.card .meta {
+  font-size: var(--fs-xs);
+  color: var(--soft);
+}
+/* 卡片底部一行：字数信息 + 右侧「阅读 →」，把原先贴底留下的空白利用起来 */
+.card .card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-4);
+}
+.card .card-foot .go {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease);
+}
+.card:hover .card-foot .go { opacity: 1; }
 
 /* ---------- 移动端 ---------- */
 @media (max-width: 1240px) {
@@ -710,7 +838,10 @@ body.is-index .prose { max-width: none; }
   .hero-stats b { font-size: 21px; }
   .main { padding-top: var(--space-4); }
   body.is-index .main { padding-left: var(--space-4); padding-right: var(--space-4); }
-  .part-block { padding: 0 var(--space-4); }
+  .part-block .part-title {
+    font-size: 13px;
+    letter-spacing: 0.1em;
+  }
 }
 
 @media print {
