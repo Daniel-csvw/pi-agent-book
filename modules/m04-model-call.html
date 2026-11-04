@@ -41,7 +41,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M04</div>
       <h1>模型调用 —— 一行代码背后的十层翻译</h1>
-      <div class="module-meta">8,200 字 · 含 463 行代码 · 约 41 分钟</div>
+      <div class="module-meta">8,300 字 · 含 464 行代码 · 约 42 分钟</div>
     </header>
     <p>M03 里有一行代码被我们跳过了：</p>
 <div class="code-block" data-lang="ts">
@@ -1048,6 +1048,12 @@ turn once.</p>
 <p><code>complete()</code> = <code>stream().result()</code>，而 <code>result()</code> 在 <code>error</code> 事件上 resolve 的是那条错误消息。所以 <code>try/catch</code> 包 <code>await complete()</code> 只能接住同步抛出（provider 未注册、鉴权缺失），接不住网络错误。想统一处理，就得看 <code>stopReason</code>。</p>
 <p><strong>8. <code>(string &amp; {})</code> 不是笔误。</strong></p>
 <p><code>Api = KnownApi | (string &amp; {})</code> 如果写成 <code>KnownApi | string</code>，那 <code>KnownApi</code> 就被 <code>string</code> 吃掉了，类型补全全失效。<code>string &amp; {}</code> 的写法保留了字面量补全，同时允许任意字符串。</p>
+<p><strong>9. 离线构建里，目录数据是快照。</strong></p>
+<p><code>nix/model-catalog.json</code> 钉着一份 model catalog 的 revision。Nix 构建没有网络，
+所以内置的模型数据来自那个固定版本；运行时仍然用 pi.dev 的新数据覆盖。
+<strong>快照负责&quot;同样的源码构建出同样的字节&quot;，覆盖负责&quot;用户看到今天的模型表&quot;</strong>
+——两个都要，缺一个就变成&quot;复现不了&quot;或&quot;新模型永远用不上&quot;。平时 <code>npm run build</code>
+会先刷新模型数据，<code>npm run build:offline</code> 不刷。</p>
 <hr>
 <h2 id="sec-36-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
 <p><strong>方法一：用&quot;折叠点&quot;找设计的重心。</strong></p>

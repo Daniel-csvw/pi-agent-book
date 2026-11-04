@@ -41,7 +41,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M08</div>
       <h1>上下文装配 —— 八节提示词，一条目录链</h1>
-      <div class="module-meta">8,400 字 · 含 533 行代码 · 约 42 分钟</div>
+      <div class="module-meta">8,900 字 · 含 538 行代码 · 约 45 分钟</div>
     </header>
     <p>M06 讲消息系统时，最后落在 <code>SystemMessage</code> 的一个字段上：
 <code>sections: Record&lt;string, string | null&gt;</code>。当时只说了它的语义——
@@ -589,11 +589,62 @@ the shadowed path itself</p>
 <p>代价是 Windows 上提示词里 <code>path=&quot;D:\repo\AGENTS.md&quot;</code>，
 反斜杠在 XML 属性里不需要转义（只有 <code>&quot;</code> <code>&lt;</code> <code>&amp;</code> 需要），
 所以不会出错，但读起来有点脏。<strong>这是已知的取舍，不是遗漏</strong>。</p>
+<h3 id="sec-21-4-5-一份真实的-agents-md-长什么样">4.5 一份真实的 AGENTS.md 长什么样</h3>
+<p>到这里讲完了<strong>怎么找到、怎么装配</strong>，还剩一个问题没答：里面到底写什么？</p>
+<p>pi 自己就有一份，就在仓库根的 <code>AGENTS.md</code>，141 行。它的读者不是人，是
+agent，所以写法跟一般的贡献指南很不一样。摘五条：</p>
+<div class="code-block" data-lang="md">
+<div class="code-head"><span class="lang">md</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">- Read files in full before wide-ranging changes, before editing files ...</span><span class="ln">- Never modify `packages/ai/src/models.generated.ts` directly; update ...</span><span class="ln">- Never remove or downgrade code to fix type errors from outdated deps ...</span><span class="ln">- Always ask before removing functionality or code that appears intentional.</span><span class="ln">- Do not preserve backward compatibility unless the user asks for it.</span></code></pre></div>
+<p>一条一条看它们防什么：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>规则（缩短）</th>
+<th>防的失败模式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>大改前把文件读完</td>
+<td>靠搜索片段改，改完才发现上下文错</td>
+</tr>
+<tr>
+<td>不许手改 <code>models.generated.ts</code></td>
+<td>生成物被手改，下次重新生成就丢掉</td>
+</tr>
+<tr>
+<td>不许为了过类型检查降级代码</td>
+<td>&quot;把它变成 <code>any</code> 就绿了&quot;</td>
+</tr>
+<tr>
+<td>删东西前先问</td>
+<td>顺手清理看起来没用的代码</td>
+</tr>
+<tr>
+<td>不主动保留向后兼容</td>
+<td>没人要的兼容层越堆越多</td>
+</tr>
+</tbody>
+</table></div>
+<p>把这五条并排看，语法很统一：<strong>否定式的边界 + 替代做法</strong>。第二条说&quot;不许
+手改&quot;，后半句立刻给出口——去改 <code>catalog/</code> 再重新生成。人类的代码规范
+大多在说&quot;该做什么&quot;（两个空格、驼峰命名），给 agent 的规范几乎全在说
+&quot;不许做什么&quot;，因为 agent 的失败模式是<strong>过度行动</strong>：它不会不写代码，它
+会写太多、改太宽、删太快。</p>
+<p>还有一条更值得记：这份文件专门开了一节 <code>Conversational Style</code>，管的是
+<strong>回答顺序</strong>和措辞——&quot;When the user asks a question, answer it first
+before making edits&quot;、&quot;No emojis&quot;、&quot;No fluff&quot;。规范连&quot;先答再做&quot;这种
+行为习惯都要写下来，说明一件事：<strong>agent 不会从你的性格里学到风格，只
+会从文件里读。</strong></p>
+<p>最后提醒一句：别照抄这五条。不同仓库的翻车点不同，判断标准只有一条——
+<strong>每一条能不能对应一次真实的翻车</strong>。写不出对应的那次翻车，这条规范大概
+只是装饰。</p>
 <hr>
-<h2 id="sec-21-五-skills-清单进提示词-正文后读">五、Skills：清单进提示词，正文后读</h2>
+<h2 id="sec-22-五-skills-清单进提示词-正文后读">五、Skills：清单进提示词，正文后读</h2>
 <p>Skills 是&quot;项目特定的操作指南&quot;。每个技能是一个 <code>SKILL.md</code> 文件，
 可能几千字——全塞进系统提示词是灾难。所以只放清单。</p>
-<h3 id="sec-22-5-1-发现规则-四种情形">5.1 发现规则：四种情形</h3>
+<h3 id="sec-23-5-1-发现规则-四种情形">5.1 发现规则：四种情形</h3>
 <p><code>loadSkillsFromDirInternal</code>（<code>skills.ts:173-275</code>）是个递归函数，
 第一次调用 <code>includeRootFiles = true</code>，递归时传 <code>false</code>。</p>
 <p><strong>情形一：目录里就有 <code>SKILL.md</code></strong>（:194-221）：</p>
@@ -630,7 +681,7 @@ the shadowed path itself</p>
 <p>顺带解决一个坑：符号链接。三处都处理了
 （:202-208、:238-247），<code>statSync</code> 可能抛错（断链），
 <code>catch</code> 后 <code>continue</code>。<strong>断链不该让整次加载失败</strong>。</p>
-<h3 id="sec-23-5-2-两道校验">5.2 两道校验</h3>
+<h3 id="sec-24-5-2-两道校验">5.2 两道校验</h3>
 <p><code>loadSkillFromFile</code>（:277+）读 frontmatter，然后过两个校验函数。</p>
 <p><code>validateName</code>（:92-115）：</p>
 <div class="table-wrap"><table>
@@ -676,7 +727,7 @@ the shadowed path itself</p>
 <li>节名错 → <strong>崩</strong>。因为节名是协议的一部分。</li>
 <li>技能名错 → <strong>丢</strong>。因为技能是可选资源，丢一个不致命。</li>
 </ul>
-<h3 id="sec-24-5-3-xml-与三态-filereadtool">5.3 XML 与三态 <code>fileReadTool</code></h3>
+<h3 id="sec-25-5-3-xml-与三态-filereadtool">5.3 XML 与三态 <code>fileReadTool</code></h3>
 <p><code>formatSkillsForPrompt</code>（<code>skills.ts:358-388</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -726,7 +777,7 @@ the shadowed path itself</p>
 <p><code>escapeXml</code>（:390-397）转五个字符（<code>&amp;</code> <code>&lt;</code> <code>&gt;</code> <code>&quot;</code> <code>'</code>），
 顺序有讲究：<code>&amp;</code> 必须第一个转，否则后面的 <code>&amp;lt;</code> 会被二次转义成
 <code>&amp;amp;lt;</code>。这是所有 XML 转义函数的共同陷阱。</p>
-<h3 id="sec-25-5-4-disablemodelinvocation">5.4 <code>disableModelInvocation</code></h3>
+<h3 id="sec-26-5-4-disablemodelinvocation">5.4 <code>disableModelInvocation</code></h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> visibleSkills = skills.<span class="tok-fn">filter</span>((s) =&gt; !s.disableModelInvocation);</span></code></pre></div>
@@ -738,11 +789,11 @@ the shadowed path itself</p>
 <p><strong>这是上下文工程里最便宜的降权手段</strong>：不改代码、
 不改行为，只是让它不出现在提示词里。</p>
 <hr>
-<h2 id="sec-26-六-prompt-templates-另一条入口">六、Prompt templates：另一条入口</h2>
+<h2 id="sec-27-六-prompt-templates-另一条入口">六、Prompt templates：另一条入口</h2>
 <p>Prompt templates 不进系统提示词，但和它共用一套&quot;发现 → 解析 → 替换&quot;
 的思路，而且经常和 <code>AGENTS.md</code> 放同一个目录（<code>.pi/prompts/</code>），
 所以放在这一章。</p>
-<h3 id="sec-27-6-1-解析-bash-风格的引号">6.1 解析：bash 风格的引号</h3>
+<h3 id="sec-28-6-1-解析-bash-风格的引号">6.1 解析：bash 风格的引号</h3>
 <p><code>parseCommandArgs</code>（<code>prompt-templates.ts:25-61</code>）逐字符扫：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -755,7 +806,7 @@ the shadowed path itself</p>
 <code>a\</code> 然后遇到 <code>&quot;</code> 结束引号，再 <code>b&quot;</code>。<strong>这是有意的简化</strong>：
 prompt template 的参数是自然语言，不是 shell 脚本，
 支持转义反而增加误用空间。</p>
-<h3 id="sec-28-6-2-六种占位符">6.2 六种占位符</h3>
+<h3 id="sec-29-6-2-六种占位符">6.2 六种占位符</h3>
 <p><code>substituteArgs</code>（:76-108）用一个正则处理全部：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -812,7 +863,7 @@ prompt template 的参数是自然语言，不是 shell 脚本，
 的设计有张力：解析层费劲保留空串，替换层把它当&quot;没传&quot;。</p>
 <p>实际使用中这是对的：用户按回车得到一个空参数，
 希望的是&quot;用默认值&quot;，不是&quot;替换成空&quot;。</p>
-<h3 id="sec-29-6-3-三条边界">6.3 三条边界</h3>
+<h3 id="sec-30-6-3-三条边界">6.3 三条边界</h3>
 <p><strong>边界一：不递归</strong>。注释写得很直白（:73-74）：</p>
 <blockquote>
 <p>Replacement happens on the template string only. Argument and default
@@ -838,11 +889,11 @@ recursively substituted.</p>
 （比如路径 <code>/etc/hosts 是什么</code>）可能被误当成模板调用。
 宁可漏，不可错。</p>
 <hr>
-<h2 id="sec-30-七-增量-只发变了的那几节">七、增量：只发变了的那几节</h2>
+<h2 id="sec-31-七-增量-只发变了的那几节">七、增量：只发变了的那几节</h2>
 <p>到这里我们有了一个函数，能把当前环境算成八节。
 但它每轮都要被调用一次，而八节里通常只有一节会变。
 <strong>全量重发是浪费，也是缓存杀手</strong>。</p>
-<h3 id="sec-31-7-1-每轮都算-但只在变了时发">7.1 每轮都算，但只在变了时发</h3>
+<h3 id="sec-32-7-1-每轮都算-但只在变了时发">7.1 每轮都算，但只在变了时发</h3>
 <p><code>prepareNextTurnWithContext</code>（<code>agent-session.ts:920-947</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -857,7 +908,7 @@ recursively substituted.</p>
 <code>session.systemPrompt</code>（给人看）和 <code>ctx.getSystemPrompt()</code>
 （给扩展看）跟 provider 实际收到的一致。</li>
 </ol>
-<h3 id="sec-32-7-2-diffsystempromptsections-的两种输出">7.2 <code>diffSystemPromptSections</code> 的两种输出</h3>
+<h3 id="sec-33-7-2-diffsystempromptsections-的两种输出">7.2 <code>diffSystemPromptSections</code> 的两种输出</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/system-prompt.ts:216-228</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">diffSystemPromptSections</span>(</span><span class="ln">	previous: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span> | <span class="tok-kw">null</span>&gt;,</span><span class="ln">	current: SystemPromptSections,</span><span class="ln">): Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span> | <span class="tok-kw">null</span>&gt; | <span class="tok-kw">undefined</span> {</span><span class="ln">	<span class="tok-kw">const</span> patch: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span> | <span class="tok-kw">null</span>&gt; = {};</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, text] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(current)) {</span><span class="ln">		<span class="tok-kw">if</span> (previous[name] !== text) patch[name] = text;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> Object.<span class="tok-fn">keys</span>(previous)) {</span><span class="ln">		<span class="tok-kw">if</span> (current[name] === <span class="tok-kw">undefined</span>) patch[name] = <span class="tok-kw">null</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> Object.<span class="tok-fn">keys</span>(patch).length &gt; <span class="tok-num">0</span> ? patch : <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
@@ -879,7 +930,7 @@ recursively substituted.</p>
 空对象 <code>{}</code> 是真值，会生成一条什么都不改的 system 消息——
 既浪费 token，又在会话记录里留下垃圾。<strong>空即无</strong>，这个约定
 在 <code>buildSystemPromptSections</code> 里已经用过三次（§2.4）。</p>
-<h3 id="sec-33-7-3-上一版从哪来">7.3 上一版从哪来</h3>
+<h3 id="sec-34-7-3-上一版从哪来">7.3 上一版从哪来</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/agent-session.ts:1786-1790</span></span><span class="ln"><span class="tok-kw">const</span> sections = <span class="tok-fn">diffSystemPromptSections</span>(</span><span class="ln">	<span class="tok-fn">getCurrentSystemMessage</span>(messages)?.sections ?? {},</span><span class="ln">	<span class="tok-fn">buildSystemPromptSections</span>(options),</span><span class="ln">);</span><span class="ln"><span class="tok-kw">return</span> sections</span><span class="ln">	? { role: <span class="tok-str">"system"</span>, content: <span class="tok-str">""</span>, sections, timestamp: Date.<span class="tok-fn">now</span>() }</span><span class="ln">	: <span class="tok-kw">undefined</span>;</span></code></pre></div>
@@ -904,7 +955,7 @@ recursively substituted.</p>
 <p><code>timestamp ??= message.timestamp</code> 取第一条。
 后面 <code>? { role:&quot;system&quot;, ... }</code> 里的 <code>timestamp: Date.now()</code> 是<strong>新</strong>消息的
 时间戳，两者不冲突——重放时用的是第一条的。</p>
-<h3 id="sec-34-7-4-两条下行路线">7.4 两条下行路线</h3>
+<h3 id="sec-35-7-4-两条下行路线">7.4 两条下行路线</h3>
 <p>patch 生成后，交给 provider 层。<code>ai</code> 包在这里分叉：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -937,7 +988,7 @@ prompt as their system prompt, which is a cache miss once per change.</p>
 Kimi、Moonshot、OpenRouter、OpenCode 等
 （<code>ai/catalog/providers/*.ts</code> 逐个声明）。没在 catalog 里声明的模型
 兜底是 <code>?? false</code>（<code>openai-responses.ts:94</code>）——<strong>没标就当不支持</strong>。</p>
-<h3 id="sec-35-7-5-为什么这套设计省的是两笔钱">7.5 为什么这套设计省的是两笔钱</h3>
+<h3 id="sec-36-7-5-为什么这套设计省的是两笔钱">7.5 为什么这套设计省的是两笔钱</h3>
 <p><strong>第一笔：token</strong>。八节里通常只有 <code>cwd</code> 或某一节在变。
 全量重发是几千 token，patch 是几十 token。</p>
 <p><strong>第二笔：缓存</strong>。所有主流 provider 的 prompt cache 都按
@@ -950,7 +1001,7 @@ does not change the prompt (#11495)&quot;）。<strong>顺序变化 = 字节变�
 <p>代价写在注释里：路线 B 是&quot;once per change&quot; 的 cache miss。
 所以&quot;支持中途 system&quot;这个能力，实际价值就是<strong>保住缓存</strong>。</p>
 <hr>
-<h2 id="sec-36-八-完整装配流程">八、完整装配流程</h2>
+<h2 id="sec-37-八-完整装配流程">八、完整装配流程</h2>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">启动 / reload</span><span class="ln">│</span><span class="ln">├─ ResourceLoader.reload()                    （resource-loader.ts:678-708）</span><span class="ln">│   ├─ loadProjectContextFiles()   → contextFiles[]</span><span class="ln">│   ├─ loadSkills()                → skills[]</span><span class="ln">│   ├─ discoverSystemPromptFile()  → customPrompt（.pi/SYSTEM.md）</span><span class="ln">│   └─ discoverAppend…()           → appendSystemPrompt</span><span class="ln">│</span><span class="ln">├─ 工具注册 → _toolPromptSnippets / _toolPromptGuidelines</span><span class="ln">│</span><span class="ln">└─ _rebuildSystemPrompt(toolNames)            （agent-session.ts:1741）</span><span class="ln">    └─ normalizeBuildSystemPromptOptions()    → _baseSystemPromptOptions</span><span class="ln"></span><span class="ln">每轮开头</span><span class="ln">│</span><span class="ln">└─ prepareNextTurnWithContext()               （agent-session.ts:920）</span><span class="ln">    ├─ selectedTools ← getActiveToolNames()</span><span class="ln">    ├─ _applyToolLoadout() → hiddenDeclarations → hiddenTools</span><span class="ln">    ├─ buildSystemPromptSections(options)     （system-prompt.ts:128）</span><span class="ln">    │   ├─ preamble        裸文本</span><span class="ln">    │   ├─ tools           ← selectedTools ∩ snippets</span><span class="ln">    │   ├─ rules           ← 条件规则 + guidelines + 固定两条</span><span class="ln">    │   ├─ docs            ← getDocsPath() 等</span><span class="ln">    │   ├─ addendum        ← APPEND_SYSTEM.md</span><span class="ln">    │   ├─ project_context ← AGENTS.md 链（服务端已排好序）</span><span class="ln">    │   ├─ skills          ← formatSkillsForPrompt()</span><span class="ln">    │   ├─ cwd             ← 反斜杠转正斜杠</span><span class="ln">    │   └─ 自定义节         ← options.sections</span><span class="ln">    ├─ diffSystemPromptSections(重放旧值, 新值)  → patch | undefined</span><span class="ln">    └─ patch 存在 → 追加 { role:"system", sections: patch }</span><span class="ln"></span><span class="ln">每次请求前（transformContext，按安装顺序 wrap）</span><span class="ln">│</span><span class="ln">├─ _installHiddenDeclarationsProjection()     （agent-session.ts:1808）</span><span class="ln">├─ _installAgentForcedPromptProjection()      （agent-session.ts:1828）</span><span class="ln">│     有 forceSystemPrompt → 全部 system 压成一条头，content=forced</span><span class="ln">│</span><span class="ln">└─ resolveTranscript(context, supportsMidConvo?)   （transcript.ts:115）</span><span class="ln">       ├─ true  → 每个 patch 渲染成 "Updated system prompt section"</span><span class="ln">       └─ false → collapseSystemMessages() 合并成一条完整头部</span></code></pre></div>
@@ -965,7 +1016,7 @@ does not change the prompt (#11495)&quot;）。<strong>顺序变化 = 字节变�
 <p>重试、溢出恢复、compaction 后重发，都会再走一遍 <code>transformContext</code>。
 这就是为什么它能修正&quot;会话记录里有、但这次请求不该带&quot;的东西。</p>
 <hr>
-<h2 id="sec-37-九-自己动手验证">九、自己动手验证</h2>
+<h2 id="sec-38-九-自己动手验证">九、自己动手验证</h2>
 <p>六个实验，都不需要改源码。</p>
 <p><strong>实验 1：打印完整提示词。</strong></p>
 <p>先写一个二十行的脚本，后面几个实验都复用它：</p>
@@ -1036,7 +1087,7 @@ does not change the prompt (#11495)&quot;）。<strong>顺序变化 = 字节变�
 都被 <code>prepareLoadout</code> 藏掉——<code>tool_search</code> 场景才会出现，
 手搓成本高，直接读 <code>system-prompt.ts:174-181</code> 更快。</p>
 <hr>
-<h2 id="sec-38-十-工程暗坑">十、工程暗坑</h2>
+<h2 id="sec-39-十-工程暗坑">十、工程暗坑</h2>
 <p><strong>1. <code>SYSTEM.md</code> 会静默吃掉工具列表。</strong>
 <code>if (customPrompt)</code> 的 <code>else</code> 分支包住了 <code>tools</code>/<code>rules</code>/<code>docs</code> 三节。
 写 <code>SYSTEM.md</code> 的直觉是&quot;换掉开头那句话&quot;，实际是
@@ -1092,8 +1143,8 @@ and may change between versions&quot;。
 想把多个技能放一个父目录，<strong>每个技能必须一个子目录</strong>，
 且父目录不能有自己的 <code>SKILL.md</code>。</p>
 <hr>
-<h2 id="sec-39-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
-<h3 id="sec-40-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot">方法一：把可变提示词拆成&quot;命名段 + 增量 patch&quot;</h3>
+<h2 id="sec-40-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
+<h3 id="sec-41-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot">方法一：把可变提示词拆成&quot;命名段 + 增量 patch&quot;</h3>
 <p>Pi 的 <code>SystemMessage.sections</code> 本质是一个 <strong>CRDT 的极简版</strong>：
 每段独立，<code>null</code> 表示删除，重放是累积的。</p>
 <p>这个模式的适用条件很明确：</p>
@@ -1108,7 +1159,7 @@ and may change between versions&quot;。
 用 <code>collapseSystemMessages</code> 退化成全量。<strong>能力探测 + 降级路径</strong>
 是这类优化必须配套的东西，否则你在某些 provider 上会拿到
 更差的结果（多了一堆 &quot;Updated ...&quot; 文本，还丢了缓存）。</p>
-<h3 id="sec-41-方法二-分层的上下文文件-用-quot-具体度-quot-排序">方法二：分层的上下文文件，用&quot;具体度&quot;排序</h3>
+<h3 id="sec-42-方法二-分层的上下文文件-用-quot-具体度-quot-排序">方法二：分层的上下文文件，用&quot;具体度&quot;排序</h3>
 <p><code>AGENTS.md</code> 链的排序（全局 → 根 → ... → cwd）不是随意的：
 <strong>越具体的越靠后</strong>。理由有三层：</p>
 <ol>
@@ -1123,7 +1174,7 @@ and may change between versions&quot;。
 <p>如果要再加一层，我建议加&quot;作用域标注&quot;——Pi 用的是
 <code>&lt;project_instructions path=&quot;...&quot;&gt;</code>。<strong>让每条规范带来源</strong>，
 比让模型猜&quot;这条是谁定的&quot;好得多。</p>
-<h3 id="sec-42-方法三-清单进提示词-正文靠工具拉">方法三：清单进提示词，正文靠工具拉</h3>
+<h3 id="sec-43-方法三-清单进提示词-正文靠工具拉">方法三：清单进提示词，正文靠工具拉</h3>
 <p>Skills 的核心是<strong>把上下文加载变成一次工具调用</strong>。</p>
 <p>对比两种极端：</p>
 <div class="table-wrap"><table>
@@ -1166,8 +1217,8 @@ and may change between versions&quot;。
 如果根本没有读取工具，<strong>整节不写</strong>。
 提示词里最贵的东西不是 token，是<strong>指向不存在能力的指令</strong>。</p>
 <hr>
-<h2 id="sec-43-读完自检">读完自检</h2>
-<p>三条，能不能不看稿说出来？</p>
+<h2 id="sec-44-读完自检">读完自检</h2>
+<p>四条，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1192,9 +1243,14 @@ and may change between versions&quot;。
 <td>全量协议里缺失=没有；增量协议里缺失=没说</td>
 <td>§七</td>
 </tr>
+<tr>
+<td>给 agent 的规范和给人的有什么不一样？</td>
+<td>前者写否定式边界加替代做法，对应失败模式；后者多写风格偏好</td>
+<td>§4.5</td>
+</tr>
 </tbody>
 </table></div>
-<h2 id="sec-44-下一步">下一步</h2>
+<h2 id="sec-45-下一步">下一步</h2>
 <p>到这一章结束，Part C 的&quot;装配&quot;部分齐了：提示词怎么拼、
 文件从哪来、增量怎么下发。但一个关键机制还挂着——
 第八节的流程图里有一行被我省略了：</p>
@@ -1205,7 +1261,7 @@ and may change between versions&quot;。
 下一章讲 <code>compaction.ts</code>：怎么判断该压、从哪里切、
 摘要怎么保持可续写、压缩之后 session 树怎么变。</p>
 <hr>
-<h2 id="sec-45-本章源码索引">本章源码索引</h2>
+<h2 id="sec-46-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1328,7 +1384,7 @@ and may change between versions&quot;。
       <a class="next" href="m09-compaction.html"><span class="lbl">下一篇</span>上下文压缩 —— 两道闸门，两种摘要</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-为什么提示词不能是写死的一段" class="">一、为什么提示词不能是写死的一段</a><a href="#sec-2-1-1-一段常量字符串-三个改不动的点" class="lv3">1.1 一段常量字符串，三个改不动的点</a><a href="#sec-3-1-2-一次请求只能有一段-system" class="lv3">1.2 一次请求只能有一段 system</a><a href="#sec-4-1-3-结论-提示词要-quot-可寻址-quot" class="lv3">1.3 结论：提示词要&amp;quot;可寻址&amp;quot;</a><a href="#sec-5-二-八节-一个真源" class="">二、八节，一个真源</a><a href="#sec-6-2-1-顺序与来源" class="lv3">2.1 顺序与来源</a><a href="#sec-7-2-2-只有-preamble-不带标签" class="lv3">2.2 只有 preamble 不带标签</a><a href="#sec-8-2-3-节的命名是被校验的" class="lv3">2.3 节的命名是被校验的</a><a href="#sec-9-2-4-空节不写-而不是写空" class="lv3">2.4 空节不写，而不是写空</a><a href="#sec-10-三-四种材料怎么进来" class="">三、四种材料怎么进来</a><a href="#sec-11-3-1-工具集-selected-与-hidden" class="lv3">3.1 工具集：selected 与 hidden</a><a href="#sec-12-3-2-一句话描述与规则子弹" class="lv3">3.2 一句话描述与规则子弹</a><a href="#sec-13-3-3-规则的三段式" class="lv3">3.3 规则的三段式</a><a href="#sec-14-3-4-三个-quot-整段替换-quot-语义完全不同" class="lv3">3.4 三个&amp;quot;整段替换&amp;quot;，语义完全不同</a><a href="#sec-15-3-5-自定义节-扩展的入口" class="lv3">3.5 自定义节：扩展的入口</a><a href="#sec-16-四-agents-md-链-从-cwd-往上爬" class="">四、AGENTS.md 链：从 cwd 往上爬</a><a href="#sec-17-4-1-五个候选名-命中即停" class="lv3">4.1 五个候选名，命中即停</a><a href="#sec-18-4-2-三段装配顺序" class="lv3">4.2 三段装配顺序</a><a href="#sec-19-4-3-worktree-遮蔽-一个很窄但真实的坑" class="lv3">4.3 worktree 遮蔽：一个很窄但真实的坑</a><a href="#sec-20-4-4-xml-包装-路径是元数据" class="lv3">4.4 XML 包装：路径是元数据</a><a href="#sec-21-五-skills-清单进提示词-正文后读" class="">五、Skills：清单进提示词，正文后读</a><a href="#sec-22-5-1-发现规则-四种情形" class="lv3">5.1 发现规则：四种情形</a><a href="#sec-23-5-2-两道校验" class="lv3">5.2 两道校验</a><a href="#sec-24-5-3-xml-与三态-filereadtool" class="lv3">5.3 XML 与三态 fileReadTool</a><a href="#sec-25-5-4-disablemodelinvocation" class="lv3">5.4 disableModelInvocation</a><a href="#sec-26-六-prompt-templates-另一条入口" class="">六、Prompt templates：另一条入口</a><a href="#sec-27-6-1-解析-bash-风格的引号" class="lv3">6.1 解析：bash 风格的引号</a><a href="#sec-28-6-2-六种占位符" class="lv3">6.2 六种占位符</a><a href="#sec-29-6-3-三条边界" class="lv3">6.3 三条边界</a><a href="#sec-30-七-增量-只发变了的那几节" class="">七、增量：只发变了的那几节</a><a href="#sec-31-7-1-每轮都算-但只在变了时发" class="lv3">7.1 每轮都算，但只在变了时发</a><a href="#sec-32-7-2-diffsystempromptsections-的两种输出" class="lv3">7.2 diffSystemPromptSections 的两种输出</a><a href="#sec-33-7-3-上一版从哪来" class="lv3">7.3 上一版从哪来</a><a href="#sec-34-7-4-两条下行路线" class="lv3">7.4 两条下行路线</a><a href="#sec-35-7-5-为什么这套设计省的是两笔钱" class="lv3">7.5 为什么这套设计省的是两笔钱</a><a href="#sec-36-八-完整装配流程" class="">八、完整装配流程</a><a href="#sec-37-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-38-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-39-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-40-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot" class="lv3">方法一：把可变提示词拆成&amp;quot;命名段 + 增量 patch&amp;quot;</a><a href="#sec-41-方法二-分层的上下文文件-用-quot-具体度-quot-排序" class="lv3">方法二：分层的上下文文件，用&amp;quot;具体度&amp;quot;排序</a><a href="#sec-42-方法三-清单进提示词-正文靠工具拉" class="lv3">方法三：清单进提示词，正文靠工具拉</a><a href="#sec-43-读完自检" class="">读完自检</a><a href="#sec-44-下一步" class="">下一步</a><a href="#sec-45-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-为什么提示词不能是写死的一段" class="">一、为什么提示词不能是写死的一段</a><a href="#sec-2-1-1-一段常量字符串-三个改不动的点" class="lv3">1.1 一段常量字符串，三个改不动的点</a><a href="#sec-3-1-2-一次请求只能有一段-system" class="lv3">1.2 一次请求只能有一段 system</a><a href="#sec-4-1-3-结论-提示词要-quot-可寻址-quot" class="lv3">1.3 结论：提示词要&amp;quot;可寻址&amp;quot;</a><a href="#sec-5-二-八节-一个真源" class="">二、八节，一个真源</a><a href="#sec-6-2-1-顺序与来源" class="lv3">2.1 顺序与来源</a><a href="#sec-7-2-2-只有-preamble-不带标签" class="lv3">2.2 只有 preamble 不带标签</a><a href="#sec-8-2-3-节的命名是被校验的" class="lv3">2.3 节的命名是被校验的</a><a href="#sec-9-2-4-空节不写-而不是写空" class="lv3">2.4 空节不写，而不是写空</a><a href="#sec-10-三-四种材料怎么进来" class="">三、四种材料怎么进来</a><a href="#sec-11-3-1-工具集-selected-与-hidden" class="lv3">3.1 工具集：selected 与 hidden</a><a href="#sec-12-3-2-一句话描述与规则子弹" class="lv3">3.2 一句话描述与规则子弹</a><a href="#sec-13-3-3-规则的三段式" class="lv3">3.3 规则的三段式</a><a href="#sec-14-3-4-三个-quot-整段替换-quot-语义完全不同" class="lv3">3.4 三个&amp;quot;整段替换&amp;quot;，语义完全不同</a><a href="#sec-15-3-5-自定义节-扩展的入口" class="lv3">3.5 自定义节：扩展的入口</a><a href="#sec-16-四-agents-md-链-从-cwd-往上爬" class="">四、AGENTS.md 链：从 cwd 往上爬</a><a href="#sec-17-4-1-五个候选名-命中即停" class="lv3">4.1 五个候选名，命中即停</a><a href="#sec-18-4-2-三段装配顺序" class="lv3">4.2 三段装配顺序</a><a href="#sec-19-4-3-worktree-遮蔽-一个很窄但真实的坑" class="lv3">4.3 worktree 遮蔽：一个很窄但真实的坑</a><a href="#sec-20-4-4-xml-包装-路径是元数据" class="lv3">4.4 XML 包装：路径是元数据</a><a href="#sec-21-4-5-一份真实的-agents-md-长什么样" class="lv3">4.5 一份真实的 AGENTS.md 长什么样</a><a href="#sec-22-五-skills-清单进提示词-正文后读" class="">五、Skills：清单进提示词，正文后读</a><a href="#sec-23-5-1-发现规则-四种情形" class="lv3">5.1 发现规则：四种情形</a><a href="#sec-24-5-2-两道校验" class="lv3">5.2 两道校验</a><a href="#sec-25-5-3-xml-与三态-filereadtool" class="lv3">5.3 XML 与三态 fileReadTool</a><a href="#sec-26-5-4-disablemodelinvocation" class="lv3">5.4 disableModelInvocation</a><a href="#sec-27-六-prompt-templates-另一条入口" class="">六、Prompt templates：另一条入口</a><a href="#sec-28-6-1-解析-bash-风格的引号" class="lv3">6.1 解析：bash 风格的引号</a><a href="#sec-29-6-2-六种占位符" class="lv3">6.2 六种占位符</a><a href="#sec-30-6-3-三条边界" class="lv3">6.3 三条边界</a><a href="#sec-31-七-增量-只发变了的那几节" class="">七、增量：只发变了的那几节</a><a href="#sec-32-7-1-每轮都算-但只在变了时发" class="lv3">7.1 每轮都算，但只在变了时发</a><a href="#sec-33-7-2-diffsystempromptsections-的两种输出" class="lv3">7.2 diffSystemPromptSections 的两种输出</a><a href="#sec-34-7-3-上一版从哪来" class="lv3">7.3 上一版从哪来</a><a href="#sec-35-7-4-两条下行路线" class="lv3">7.4 两条下行路线</a><a href="#sec-36-7-5-为什么这套设计省的是两笔钱" class="lv3">7.5 为什么这套设计省的是两笔钱</a><a href="#sec-37-八-完整装配流程" class="">八、完整装配流程</a><a href="#sec-38-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-39-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-40-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-41-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot" class="lv3">方法一：把可变提示词拆成&amp;quot;命名段 + 增量 patch&amp;quot;</a><a href="#sec-42-方法二-分层的上下文文件-用-quot-具体度-quot-排序" class="lv3">方法二：分层的上下文文件，用&amp;quot;具体度&amp;quot;排序</a><a href="#sec-43-方法三-清单进提示词-正文靠工具拉" class="lv3">方法三：清单进提示词，正文靠工具拉</a><a href="#sec-44-读完自检" class="">读完自检</a><a href="#sec-45-下一步" class="">下一步</a><a href="#sec-46-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

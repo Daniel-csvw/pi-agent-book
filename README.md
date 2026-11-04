@@ -4,15 +4,15 @@
 
 **对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent**
 
-<sub>19 篇 · 134,300 字 · 6,979 行源码引用 · 约 11 小时读完</sub>
+<sub>19 篇 · 137,600 字 · 7,032 行源码引用 · 约 11 小时读完</sub>
 
 <br>
 
 [![read online](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%98%85%E8%AF%BB-daniel--csvw.github.io-eb6c36?style=for-the-badge&labelColor=1a1d28)](https://daniel-csvw.github.io/pi-agent-book/)
 
 [![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-19-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-134%2C300-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![source lines](https://img.shields.io/badge/%E6%BA%90%E7%A0%81%E5%BC%95%E7%94%A8-6%2C979%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-137%2C600-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![source lines](https://img.shields.io/badge/%E6%BA%90%E7%A0%81%E5%BC%95%E7%94%A8-7%2C032%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
 [![pi-agent](https://img.shields.io/badge/pi--agent-v1.4.0-4f5d75?style=flat-square)](https://github.com/earendil-works/pi)
 
 **[马上开始读 →](https://daniel-csvw.github.io/pi-agent-book/)**
@@ -61,8 +61,9 @@
 | 持久运行时 | 把一个 while 循环拆成可恢复的状态机 |
 | 对象与热重载 | 改代码为什么不用重启 |
 | 扩展入口 | MCP 怎么连出去，codemode 怎么收进来 |
-| 终端渲染 | 一个 spinner 只该写 99 个字节，是怎么算出来的 |
+| 终端渲染 | 一个 spinner 只该写 99 个字节，主题色是问终端要来的还是算出来的 |
 | 契约与遥测 | 一份声明，五种解释，schema 与 telemetry 的配合 |
+| 依赖与发布 | `save-exact` 加两天冷静期，一条供应链是怎么被钉住的 |
 | 合龙（附录 D） | 一条请求依次落过二十五个落点，每站都标了出处章节 |
 
 ---
@@ -76,14 +77,14 @@
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
 | M01 | [开篇 —— 为什么 Pi-Agent 值得你花时间](https://daniel-csvw.github.io/pi-agent-book/modules/m01-overview.html) | 7,100 字 · 145 行 |
-| M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 5,400 字 · 191 行 |
+| M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 6,500 字 · 206 行 |
 
 ### Part B · 内核
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
 | M03 | [Agent Loop —— 两层循环，三条出路](https://daniel-csvw.github.io/pi-agent-book/modules/m03-agent-loop.html) | 10,100 字 · 589 行 |
-| M04 | [模型调用 —— 一行代码背后的十层翻译](https://daniel-csvw.github.io/pi-agent-book/modules/m04-model-call.html) | 8,200 字 · 463 行 |
+| M04 | [模型调用 —— 一行代码背后的十层翻译](https://daniel-csvw.github.io/pi-agent-book/modules/m04-model-call.html) | 8,300 字 · 464 行 |
 | M05 | [工具系统 —— 八个工具，一道文件锁](https://daniel-csvw.github.io/pi-agent-book/modules/m05-tools.html) | 6,200 字 · 218 行 |
 | M06 | [消息系统 —— 四种给模型看，八种给系统记](https://daniel-csvw.github.io/pi-agent-book/modules/m06-messages.html) | 6,200 字 · 166 行 |
 | M07 | [事件驱动 —— 十颗钉子，四十一个挂钩](https://daniel-csvw.github.io/pi-agent-book/modules/m07-event-driven.html) | 6,300 字 · 283 行 |
@@ -92,7 +93,7 @@
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M08 | [上下文装配 —— 八节提示词，一条目录链](https://daniel-csvw.github.io/pi-agent-book/modules/m08-context.html) | 8,400 字 · 533 行 |
+| M08 | [上下文装配 —— 八节提示词，一条目录链](https://daniel-csvw.github.io/pi-agent-book/modules/m08-context.html) | 8,900 字 · 538 行 |
 | M09 | [上下文压缩 —— 两道闸门，两种摘要](https://daniel-csvw.github.io/pi-agent-book/modules/m09-compaction.html) | 10,100 字 · 1,062 行 |
 | M10 | [会话 —— 从会话树到持久运行时](https://daniel-csvw.github.io/pi-agent-book/modules/m10-session.html) | 10,700 字 · 495 行 |
 
@@ -103,8 +104,8 @@
 | M11 | [持久运行时 —— 把 Agent Loop 拆成状态机](https://daniel-csvw.github.io/pi-agent-book/modules/m11-durable.html) | 9,300 字 · 364 行 |
 | M12 | [对象与热重载 —— 改代码为什么不用重启](https://daniel-csvw.github.io/pi-agent-book/modules/m12-chord.html) | 9,000 字 · 329 行 |
 | M13 | [扩展入口 —— MCP 连出去，codemode 收进来](https://daniel-csvw.github.io/pi-agent-book/modules/m13-mcp-codemode.html) | 10,000 字 · 944 行 |
-| M14 | [终端渲染 —— 一个 spinner 只该写 99 个字节](https://daniel-csvw.github.io/pi-agent-book/modules/m14-tui.html) | 8,300 字 · 299 行 |
-| M15 | [契约与遥测 —— 一份声明，五种解释](https://daniel-csvw.github.io/pi-agent-book/modules/m15-schema-telemetry.html) | 9,700 字 · 518 行 |
+| M14 | [终端渲染 —— 一个 spinner 只该写 99 个字节](https://daniel-csvw.github.io/pi-agent-book/modules/m14-tui.html) | 9,300 字 · 319 行 |
+| M15 | [契约与遥测 —— 一份声明，五种解释](https://daniel-csvw.github.io/pi-agent-book/modules/m15-schema-telemetry.html) | 10,300 字 · 530 行 |
 
 ### 附录
 
