@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -279,11 +280,13 @@
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">AgentMessage = Message | never = Message</span></code></pre></div>
 <p><code>never</code> 在联合类型里会消失。<strong>默认等于没有扩展，零成本。</strong></p>
+<p>两个语法点如果生疏：<code>X[keyof X]</code> 叫「索引访问类型」，意思是&quot;把 X 里每个属性的值取出来，拼成一个联合&quot;；<code>never</code> 混进联合里会自动消失。二者在附录 B 的 §2.2 和 §三 符号表各有一行。</p>
 <p>然后 <code>coding-agent</code> 在 <code>messages.ts:70-77</code> 往里加字段：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">declare</span> <span class="tok-kw">module</span> <span class="tok-str">"@earendil-works/pi-agent-core"</span> {</span><span class="ln">	<span class="tok-kw">interface</span> CustomAgentMessages {</span><span class="ln">		bashExecution: BashExecutionMessage;</span><span class="ln">		custom: CustomMessage;</span><span class="ln">		branchSummary: BranchSummaryMessage;</span><span class="ln">		compactionSummary: CompactionSummaryMessage;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
 <p>这是 TypeScript 的<strong>声明合并</strong>（declaration merging）：同名接口在多个地方声明，字段会合并。加完之后，全仓库的 <code>AgentMessage</code> 立刻变成八种。</p>
+<p>写法本身只有五行，但第一次看到很难不起疑——&quot;这不就是重复定义吗？&quot;附录 B §2.8 把它当独立语法拆过一遍。</p>
 <h3 id="sec-15-3-2-为什么这个设计值得学">3.2 为什么这个设计值得学</h3>
 <p>关键在于：<strong><code>agent</code> 包完全不知道 <code>coding-agent</code> 有哪些消息类型。</strong></p>
 <p><code>agent</code> 包的 <code>types.ts</code> 里没有 <code>bashExecution</code> 这个词。它只提供&quot;一个可被扩充的插槽&quot;，<code>coding-agent</code> 往里塞。编译产物里也没有循环依赖。</p>
@@ -693,7 +696,7 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <p><strong>实验 1：数一数 <code>Message</code> 有几个成员。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">cd pi-main/pi-main/packages/ai/src</span><span class="ln">sed -n '659p' types.ts</span></code></pre></div>
+<pre><code><span class="ln"># 在仓库根目录执行</span><span class="ln">cd packages/ai/src</span><span class="ln">sed -n '659p' types.ts</span></code></pre></div>
 <p>一行，四个。</p>
 <p><strong>实验 2：确认默认是&quot;空超集&quot;。</strong></p>
 <div class="code-block" data-lang="bash">
@@ -786,12 +789,40 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <strong>一个什么都不做的接口，必须能被静态检查证明&quot;确实什么都没做&quot;</strong>——
 空接口 + <code>filter</code>，两个都可以用类型和逻辑看完。</p>
 <hr>
-<h2 id="sec-39-下一步">下一步</h2>
+<h2 id="sec-39-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>给模型看的有几种？给系统记的有几种？</td>
+<td>4 种 / 8 种；多出来的 4 种靠一道闸门降级</td>
+<td>§一、§二</td>
+</tr>
+<tr>
+<td>加消息类型为什么不用改 <code>agent</code> 包？</td>
+<td>空接口 + 声明合并，<code>AgentMessage</code> 从 4 变 8</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>那道转换闸门默认干什么？</td>
+<td>默认是过滤器——丢掉不认识的，不是硬转</td>
+<td>§4.3</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-40-下一步">下一步</h2>
 <p>消息有了，工具有了，循环有了。但这些东西怎么跟外面说话？</p>
 <p>用户按了 Esc，循环怎么知道要停？工具跑了 3 秒，进度怎么到 UI？扩展想在&quot;工具调用之前&quot;插一脚，它挂在哪？</p>
 <p>下一章打开事件系统。</p>
 <hr>
-<h2 id="sec-40-本章源码索引">本章源码索引</h2>
+<h2 id="sec-41-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -854,7 +885,7 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
       <a class="next" href="m07-event-driven.html"><span class="lbl">下一篇</span>事件驱动 —— 十颗钉子，四十一个挂钩</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给模型看的只有四种" class="">一、给模型看的只有四种</a><a href="#sec-2-1-1-字段对照" class="lv3">1.1 字段对照</a><a href="#sec-3-1-2-content-是唯一形状各异的字段" class="lv3">1.2 content 是唯一形状各异的字段</a><a href="#sec-4-1-3-三个-quot-本来不该在这里-quot-的字段" class="lv3">1.3 三个&amp;quot;本来不该在这里&amp;quot;的字段</a><a href="#sec-5-1-4-sections-里别用整数键" class="lv3">1.4 sections 里别用整数键</a><a href="#sec-6-1-5-一条消息-两个消费者" class="lv3">1.5 一条消息，两个消费者</a><a href="#sec-7-二-给系统记的还有四种" class="">二、给系统记的还有四种</a><a href="#sec-8-2-1-bashexecution-命令的记录" class="lv3">2.1 bashExecution：! 命令的记录</a><a href="#sec-9-2-2-custom-扩展的注入口" class="lv3">2.2 custom：扩展的注入口</a><a href="#sec-10-2-3-branchsummary-分叉回退的凭证" class="lv3">2.3 branchSummary：分叉回退的凭证</a><a href="#sec-11-2-4-compactionsummary-压缩后的替身" class="lv3">2.4 compactionSummary：压缩后的替身</a><a href="#sec-12-2-5-三类来源-三种信任等级" class="lv3">2.5 三类来源，三种信任等级</a><a href="#sec-13-三-超集是怎么做到不侵入的" class="">三、超集是怎么做到不侵入的</a><a href="#sec-14-3-1-空接口-声明合并" class="lv3">3.1 空接口 + 声明合并</a><a href="#sec-15-3-2-为什么这个设计值得学" class="lv3">3.2 为什么这个设计值得学</a><a href="#sec-16-3-3-代价-穷尽检查必须写" class="lv3">3.3 代价：穷尽检查必须写</a><a href="#sec-17-3-4-声明合并是-quot-编译单元级-quot-的" class="lv3">3.4 声明合并是&amp;quot;编译单元级&amp;quot;的</a><a href="#sec-18-3-5-非法-details-让它编译不过" class="lv3">3.5 非法 details 让它编译不过</a><a href="#sec-19-四-converttollm-那道转换闸门" class="">四、convertToLlm：那道转换闸门</a><a href="#sec-20-4-1-四条-case-一种产物" class="lv3">4.1 四条 case，一种产物</a><a href="#sec-21-4-2-bash-记录变成什么样" class="lv3">4.2 bash 记录变成什么样</a><a href="#sec-22-4-3-默认实现是-quot-丢-quot-不是-quot-转-quot" class="lv3">4.3 默认实现是&amp;quot;丢&amp;quot;，不是&amp;quot;转&amp;quot;</a><a href="#sec-23-4-4-闸门只有一个-入口有八处" class="lv3">4.4 闸门只有一个，入口有八处</a><a href="#sec-24-五-两阶段管道" class="">五、两阶段管道</a><a href="#sec-25-5-1-为什么不能合成一步" class="lv3">5.1 为什么不能合成一步</a><a href="#sec-26-5-2-顺序不能换" class="lv3">5.2 顺序不能换</a><a href="#sec-27-5-3-还有第三次降级-变成纯文本" class="lv3">5.3 还有第三次降级：变成纯文本</a><a href="#sec-28-六-过滤-三个独立开关" class="">六、过滤：三个独立开关</a><a href="#sec-29-6-1-excludefromcontext-走的是丢弃-不是标记" class="lv3">6.1 excludeFromContext 走的是丢弃，不是标记</a><a href="#sec-30-6-2-blockimages-是第二道过滤" class="lv3">6.2 blockImages 是第二道过滤</a><a href="#sec-31-6-3-display-与上下文无关" class="lv3">6.3 display 与上下文无关</a><a href="#sec-32-6-4-为什么不合并成一个枚举" class="lv3">6.4 为什么不合并成一个枚举</a><a href="#sec-33-七-完整数据流" class="">七、完整数据流</a><a href="#sec-34-7-1-反方向-一次响应怎么变回消息" class="lv3">7.1 反方向：一次响应怎么变回消息</a><a href="#sec-35-八-暗坑-最后一条必须是-user-或-toolresult" class="">八、暗坑：最后一条必须是 user 或 toolResult</a><a href="#sec-36-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-37-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-38-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-39-下一步" class="">下一步</a><a href="#sec-40-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给模型看的只有四种" class="">一、给模型看的只有四种</a><a href="#sec-2-1-1-字段对照" class="lv3">1.1 字段对照</a><a href="#sec-3-1-2-content-是唯一形状各异的字段" class="lv3">1.2 content 是唯一形状各异的字段</a><a href="#sec-4-1-3-三个-quot-本来不该在这里-quot-的字段" class="lv3">1.3 三个&amp;quot;本来不该在这里&amp;quot;的字段</a><a href="#sec-5-1-4-sections-里别用整数键" class="lv3">1.4 sections 里别用整数键</a><a href="#sec-6-1-5-一条消息-两个消费者" class="lv3">1.5 一条消息，两个消费者</a><a href="#sec-7-二-给系统记的还有四种" class="">二、给系统记的还有四种</a><a href="#sec-8-2-1-bashexecution-命令的记录" class="lv3">2.1 bashExecution：! 命令的记录</a><a href="#sec-9-2-2-custom-扩展的注入口" class="lv3">2.2 custom：扩展的注入口</a><a href="#sec-10-2-3-branchsummary-分叉回退的凭证" class="lv3">2.3 branchSummary：分叉回退的凭证</a><a href="#sec-11-2-4-compactionsummary-压缩后的替身" class="lv3">2.4 compactionSummary：压缩后的替身</a><a href="#sec-12-2-5-三类来源-三种信任等级" class="lv3">2.5 三类来源，三种信任等级</a><a href="#sec-13-三-超集是怎么做到不侵入的" class="">三、超集是怎么做到不侵入的</a><a href="#sec-14-3-1-空接口-声明合并" class="lv3">3.1 空接口 + 声明合并</a><a href="#sec-15-3-2-为什么这个设计值得学" class="lv3">3.2 为什么这个设计值得学</a><a href="#sec-16-3-3-代价-穷尽检查必须写" class="lv3">3.3 代价：穷尽检查必须写</a><a href="#sec-17-3-4-声明合并是-quot-编译单元级-quot-的" class="lv3">3.4 声明合并是&amp;quot;编译单元级&amp;quot;的</a><a href="#sec-18-3-5-非法-details-让它编译不过" class="lv3">3.5 非法 details 让它编译不过</a><a href="#sec-19-四-converttollm-那道转换闸门" class="">四、convertToLlm：那道转换闸门</a><a href="#sec-20-4-1-四条-case-一种产物" class="lv3">4.1 四条 case，一种产物</a><a href="#sec-21-4-2-bash-记录变成什么样" class="lv3">4.2 bash 记录变成什么样</a><a href="#sec-22-4-3-默认实现是-quot-丢-quot-不是-quot-转-quot" class="lv3">4.3 默认实现是&amp;quot;丢&amp;quot;，不是&amp;quot;转&amp;quot;</a><a href="#sec-23-4-4-闸门只有一个-入口有八处" class="lv3">4.4 闸门只有一个，入口有八处</a><a href="#sec-24-五-两阶段管道" class="">五、两阶段管道</a><a href="#sec-25-5-1-为什么不能合成一步" class="lv3">5.1 为什么不能合成一步</a><a href="#sec-26-5-2-顺序不能换" class="lv3">5.2 顺序不能换</a><a href="#sec-27-5-3-还有第三次降级-变成纯文本" class="lv3">5.3 还有第三次降级：变成纯文本</a><a href="#sec-28-六-过滤-三个独立开关" class="">六、过滤：三个独立开关</a><a href="#sec-29-6-1-excludefromcontext-走的是丢弃-不是标记" class="lv3">6.1 excludeFromContext 走的是丢弃，不是标记</a><a href="#sec-30-6-2-blockimages-是第二道过滤" class="lv3">6.2 blockImages 是第二道过滤</a><a href="#sec-31-6-3-display-与上下文无关" class="lv3">6.3 display 与上下文无关</a><a href="#sec-32-6-4-为什么不合并成一个枚举" class="lv3">6.4 为什么不合并成一个枚举</a><a href="#sec-33-七-完整数据流" class="">七、完整数据流</a><a href="#sec-34-7-1-反方向-一次响应怎么变回消息" class="lv3">7.1 反方向：一次响应怎么变回消息</a><a href="#sec-35-八-暗坑-最后一条必须是-user-或-toolresult" class="">八、暗坑：最后一条必须是 user 或 toolResult</a><a href="#sec-36-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-37-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-38-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-39-读完自检" class="">读完自检</a><a href="#sec-40-下一步" class="">下一步</a><a href="#sec-41-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

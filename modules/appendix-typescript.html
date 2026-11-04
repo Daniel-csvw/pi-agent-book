@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="active">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -110,6 +111,10 @@
 <code>Model&lt;&quot;anthropic-messages&quot;&gt;</code></strong>，可以访问该 API 的专属字段。</p>
 <p>它为什么必需，源码自己在 <code>models.ts:270</code> 写了：动态模型列表的类型是宽的
 <code>Model&lt;Api&gt;</code>，要用 <code>hasApi()</code> 收窄。Python 侧是 <code>TypeGuard</code>，用法几乎一样。</p>
+<p>同一个写法在 M15 又出现一次，而且用得更高：<code>Validator.check</code> 的类型是
+<code>(value: unknown) =&gt; value is T</code>（<code>schema/src/validator.ts:202</code>）——schema
+编译出来的那个闭包，本身兼任类型谓词，所以 <code>if (v.check(x))</code> 之后 <code>x</code> 直接
+就是 <code>T</code>。这也是 M15 §2 那句&quot;编译产物与类型谓词合并成一件事&quot;的全部意思。</p>
 <h3 id="sec-7-2-5-条件类型-类型层面的-if">2.5 条件类型：类型层面的 if</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -126,6 +131,14 @@
 变字符串，塞 <code>Map</code> 进去变 <code>{}</code>——错误在落盘那一刻才暴露。M06 §3.5
 （<code>m06:367-390</code>）是这个设计的完整动机。</p>
 <p>Python 只有 <code>TypeVar</code> + 重载能近似，没有真正的条件类型。</p>
+<p>条件类型里还能就地声明一个类型变量，用 <code>infer</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/chord/src/contract.ts:417-424（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ImplementationOf&lt;C, P = <span class="tok-kw">unknown</span>&gt; =</span><span class="ln">	C <span class="tok-kw">extends</span> RemoteContract&lt;<span class="tok-kw">infer</span> D&gt; ? ... : <span class="tok-kw">never</span>;</span></code></pre></div>
+<p>读作&quot;如果 <code>C</code> 长得像 <code>RemoteContract&lt;D&gt;</code>，就把那个 <code>D</code> 记下来&quot;。
+<code>as</code> 是断言（不检查、我说了算），<code>infer</code> 是反推（检查，并从里面取出一个
+类型变量）——两者长得很像，方向正好相反。正文里 M12 §3.4 用它把
+contract 的类型参数掏出来。</p>
 <h3 id="sec-8-2-6-satisfies-检查-但别改我的类型">2.6 <code>satisfies</code>：检查，但别改我的类型</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -272,11 +285,15 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
 <td>2.3</td>
 </tr>
 <tr>
-<td>看到 <code>model is Model&lt;TApi&gt;</code></td>
+<td>看到 <code>model is Model&lt;TApi&gt;</code>、<code>value is T</code></td>
 <td>2.4</td>
 </tr>
 <tr>
 <td>看到 <code>extends true ? A : never</code></td>
+<td>2.5</td>
+</tr>
+<tr>
+<td>看到 <code>RemoteContract&lt;infer D&gt;</code></td>
 <td>2.5</td>
 </tr>
 <tr>
@@ -325,6 +342,16 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
 <td><code>packages/ai/src/models.ts</code></td>
 <td>1,300</td>
 <td><code>Models</code> 接口 <code>:258</code>、<code>hasApi</code> <code>:1232</code></td>
+</tr>
+<tr>
+<td><code>packages/schema/src/validator.ts</code></td>
+<td>93</td>
+<td><code>check</code> 的类型谓词 <code>:202</code></td>
+</tr>
+<tr>
+<td><code>packages/chord/src/contract.ts</code></td>
+<td>435</td>
+<td><code>infer D</code>（<code>ImplementationOf</code>）<code>:417-424</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/messages.ts</code></td>

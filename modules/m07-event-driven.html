@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -795,7 +796,7 @@ promise，agent 就永久卡住。</p>
 <p><strong>实验 1：数一数内核事件。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">cd pi-main/pi-main/packages/agent/src</span><span class="ln">sed -n '528,551p' types.ts</span></code></pre></div>
+<pre><code><span class="ln"># 在仓库根目录执行</span><span class="ln">cd packages/agent/src</span><span class="ln">sed -n '528,551p' types.ts</span></code></pre></div>
 <p>十个 <code>type:</code>，四个注释分组。</p>
 <p><strong>实验 2：确认钩子数量。</strong></p>
 <div class="code-block" data-lang="bash">
@@ -960,14 +961,42 @@ promise，agent 就永久卡住。</p>
 <p>第三类 Pi 没拦，因为 <code>tool_call</code> 排在 <code>validateToolArguments</code> 之后（M05）。
 <strong>能拦的别放过，拦不到的写进文档。</strong></p>
 <hr>
-<h2 id="sec-41-下一步">下一步</h2>
+<h2 id="sec-41-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内核发几种事件？扩展能挂几个钩子？</td>
+<td>10 / 41，中间隔一层翻译</td>
+<td>§一、§三</td>
+</tr>
+<tr>
+<td>扩展抛异常了，谁该看到报错？</td>
+<td>按<strong>权限</strong>定：观察类吞、变换类丢、拦截类抛</td>
+<td>§五</td>
+</tr>
+<tr>
+<td>四十一个钩子，常用的有几个？</td>
+<td>六个</td>
+<td>§4.1</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-42-下一步">下一步</h2>
 <p>事件系统讲完，内核部分就齐了：循环在前面转，模型在后面调，
 工具在手里，消息在账上，事件在血管里流。</p>
 <p>下一章开始往上走。模型每次请求都要带上&quot;系统提示词&quot;——那段几千字的、
 告诉模型它是谁的文本，是怎么拼出来的？谁往里加东西？顺序能不能改？</p>
 <p>打开上下文装配。</p>
 <hr>
-<h2 id="sec-42-本章源码索引">本章源码索引</h2>
+<h2 id="sec-43-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1040,7 +1069,7 @@ promise，agent 就永久卡住。</p>
       <a class="next" href="m08-context.html"><span class="lbl">下一篇</span>上下文装配 —— 八节提示词，一条目录链</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一次工具调用-十颗钉子" class="">一、一次工具调用，十颗钉子</a><a href="#sec-2-1-1-为什么没有-thinking-事件" class="lv3">1.1 为什么没有 thinking 事件</a><a href="#sec-3-1-2-emit-的签名" class="lv3">1.2 emit 的签名</a><a href="#sec-4-二-三条通道-不是一条" class="">二、三条通道，不是一条</a><a href="#sec-5-2-1-通道一-内核事件流" class="lv3">2.1 通道一：内核事件流</a><a href="#sec-6-2-2-通道二-agent-subscribe" class="lv3">2.2 通道二：Agent.subscribe</a><a href="#sec-7-2-3-通道三-agent-hook" class="lv3">2.3 通道三：agent hook</a><a href="#sec-8-2-4-三条通道的分工" class="lv3">2.4 三条通道的分工</a><a href="#sec-9-2-5-一个场景-走一遍三条通道" class="lv3">2.5 一个场景，走一遍三条通道</a><a href="#sec-10-三-翻译层-十变成四十一" class="">三、翻译层：十变成四十一</a><a href="#sec-11-3-1-翻译发生在一个函数里" class="lv3">3.1 翻译发生在一个函数里</a><a href="#sec-12-3-2-tool_call-和-tool_result-不走这里" class="lv3">3.2 tool_call 和 tool_result 不走这里</a><a href="#sec-13-3-3-turn_end-的岔路" class="lv3">3.3 turn_end 的岔路</a><a href="#sec-14-3-4-为什么翻译层不在-agent-包里" class="lv3">3.4 为什么翻译层不在 agent 包里</a><a href="#sec-15-四-四十一个钩子的地图" class="">四、四十一个钩子的地图</a><a href="#sec-16-4-1-四十一个里-常用的只有六个" class="lv3">4.1 四十一个里，常用的只有六个</a><a href="#sec-17-4-2-ctx-是谁" class="lv3">4.2 ctx 是谁</a><a href="#sec-18-五-三种错误策略" class="">五、三种错误策略</a><a href="#sec-19-5-1-观察类-吞掉-记一笔" class="lv3">5.1 观察类：吞掉，记一笔</a><a href="#sec-20-5-2-变换类-吞掉-丢掉这次修改" class="lv3">5.2 变换类：吞掉，丢掉这次修改</a><a href="#sec-21-5-3-拦截类-不吞-让它阻断" class="lv3">5.3 拦截类：不吞，让它阻断</a><a href="#sec-22-5-4-一张表" class="lv3">5.4 一张表</a><a href="#sec-23-5-5-四种返回值-四种权力" class="lv3">5.5 四种返回值，四种权力</a><a href="#sec-24-六-顺序-快照与并发" class="">六、顺序、快照与并发</a><a href="#sec-25-6-1-三路广播的先后" class="lv3">6.1 三路广播的先后</a><a href="#sec-26-6-2-快照-slice" class="lv3">6.2 快照：slice()</a><a href="#sec-27-6-3-没有并行" class="lv3">6.3 没有并行</a><a href="#sec-28-6-4-顺序本身就是契约" class="lv3">6.4 顺序本身就是契约</a><a href="#sec-29-6-5-没有超时" class="lv3">6.5 没有超时</a><a href="#sec-30-七-写一个扩展" class="">七、写一个扩展</a><a href="#sec-31-7-1-用-turn_end-让-agent-继续" class="lv3">7.1 用 turn_end 让 agent 继续</a><a href="#sec-32-八-扩展从哪来" class="">八、扩展从哪来</a><a href="#sec-33-8-1-加载期的-quot-半成品-quot-状态" class="lv3">8.1 加载期的&amp;quot;半成品&amp;quot;状态</a><a href="#sec-34-8-2-70-个现成例子" class="lv3">8.2 70 个现成例子</a><a href="#sec-35-8-3-拆三个例子" class="lv3">8.3 拆三个例子</a><a href="#sec-36-8-4-扩展之间也能说话" class="lv3">8.4 扩展之间也能说话</a><a href="#sec-37-九-完整数据流" class="">九、完整数据流</a><a href="#sec-38-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-39-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-40-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-41-下一步" class="">下一步</a><a href="#sec-42-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一次工具调用-十颗钉子" class="">一、一次工具调用，十颗钉子</a><a href="#sec-2-1-1-为什么没有-thinking-事件" class="lv3">1.1 为什么没有 thinking 事件</a><a href="#sec-3-1-2-emit-的签名" class="lv3">1.2 emit 的签名</a><a href="#sec-4-二-三条通道-不是一条" class="">二、三条通道，不是一条</a><a href="#sec-5-2-1-通道一-内核事件流" class="lv3">2.1 通道一：内核事件流</a><a href="#sec-6-2-2-通道二-agent-subscribe" class="lv3">2.2 通道二：Agent.subscribe</a><a href="#sec-7-2-3-通道三-agent-hook" class="lv3">2.3 通道三：agent hook</a><a href="#sec-8-2-4-三条通道的分工" class="lv3">2.4 三条通道的分工</a><a href="#sec-9-2-5-一个场景-走一遍三条通道" class="lv3">2.5 一个场景，走一遍三条通道</a><a href="#sec-10-三-翻译层-十变成四十一" class="">三、翻译层：十变成四十一</a><a href="#sec-11-3-1-翻译发生在一个函数里" class="lv3">3.1 翻译发生在一个函数里</a><a href="#sec-12-3-2-tool_call-和-tool_result-不走这里" class="lv3">3.2 tool_call 和 tool_result 不走这里</a><a href="#sec-13-3-3-turn_end-的岔路" class="lv3">3.3 turn_end 的岔路</a><a href="#sec-14-3-4-为什么翻译层不在-agent-包里" class="lv3">3.4 为什么翻译层不在 agent 包里</a><a href="#sec-15-四-四十一个钩子的地图" class="">四、四十一个钩子的地图</a><a href="#sec-16-4-1-四十一个里-常用的只有六个" class="lv3">4.1 四十一个里，常用的只有六个</a><a href="#sec-17-4-2-ctx-是谁" class="lv3">4.2 ctx 是谁</a><a href="#sec-18-五-三种错误策略" class="">五、三种错误策略</a><a href="#sec-19-5-1-观察类-吞掉-记一笔" class="lv3">5.1 观察类：吞掉，记一笔</a><a href="#sec-20-5-2-变换类-吞掉-丢掉这次修改" class="lv3">5.2 变换类：吞掉，丢掉这次修改</a><a href="#sec-21-5-3-拦截类-不吞-让它阻断" class="lv3">5.3 拦截类：不吞，让它阻断</a><a href="#sec-22-5-4-一张表" class="lv3">5.4 一张表</a><a href="#sec-23-5-5-四种返回值-四种权力" class="lv3">5.5 四种返回值，四种权力</a><a href="#sec-24-六-顺序-快照与并发" class="">六、顺序、快照与并发</a><a href="#sec-25-6-1-三路广播的先后" class="lv3">6.1 三路广播的先后</a><a href="#sec-26-6-2-快照-slice" class="lv3">6.2 快照：slice()</a><a href="#sec-27-6-3-没有并行" class="lv3">6.3 没有并行</a><a href="#sec-28-6-4-顺序本身就是契约" class="lv3">6.4 顺序本身就是契约</a><a href="#sec-29-6-5-没有超时" class="lv3">6.5 没有超时</a><a href="#sec-30-七-写一个扩展" class="">七、写一个扩展</a><a href="#sec-31-7-1-用-turn_end-让-agent-继续" class="lv3">7.1 用 turn_end 让 agent 继续</a><a href="#sec-32-八-扩展从哪来" class="">八、扩展从哪来</a><a href="#sec-33-8-1-加载期的-quot-半成品-quot-状态" class="lv3">8.1 加载期的&amp;quot;半成品&amp;quot;状态</a><a href="#sec-34-8-2-70-个现成例子" class="lv3">8.2 70 个现成例子</a><a href="#sec-35-8-3-拆三个例子" class="lv3">8.3 拆三个例子</a><a href="#sec-36-8-4-扩展之间也能说话" class="lv3">8.4 扩展之间也能说话</a><a href="#sec-37-九-完整数据流" class="">九、完整数据流</a><a href="#sec-38-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-39-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-40-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-41-读完自检" class="">读完自检</a><a href="#sec-42-下一步" class="">下一步</a><a href="#sec-43-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

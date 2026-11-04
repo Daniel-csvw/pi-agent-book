@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="active">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -238,7 +239,7 @@
 </table></div>
 <p>六条全部偏小。规律很清楚：<strong>上游一直在加代码，行号只会往后漂</strong>。所以任何&quot;三天前看到的行号&quot;都值得重新确认。</p>
 <h3 id="sec-5-3-1-校验脚本只查得到两类错">3.1 校验脚本只查得到两类错</h3>
-<p>本书的 <code>scripts/fact-check.mjs</code> 查三件事：</p>
+<p>本书的校验脚本查三件事：</p>
 <ol>
 <li>文件存不存在</li>
 <li>行号越不越界</li>
@@ -517,7 +518,7 @@
 <p>不想信我，自己跑：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">cd pi-main/pi-main</span><span class="ln"></span><span class="ln"># 1. 包数量（应该 12，不是 5）</span><span class="ln">ls packages | wc -l</span><span class="ln"></span><span class="ln"># 2. orchestrator 不存在（应该 0）</span><span class="ln">ls packages | grep -c orchestrator</span><span class="ln"></span><span class="ln"># 3. 版本号（应该只有一行 1.4.0）</span><span class="ln">for p in packages/*/package.json; do</span><span class="ln">  node -p "require('./$p').version"</span><span class="ln">done | sort -u</span><span class="ln"></span><span class="ln"># 4. 旧的 harness 路径不存在（应该 0）</span><span class="ln">ls packages/agent/src/ | grep -c harness</span><span class="ln"></span><span class="ln"># 5. 新的 harness 在 durable（应该 24）</span><span class="ln">ls packages/durable/src/harness/*.ts | wc -l</span><span class="ln"></span><span class="ln"># 6. index.ts 只有 5 行（应该 5）</span><span class="ln">wc -l &lt; packages/agent/src/index.ts</span><span class="ln"></span><span class="ln"># 7. 八个工具（应该 8）</span><span class="ln">ls packages/coding-agent/src/core/tools/*.ts | \</span><span class="ln">  grep -cE '/(bash|powershell|read|write|edit|find|grep|ls)\.ts'</span></code></pre></div>
+<pre><code><span class="ln"># 在仓库根目录执行</span><span class="ln"></span><span class="ln"># 1. 包数量（应该 12，不是 5）</span><span class="ln">ls packages | wc -l</span><span class="ln"></span><span class="ln"># 2. orchestrator 不存在（应该 0）</span><span class="ln">ls packages | grep -c orchestrator</span><span class="ln"></span><span class="ln"># 3. 版本号（应该只有一行 1.4.0）</span><span class="ln">for p in packages/*/package.json; do</span><span class="ln">  node -p "require('./$p').version"</span><span class="ln">done | sort -u</span><span class="ln"></span><span class="ln"># 4. 旧的 harness 路径不存在（应该 0）</span><span class="ln">ls packages/agent/src/ | grep -c harness</span><span class="ln"></span><span class="ln"># 5. 新的 harness 在 durable（应该 24）</span><span class="ln">ls packages/durable/src/harness/*.ts | wc -l</span><span class="ln"></span><span class="ln"># 6. index.ts 只有 5 行（应该 5）</span><span class="ln">wc -l &lt; packages/agent/src/index.ts</span><span class="ln"></span><span class="ln"># 7. 八个工具（应该 8）</span><span class="ln">ls packages/coding-agent/src/core/tools/*.ts | \</span><span class="ln">  grep -cE '/(bash|powershell|read|write|edit|find|grep|ls)\.ts'</span></code></pre></div>
 <p>七条全部对上的话，你手上的快照就是本书用的这一份。</p>
 <p><strong>如果第 4 条和第 5 条同时满足，说明你理解对了一件事</strong>：<code>harness</code> 没消失，它搬了家，而且变小了。</p>
 <hr>

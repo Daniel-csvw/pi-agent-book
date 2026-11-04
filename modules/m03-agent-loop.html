@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -1011,6 +1012,9 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> failureMessage = {</span><span class="ln">	role: <span class="tok-str">"assistant"</span>,</span><span class="ln">	content: [{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">""</span> }],</span><span class="ln">	api: <span class="tok-kw">this</span>._state.model.api,</span><span class="ln">	provider: <span class="tok-kw">this</span>._state.model.provider,</span><span class="ln">	model: <span class="tok-kw">this</span>._state.model.id,</span><span class="ln">	usage: EMPTY_USAGE,</span><span class="ln">	stopReason: aborted ? <span class="tok-str">"aborted"</span> : <span class="tok-str">"error"</span>,</span><span class="ln">	errorMessage: error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error),</span><span class="ln">	timestamp: Date.<span class="tok-fn">now</span>(),</span><span class="ln">} <span class="tok-kw">satisfies</span> AgentMessage;</span></code></pre></div>
+<p>末尾那个 <code>satisfies</code> 是本章第一次用到：意思是&quot;按 <code>AgentMessage</code> 的形状检查这个
+字面量，但别把我的类型放宽成 <code>AgentMessage</code>&quot;。它和 <code>: AgentMessage</code> 差在哪，
+附录 B §2.6 有三行对照。</p>
 <p>然后照常发 <code>message_start</code> / <code>message_end</code> / <code>turn_end</code> / <code>agent_end</code>。</p>
 <p>这样外部消费者<strong>只有一条路径要处理</strong>：订阅事件，等 <code>agent_end</code>。不需要 try/catch，不需要区分&quot;正常结束&quot;和&quot;崩了&quot;。</p>
 <p>代价是：真实异常被降级成了数据，调试时得看 <code>errorMessage</code> 字段。这是个权衡——把复杂度从&quot;N 个调用方&quot;收敛到&quot;内核的一处&quot;。</p>
@@ -1254,12 +1258,40 @@
 <p>工具不存在、参数非法、被拦截、抛异常、模型报错、外壳崩溃——全部降级成一条带 <code>isError</code> 的消息，或一条 <code>stopReason: &quot;error&quot;</code> 的 assistant 消息。</p>
 <p>调用方只需处理一条路径：订阅事件，等 <code>agent_end</code>。内核把&quot;N 种失败&quot;收敛成&quot;1 种数据&quot;。</p>
 <hr>
-<h2 id="sec-47-下一步">下一步</h2>
+<h2 id="sec-47-读完自检">读完自检</h2>
+<p>对照开头那三问，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一次 <code>pi &quot;找出所有 TODO&quot;</code> 到底发生了什么？</td>
+<td>拼 context → 内层转&quot;模型→工具&quot;的锯齿 → 结果回写 transcript</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>循环什么时候继续、什么时候停？</td>
+<td>不看 <code>stopReason</code>，看还有没有没执行的 <code>toolCall</code></td>
+<td>§6.1</td>
+</tr>
+<tr>
+<td>跑到一半插一句话，是怎么进去的？</td>
+<td><code>steering</code> 队列，在下一次请求前注入</td>
+<td>§6.2</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-48-下一步">下一步</h2>
 <p>现在我们知道了循环怎么转、什么时候停、消息怎么流动。但有一块被当成黑盒跳过了：<code>streamAssistantResponse</code> 里那句 <code>await streamFunction(...)</code>。</p>
 <p><code>StreamFn</code> 的契约到底是什么？一个 provider 实现要处理多少种流事件？工具调用的参数是怎么一个字一个字吐出来的？为什么 <code>pi-ai</code> 要在 7 家 provider 之上再盖一层归一？</p>
 <p>下一章拆 <code>packages/ai</code>——那 28,551 行里的统一层。</p>
 <hr>
-<h2 id="sec-48-源码索引">源码索引</h2>
+<h2 id="sec-49-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1312,7 +1344,7 @@
       <a class="next" href="m04-model-call.html"><span class="lbl">下一篇</span>模型调用 —— 一行代码背后的十层翻译</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-引子-同一个模型-三种用法" class="">一、引子：同一个模型，三种用法</a><a href="#sec-2-二-先把词对齐" class="">二、先把词对齐</a><a href="#sec-3-三-全景-一次-prompt-的完整旅程" class="">三、全景：一次 prompt 的完整旅程</a><a href="#sec-4-四-五个函数-撑起一个循环" class="">四、五个函数，撑起一个循环</a><a href="#sec-5-4-1-为什么-agentloop-不是-async" class="lv3">4.1 为什么 agentLoop 不是 async</a><a href="#sec-6-4-2-agent_end-一身二职" class="lv3">4.2 agent_end 一身二职</a><a href="#sec-7-4-3-continue-的两道前置校验" class="lv3">4.3 continue 的两道前置校验</a><a href="#sec-8-4-4-文件头那-13-个符号-划出了内核的势力范围" class="lv3">4.4 文件头那 13 个符号，划出了内核的势力范围</a><a href="#sec-9-五-两层循环" class="">五、两层循环</a><a href="#sec-10-5-1-骨架" class="lv3">5.1 骨架</a><a href="#sec-11-5-2-内层在转什么" class="lv3">5.2 内层在转什么</a><a href="#sec-12-5-3-外层在补什么" class="lv3">5.3 外层在补什么</a><a href="#sec-13-5-4-三条退出路径" class="lv3">5.4 三条退出路径</a><a href="#sec-14-5-5-turn_start-为什么有两个发出点" class="lv3">5.5 turn_start 为什么有两个发出点</a><a href="#sec-15-5-6-runloop-里的五个可变状态" class="lv3">5.6 runLoop 里的五个可变状态</a><a href="#sec-16-六-旧版的那盏信号灯-新版拆成了三盏" class="">六、旧版的那盏信号灯，新版拆成了三盏</a><a href="#sec-17-6-1-stopreason-退居二线" class="lv3">6.1 stopReason 退居二线</a><a href="#sec-18-6-2-出路一-steering-跑到一半插话" class="lv3">6.2 出路一：steering —— 跑到一半插话</a><a href="#sec-19-6-3-出路二-follow-up-等你说完我再说" class="lv3">6.3 出路二：follow-up —— 等你说完我再说</a><a href="#sec-20-6-4-出路三-finishturn-宿主说了算" class="lv3">6.4 出路三：finishTurn —— 宿主说了算</a><a href="#sec-21-6-5-真实宿主怎么用这三个钩子" class="lv3">6.5 真实宿主怎么用这三个钩子</a><a href="#sec-22-6-6-那七个-stopreason-都去哪了" class="lv3">6.6 那七个 stopReason 都去哪了</a><a href="#sec-23-七-一次请求之前" class="">七、一次请求之前</a><a href="#sec-24-7-1-三级流水线" class="lv3">7.1 三级流水线</a><a href="#sec-25-7-2-三个-quot-请求前-quot-钩子-别搞混" class="lv3">7.2 三个&amp;quot;请求前&amp;quot;钩子，别搞混</a><a href="#sec-26-7-3-贯穿全章的一条哲学-变更即追加" class="lv3">7.3 贯穿全章的一条哲学：变更即追加</a><a href="#sec-27-7-4-两个钩子的返回值-形状故意不一样" class="lv3">7.4 两个钩子的返回值，形状故意不一样</a><a href="#sec-28-八-流式响应如何落进-transcript" class="">八、流式响应如何落进 transcript</a><a href="#sec-29-8-1-provider-吐-12-种事件-这里只写了-4-个分支" class="lv3">8.1 provider 吐 12 种事件，这里只写了 4 个分支</a><a href="#sec-30-九-工具执行" class="">九、工具执行</a><a href="#sec-31-9-1-分派-一个坏苹果拖垮整批" class="lv3">9.1 分派：一个坏苹果拖垮整批</a><a href="#sec-32-9-2-并行执行-顺序记账" class="lv3">9.2 并行执行，顺序记账</a><a href="#sec-33-9-3-terminate-全体一致才能停" class="lv3">9.3 terminate：全体一致才能停</a><a href="#sec-34-9-4-一次工具调用的四道关" class="lv3">9.4 一次工具调用的四道关</a><a href="#sec-35-9-5-截断保护" class="lv3">9.5 截断保护</a><a href="#sec-36-9-6-并行版的类型把戏-一个数组装两种东西" class="lv3">9.6 并行版的类型把戏：一个数组装两种东西</a><a href="#sec-37-9-7-执行期的三个守卫" class="lv3">9.7 执行期的三个守卫</a><a href="#sec-38-十-失败也是消息" class="">十、失败也是消息</a><a href="#sec-39-十一-agent-有状态的那层" class="">十一、Agent：有状态的那层</a><a href="#sec-40-11-1-systemprompt-是算出来的" class="lv3">11.1 systemPrompt 是算出来的</a><a href="#sec-41-11-2-单飞" class="lv3">11.2 单飞</a><a href="#sec-42-11-3-reducer" class="lv3">11.3 reducer</a><a href="#sec-43-11-4-agent_end-不等于-idle" class="lv3">11.4 agent_end 不等于 idle</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-46-十四-三个可以带走的方法" class="">十四、三个可以带走的方法</a><a href="#sec-47-下一步" class="">下一步</a><a href="#sec-48-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-引子-同一个模型-三种用法" class="">一、引子：同一个模型，三种用法</a><a href="#sec-2-二-先把词对齐" class="">二、先把词对齐</a><a href="#sec-3-三-全景-一次-prompt-的完整旅程" class="">三、全景：一次 prompt 的完整旅程</a><a href="#sec-4-四-五个函数-撑起一个循环" class="">四、五个函数，撑起一个循环</a><a href="#sec-5-4-1-为什么-agentloop-不是-async" class="lv3">4.1 为什么 agentLoop 不是 async</a><a href="#sec-6-4-2-agent_end-一身二职" class="lv3">4.2 agent_end 一身二职</a><a href="#sec-7-4-3-continue-的两道前置校验" class="lv3">4.3 continue 的两道前置校验</a><a href="#sec-8-4-4-文件头那-13-个符号-划出了内核的势力范围" class="lv3">4.4 文件头那 13 个符号，划出了内核的势力范围</a><a href="#sec-9-五-两层循环" class="">五、两层循环</a><a href="#sec-10-5-1-骨架" class="lv3">5.1 骨架</a><a href="#sec-11-5-2-内层在转什么" class="lv3">5.2 内层在转什么</a><a href="#sec-12-5-3-外层在补什么" class="lv3">5.3 外层在补什么</a><a href="#sec-13-5-4-三条退出路径" class="lv3">5.4 三条退出路径</a><a href="#sec-14-5-5-turn_start-为什么有两个发出点" class="lv3">5.5 turn_start 为什么有两个发出点</a><a href="#sec-15-5-6-runloop-里的五个可变状态" class="lv3">5.6 runLoop 里的五个可变状态</a><a href="#sec-16-六-旧版的那盏信号灯-新版拆成了三盏" class="">六、旧版的那盏信号灯，新版拆成了三盏</a><a href="#sec-17-6-1-stopreason-退居二线" class="lv3">6.1 stopReason 退居二线</a><a href="#sec-18-6-2-出路一-steering-跑到一半插话" class="lv3">6.2 出路一：steering —— 跑到一半插话</a><a href="#sec-19-6-3-出路二-follow-up-等你说完我再说" class="lv3">6.3 出路二：follow-up —— 等你说完我再说</a><a href="#sec-20-6-4-出路三-finishturn-宿主说了算" class="lv3">6.4 出路三：finishTurn —— 宿主说了算</a><a href="#sec-21-6-5-真实宿主怎么用这三个钩子" class="lv3">6.5 真实宿主怎么用这三个钩子</a><a href="#sec-22-6-6-那七个-stopreason-都去哪了" class="lv3">6.6 那七个 stopReason 都去哪了</a><a href="#sec-23-七-一次请求之前" class="">七、一次请求之前</a><a href="#sec-24-7-1-三级流水线" class="lv3">7.1 三级流水线</a><a href="#sec-25-7-2-三个-quot-请求前-quot-钩子-别搞混" class="lv3">7.2 三个&amp;quot;请求前&amp;quot;钩子，别搞混</a><a href="#sec-26-7-3-贯穿全章的一条哲学-变更即追加" class="lv3">7.3 贯穿全章的一条哲学：变更即追加</a><a href="#sec-27-7-4-两个钩子的返回值-形状故意不一样" class="lv3">7.4 两个钩子的返回值，形状故意不一样</a><a href="#sec-28-八-流式响应如何落进-transcript" class="">八、流式响应如何落进 transcript</a><a href="#sec-29-8-1-provider-吐-12-种事件-这里只写了-4-个分支" class="lv3">8.1 provider 吐 12 种事件，这里只写了 4 个分支</a><a href="#sec-30-九-工具执行" class="">九、工具执行</a><a href="#sec-31-9-1-分派-一个坏苹果拖垮整批" class="lv3">9.1 分派：一个坏苹果拖垮整批</a><a href="#sec-32-9-2-并行执行-顺序记账" class="lv3">9.2 并行执行，顺序记账</a><a href="#sec-33-9-3-terminate-全体一致才能停" class="lv3">9.3 terminate：全体一致才能停</a><a href="#sec-34-9-4-一次工具调用的四道关" class="lv3">9.4 一次工具调用的四道关</a><a href="#sec-35-9-5-截断保护" class="lv3">9.5 截断保护</a><a href="#sec-36-9-6-并行版的类型把戏-一个数组装两种东西" class="lv3">9.6 并行版的类型把戏：一个数组装两种东西</a><a href="#sec-37-9-7-执行期的三个守卫" class="lv3">9.7 执行期的三个守卫</a><a href="#sec-38-十-失败也是消息" class="">十、失败也是消息</a><a href="#sec-39-十一-agent-有状态的那层" class="">十一、Agent：有状态的那层</a><a href="#sec-40-11-1-systemprompt-是算出来的" class="lv3">11.1 systemPrompt 是算出来的</a><a href="#sec-41-11-2-单飞" class="lv3">11.2 单飞</a><a href="#sec-42-11-3-reducer" class="lv3">11.3 reducer</a><a href="#sec-43-11-4-agent_end-不等于-idle" class="lv3">11.4 agent_end 不等于 idle</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-46-十四-三个可以带走的方法" class="">十四、三个可以带走的方法</a><a href="#sec-47-读完自检" class="">读完自检</a><a href="#sec-48-下一步" class="">下一步</a><a href="#sec-49-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

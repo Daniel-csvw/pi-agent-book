@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -1239,8 +1240,36 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 它必须在回调第一行就把队列和 head 读出来，因为边界的判断依赖&quot;写之前的世界&quot;，
 而一旦开始写，那个世界就不可再问。</p>
 <hr>
-<h2 id="sec-51-十三-收束">十三、收束</h2>
-<h3 id="sec-52-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
+<h2 id="sec-51-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一个 <code>while</code> 怎么变成状态机的？</td>
+<td>把进度从栈上搬到存储里，循环就不该是个函数</td>
+<td>§六</td>
+</tr>
+<tr>
+<td><code>completing</code> 这个状态为什么必须存在？</td>
+<td>因为 <code>finish</code> 和 <code>drain</code> 必须分两步，中间得有个名字</td>
+<td>§4.3、§4.4</td>
+</tr>
+<tr>
+<td>不可逆的操作该怎么写？</td>
+<td>先提交意图，再执行——崩溃后才知道&quot;可能已经发生&quot;</td>
+<td>§7.2</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-52-十三-收束">十三、收束</h2>
+<h3 id="sec-53-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
 <p><strong>一、把&quot;进度&quot;从栈上搬到存储里，循环就自然消失了。</strong>
 不是&quot;给循环加个存档点&quot;，是&quot;循环本来就不该是一个函数&quot;。
 一个 <code>while</code> 的每次迭代如果都要持久化，那它就是一个状态机，
@@ -1253,7 +1282,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <code>tool.ts:195-198</code> 那三行是整章最值得抄的一处：先提交&quot;我要用什么参数跑什么工具&quot;，
 再跑。这样崩溃之后，系统知道&quot;有一件事可能已经发生了&quot;，
 而不是&quot;不知道发生过什么&quot;——后者才是数据损坏的真正来源。</p>
-<h3 id="sec-53-13-2-这章的边界">13.2 这章的边界</h3>
+<h3 id="sec-54-13-2-这章的边界">13.2 这章的边界</h3>
 <p>本章讲了 <code>durable</code> 的调度内核和三个内置任务。没讲的是：</p>
 <ul>
 <li><code>codemode/</code>（1,710 行）：沙箱里跑模型写的脚本，留给 M13。</li>
@@ -1261,13 +1290,13 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
 <li><code>tools/</code>（1,596 行）：内置工具实现，M05 讲的是 <code>coding-agent</code> 的那一套，不是这一套。</li>
 <li><code>images/</code>、<code>tool-search/</code>：与主线无关的两块。</li>
 </ul>
-<h3 id="sec-54-13-3-下一站">13.3 下一站</h3>
+<h3 id="sec-55-13-3-下一站">13.3 下一站</h3>
 <p>M11 讲了&quot;提交怎么被调度成任务&quot;。M12 讲 <code>chord</code>——<code>durable</code> 依赖的那个包，
 也是这些提交能在浏览器、Node、Cloudflare 三处跑同一份代码的原因。</p>
 <p><code>chord</code> 50,101 行（216 文件），是仓库里最大的包。M12 只细读它的 v1 根层——
 那 25 个文件里就有 <code>object.ts</code>、<code>connection.ts</code>、<code>host.ts</code>、<code>reload.ts</code>。</p>
 <hr>
-<h2 id="sec-55-本章源码索引">本章源码索引</h2>
+<h2 id="sec-56-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1395,7 +1424,7 @@ resolution from settlement&quot;——<strong>解析和结算之间不能有缝<
       <a class="next" href="m12-chord.html"><span class="lbl">下一篇</span>对象与热重载 —— 改代码为什么不用重启</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-三个包的分工" class="">一、三个包的分工</a><a href="#sec-2-1-1-两条互不相交的依赖线" class="lv3">1.1 两条互不相交的依赖线</a><a href="#sec-3-1-2-为什么可以不用-runloop" class="lv3">1.2 为什么可以不用 runLoop</a><a href="#sec-4-二-目录地图" class="">二、目录地图</a><a href="#sec-5-2-1-harness-的-24-个文件分成五组" class="lv3">2.1 harness/ 的 24 个文件分成五组</a><a href="#sec-6-2-2-根层那四个不到-250-行的文件" class="lv3">2.2 根层那四个不到 250 行的文件</a><a href="#sec-7-三-三个内核概念" class="">三、三个内核概念</a><a href="#sec-8-3-1-entry-不可变的历史" class="lv3">3.1 entry：不可变的历史</a><a href="#sec-9-3-2-document-可以被改写的状态" class="lv3">3.2 document：可以被改写的状态</a><a href="#sec-10-3-3-task-第四种东西" class="lv3">3.3 task：第四种东西</a><a href="#sec-11-3-4-taskruntime-handler-能碰到的全部" class="lv3">3.4 TaskRuntime：handler 能碰到的全部</a><a href="#sec-12-3-5-所有权-每个任务都得有个主人" class="lv3">3.5 所有权：每个任务都得有个主人</a><a href="#sec-13-四-六种状态-五种结局" class="">四、六种状态，五种结局</a><a href="#sec-14-4-1-taskstate-types-ts-658-702" class="lv3">4.1 TaskState（types.ts:658-702）</a><a href="#sec-15-4-2-taskoutcome-types-ts-621-655" class="lv3">4.2 TaskOutcome（types.ts:621-655）</a><a href="#sec-16-4-3-completing-为什么必须存在" class="lv3">4.3 completing 为什么必须存在</a><a href="#sec-17-4-4-为什么-finish-必须和-drain-分成两步" class="lv3">4.4 为什么 finish 必须和 drain 分成两步</a><a href="#sec-18-五-调度器-没有循环的循环" class="">五、调度器：没有循环的循环</a><a href="#sec-19-5-1-一次-kick-一轮-drain" class="lv3">5.1 一次 kick，一轮 drain</a><a href="#sec-20-5-2-reserve-一次提交预留所有活" class="lv3">5.2 #reserve：一次提交预留所有活</a><a href="#sec-21-5-3-rules-六条决策规则" class="lv3">5.3 #rules：六条决策规则</a><a href="#sec-22-5-4-open-把-running-改回-pending" class="lv3">5.4 open()：把 running 改回 pending</a><a href="#sec-23-5-5-一次调用的完整生命周期" class="lv3">5.5 一次调用的完整生命周期</a><a href="#sec-24-5-6-取消怎么往下传" class="lv3">5.6 取消怎么往下传</a><a href="#sec-25-5-7-提交点-一次-commit-到底保证什么" class="lv3">5.7 提交点：一次 commit 到底保证什么</a><a href="#sec-26-六-generation-把-while-换成-handover" class="">六、generation：把 while 换成 handOver</a><a href="#sec-27-6-1-七个-phase" class="lv3">6.1 七个 phase</a><a href="#sec-28-6-2-内层循环怎么没的" class="lv3">6.2 内层循环怎么没的</a><a href="#sec-29-6-3-外层循环怎么没的" class="lv3">6.3 外层循环怎么没的</a><a href="#sec-30-6-4-中断分三种-不是一个-error" class="lv3">6.4 中断分三种，不是一个 error</a><a href="#sec-31-6-5-压缩是一个被-generation-拥有的任务" class="lv3">6.5 压缩是一个被 generation 拥有的任务</a><a href="#sec-32-6-6-一轮的输入从哪来" class="lv3">6.6 一轮的输入从哪来</a><a href="#sec-33-七-tool-一次调用的持久意图" class="">七、tool：一次调用的持久意图</a><a href="#sec-34-7-1-两个-phase-两种-input" class="lv3">7.1 两个 phase，两种 input</a><a href="#sec-35-7-2-一段三行-把-m10-那个洞补上了" class="lv3">7.2 一段三行，把 M10 那个洞补上了</a><a href="#sec-36-7-3-工具里还能再调工具" class="lv3">7.3 工具里还能再调工具</a><a href="#sec-37-7-4-并行还是串行-是一个设置" class="lv3">7.4 并行还是串行，是一个设置</a><a href="#sec-38-八-和-m03-的对照" class="">八、和 M03 的对照</a><a href="#sec-39-九-四种后端-一套语义" class="">九、四种后端，一套语义</a><a href="#sec-40-9-1-一致性靠测试-不靠约定" class="lv3">9.1 一致性靠测试，不靠约定</a><a href="#sec-41-9-2-sqlite-那-1-050-行里有什么" class="lv3">9.2 SQLite 那 1,050 行里有什么</a><a href="#sec-42-十-完整链路" class="">十、完整链路</a><a href="#sec-43-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-实验-1-看任务状态机在磁盘上长什么样" class="lv3">实验 1：看任务状态机在磁盘上长什么样</a><a href="#sec-46-实验-2-让一个-phase-不提交-看它被判-fault" class="lv3">实验 2：让一个 phase 不提交，看它被判 fault</a><a href="#sec-47-实验-3-确认-durable-真的不依赖-agent" class="lv3">实验 3：确认 durable 真的不依赖 agent</a><a href="#sec-48-实验-4-跑一遍存储一致性套件" class="lv3">实验 4：跑一遍存储一致性套件</a><a href="#sec-49-实验-5-看取消怎么级联" class="lv3">实验 5：看取消怎么级联</a><a href="#sec-50-实验-6-撞一次-readafterwrite" class="lv3">实验 6：撞一次 ReadAfterWrite</a><a href="#sec-51-十三-收束" class="">十三、收束</a><a href="#sec-52-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-53-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-54-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-55-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-三个包的分工" class="">一、三个包的分工</a><a href="#sec-2-1-1-两条互不相交的依赖线" class="lv3">1.1 两条互不相交的依赖线</a><a href="#sec-3-1-2-为什么可以不用-runloop" class="lv3">1.2 为什么可以不用 runLoop</a><a href="#sec-4-二-目录地图" class="">二、目录地图</a><a href="#sec-5-2-1-harness-的-24-个文件分成五组" class="lv3">2.1 harness/ 的 24 个文件分成五组</a><a href="#sec-6-2-2-根层那四个不到-250-行的文件" class="lv3">2.2 根层那四个不到 250 行的文件</a><a href="#sec-7-三-三个内核概念" class="">三、三个内核概念</a><a href="#sec-8-3-1-entry-不可变的历史" class="lv3">3.1 entry：不可变的历史</a><a href="#sec-9-3-2-document-可以被改写的状态" class="lv3">3.2 document：可以被改写的状态</a><a href="#sec-10-3-3-task-第四种东西" class="lv3">3.3 task：第四种东西</a><a href="#sec-11-3-4-taskruntime-handler-能碰到的全部" class="lv3">3.4 TaskRuntime：handler 能碰到的全部</a><a href="#sec-12-3-5-所有权-每个任务都得有个主人" class="lv3">3.5 所有权：每个任务都得有个主人</a><a href="#sec-13-四-六种状态-五种结局" class="">四、六种状态，五种结局</a><a href="#sec-14-4-1-taskstate-types-ts-658-702" class="lv3">4.1 TaskState（types.ts:658-702）</a><a href="#sec-15-4-2-taskoutcome-types-ts-621-655" class="lv3">4.2 TaskOutcome（types.ts:621-655）</a><a href="#sec-16-4-3-completing-为什么必须存在" class="lv3">4.3 completing 为什么必须存在</a><a href="#sec-17-4-4-为什么-finish-必须和-drain-分成两步" class="lv3">4.4 为什么 finish 必须和 drain 分成两步</a><a href="#sec-18-五-调度器-没有循环的循环" class="">五、调度器：没有循环的循环</a><a href="#sec-19-5-1-一次-kick-一轮-drain" class="lv3">5.1 一次 kick，一轮 drain</a><a href="#sec-20-5-2-reserve-一次提交预留所有活" class="lv3">5.2 #reserve：一次提交预留所有活</a><a href="#sec-21-5-3-rules-六条决策规则" class="lv3">5.3 #rules：六条决策规则</a><a href="#sec-22-5-4-open-把-running-改回-pending" class="lv3">5.4 open()：把 running 改回 pending</a><a href="#sec-23-5-5-一次调用的完整生命周期" class="lv3">5.5 一次调用的完整生命周期</a><a href="#sec-24-5-6-取消怎么往下传" class="lv3">5.6 取消怎么往下传</a><a href="#sec-25-5-7-提交点-一次-commit-到底保证什么" class="lv3">5.7 提交点：一次 commit 到底保证什么</a><a href="#sec-26-六-generation-把-while-换成-handover" class="">六、generation：把 while 换成 handOver</a><a href="#sec-27-6-1-七个-phase" class="lv3">6.1 七个 phase</a><a href="#sec-28-6-2-内层循环怎么没的" class="lv3">6.2 内层循环怎么没的</a><a href="#sec-29-6-3-外层循环怎么没的" class="lv3">6.3 外层循环怎么没的</a><a href="#sec-30-6-4-中断分三种-不是一个-error" class="lv3">6.4 中断分三种，不是一个 error</a><a href="#sec-31-6-5-压缩是一个被-generation-拥有的任务" class="lv3">6.5 压缩是一个被 generation 拥有的任务</a><a href="#sec-32-6-6-一轮的输入从哪来" class="lv3">6.6 一轮的输入从哪来</a><a href="#sec-33-七-tool-一次调用的持久意图" class="">七、tool：一次调用的持久意图</a><a href="#sec-34-7-1-两个-phase-两种-input" class="lv3">7.1 两个 phase，两种 input</a><a href="#sec-35-7-2-一段三行-把-m10-那个洞补上了" class="lv3">7.2 一段三行，把 M10 那个洞补上了</a><a href="#sec-36-7-3-工具里还能再调工具" class="lv3">7.3 工具里还能再调工具</a><a href="#sec-37-7-4-并行还是串行-是一个设置" class="lv3">7.4 并行还是串行，是一个设置</a><a href="#sec-38-八-和-m03-的对照" class="">八、和 M03 的对照</a><a href="#sec-39-九-四种后端-一套语义" class="">九、四种后端，一套语义</a><a href="#sec-40-9-1-一致性靠测试-不靠约定" class="lv3">9.1 一致性靠测试，不靠约定</a><a href="#sec-41-9-2-sqlite-那-1-050-行里有什么" class="lv3">9.2 SQLite 那 1,050 行里有什么</a><a href="#sec-42-十-完整链路" class="">十、完整链路</a><a href="#sec-43-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-实验-1-看任务状态机在磁盘上长什么样" class="lv3">实验 1：看任务状态机在磁盘上长什么样</a><a href="#sec-46-实验-2-让一个-phase-不提交-看它被判-fault" class="lv3">实验 2：让一个 phase 不提交，看它被判 fault</a><a href="#sec-47-实验-3-确认-durable-真的不依赖-agent" class="lv3">实验 3：确认 durable 真的不依赖 agent</a><a href="#sec-48-实验-4-跑一遍存储一致性套件" class="lv3">实验 4：跑一遍存储一致性套件</a><a href="#sec-49-实验-5-看取消怎么级联" class="lv3">实验 5：看取消怎么级联</a><a href="#sec-50-实验-6-撞一次-readafterwrite" class="lv3">实验 6：撞一次 ReadAfterWrite</a><a href="#sec-51-读完自检" class="">读完自检</a><a href="#sec-52-十三-收束" class="">十三、收束</a><a href="#sec-53-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-54-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-55-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-56-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

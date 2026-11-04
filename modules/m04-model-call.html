@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -919,7 +920,7 @@ OAuth token 还剩几分钟、扩展注册了哪些实现。这些是状态，�
 <p><strong>实验 1：数一数 API 到底有几个。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">cd pi-main/pi-main/packages/ai/src</span><span class="ln">sed -n '64,76p' types.ts</span></code></pre></div>
+<pre><code><span class="ln"># 在仓库根目录执行</span><span class="ln">cd packages/ai/src</span><span class="ln">sed -n '64,76p' types.ts</span></code></pre></div>
 <p><code>KnownApi</code> 十个 + <code>Api = KnownApi | (string &amp; {})</code>。最后那个 <code>(string &amp; {})</code> 很关键：<strong>允许任意字符串</strong>，所以扩展可以注册自己的 api id 而不改这个类型。这是 TypeScript 里&quot;开放联合&quot;的标准写法。</p>
 <p>顺带看下面还有 <code>KnownImageApi</code>（1 个）和 <code>KnownClassifierApi</code>（4 个）——<code>ai</code> 包不只做对话，还做图像和分类。</p>
 <p><strong>实验 2：验证 12 个事件。</strong></p>
@@ -1059,12 +1060,50 @@ turn once.</p>
 <p><code>thinkingLevelMap</code> 用 <code>undefined</code> / <code>null</code> / <code>&quot;high&quot;</code> 表示&quot;默认支持 / 明确不支持 / 映射到某档&quot;。如果用布尔值，你就表达不了&quot;没表态&quot;和&quot;明确反对&quot;的区别。</p>
 <p>这条在配置系统里通用：<strong>默认值、显式覆盖、显式禁用是三种状态，不是两种。</strong></p>
 <hr>
-<h2 id="sec-37-下一步">下一步</h2>
+<h2 id="sec-37-读完自检">读完自检</h2>
+<p>开头列了五个问题。答上四条就算过关（第三条排在下面最后一行）。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>为什么必须有两层（<code>stream</code> / <code>streamSimple</code>）？</td>
+<td>一层做通用折叠，一层管各家方言；两层之间只有一条线</td>
+<td>§二</td>
+</tr>
+<tr>
+<td>接入一个新模型要改几个文件？</td>
+<td>落在已有 api 就只加一条目录条目；新 api 才写翻译器</td>
+<td>§1.1、§八</td>
+</tr>
+<tr>
+<td>缓存默认是开还是关？</td>
+<td>默认 <code>&quot;short&quot;</code>，不是 <code>&quot;none&quot;</code></td>
+<td>§7.1</td>
+</tr>
+<tr>
+<td><code>--model</code> 那串字符怎么变成一个 <code>Model</code>？</td>
+<td>它不是 id 是一条查询；查不到才剥后缀，五次判断逐级降级</td>
+<td>§8.1、§8.2</td>
+</tr>
+<tr>
+<td>&quot;看起来正确&quot;的错误处理错在哪？</td>
+<td>把&quot;能不能抛&quot;的边界往后挪了；契约只允许返回流之前抛</td>
+<td>§五、§十一</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-38-下一步">下一步</h2>
 <p>模型这层封好了：不管底下是谁，上面只看到 12 种事件。</p>
 <p>但模型返回的是 <code>toolCall</code>——一个名字加一段 JSON。谁去执行？模型可能传错类型、可能要求删库、可能一次调八个。这些都在循环之外，但都在内核包里。</p>
 <p>下一章打开工具系统。</p>
 <hr>
-<h2 id="sec-38-本章源码索引">本章源码索引</h2>
+<h2 id="sec-39-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1142,7 +1181,7 @@ turn once.</p>
       <a class="next" href="m05-tools.html"><span class="lbl">下一篇</span>工具系统 —— 八个工具，一道文件锁</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四个维度同时不一致" class="">一、四个维度同时不一致</a><a href="#sec-2-1-1-十个-api-不是一个数字" class="lv3">1.1 十个 api，不是一个数字</a><a href="#sec-3-二-分三层-但真正解耦的只有一条线" class="">二、分三层，但真正解耦的只有一条线</a><a href="#sec-4-2-1-入口里藏了一个折叠动作" class="lv3">2.1 入口里藏了一个折叠动作</a><a href="#sec-5-2-2-这条折叠有代价" class="lv3">2.2 这条折叠有代价</a><a href="#sec-6-2-3-派活有两条路-还有一条岔路" class="lv3">2.3 派活有两条路，还有一条岔路</a><a href="#sec-7-2-4-这个入口本身是临时的" class="lv3">2.4 这个入口本身是临时的</a><a href="#sec-8-三-第二层-12-种事件" class="">三、第二层：12 种事件</a><a href="#sec-9-3-1-done-的-reason-是四选一-不是三选一" class="lv3">3.1 done 的 reason 是四选一，不是三选一</a><a href="#sec-10-3-2-partial-不是快照" class="lv3">3.2 partial 不是快照</a><a href="#sec-11-3-3-contentindex-和-quot-活引用-quot-合起来会咬人" class="lv3">3.3 contentIndex 和&amp;quot;活引用&amp;quot;合起来会咬人</a><a href="#sec-12-3-4-流对象自己也有终局" class="lv3">3.4 流对象自己也有终局</a><a href="#sec-13-四-第三层-四条契约" class="">四、第三层：四条契约</a><a href="#sec-14-五-为什么要有-stream-和-streamsimple-两个" class="">五、为什么要有 stream 和 streamSimple 两个</a><a href="#sec-15-5-1-buildbaseoptions-才是真正的适配器" class="lv3">5.1 buildBaseOptions 才是真正的适配器</a><a href="#sec-16-5-2-maxtokens-会被夹两次" class="lv3">5.2 maxTokens 会被夹两次</a><a href="#sec-17-5-3-同一个契约-两种合规写法" class="lv3">5.3 同一个契约，两种合规写法</a><a href="#sec-18-六-思考等级是七级-不是五级" class="">六、思考等级是七级，不是五级</a><a href="#sec-19-6-1-thinkinglevelmap-的值可以是-null" class="lv3">6.1 thinkingLevelMap 的值可以是 null</a><a href="#sec-20-6-2-clamp-的两个方向" class="lv3">6.2 clamp 的两个方向</a><a href="#sec-21-6-3-从等级到-token-预算" class="lv3">6.3 从等级到 token 预算</a><a href="#sec-22-七-缓存-三种语义-四种实现" class="">七、缓存：三种语义，四种实现</a><a href="#sec-23-7-1-默认是-quot-short-quot-不是-quot-none-quo" class="lv3">7.1 默认是 &amp;quot;short&amp;quot;，不是 &amp;quot;none&amp;quot;</a><a href="#sec-24-7-2-这解释了-m03-的一个疑问" class="lv3">7.2 这解释了 M03 的一个疑问</a><a href="#sec-25-八-模型是哪来的-装配层" class="">八、模型是哪来的：装配层</a><a href="#sec-26-8-1-那串字符不是-id-是一条查询" class="lv3">8.1 那串字符不是 id，是一条查询</a><a href="#sec-27-8-2-五次判断-一条降级梯子" class="lv3">8.2 五次判断，一条降级梯子</a><a href="#sec-28-8-3-provider-只是提示-不是命名空间" class="lv3">8.3 provider/ 只是提示，不是命名空间</a><a href="#sec-29-8-4-modelruntime-不是包装-是装配车间" class="lv3">8.4 ModelRuntime 不是包装，是装配车间</a><a href="#sec-30-8-5-三层叠加-一次空校验-三重分派" class="lv3">8.5 三层叠加、一次空校验、三重分派</a><a href="#sec-31-8-6-凭据不在装配时定死" class="lv3">8.6 凭据不在装配时定死</a><a href="#sec-32-8-7-从命令行到翻译器" class="lv3">8.7 从命令行到翻译器</a><a href="#sec-33-8-8-为什么这一层不放进-ai" class="lv3">8.8 为什么这一层不放进 ai</a><a href="#sec-34-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-35-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-36-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-37-下一步" class="">下一步</a><a href="#sec-38-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四个维度同时不一致" class="">一、四个维度同时不一致</a><a href="#sec-2-1-1-十个-api-不是一个数字" class="lv3">1.1 十个 api，不是一个数字</a><a href="#sec-3-二-分三层-但真正解耦的只有一条线" class="">二、分三层，但真正解耦的只有一条线</a><a href="#sec-4-2-1-入口里藏了一个折叠动作" class="lv3">2.1 入口里藏了一个折叠动作</a><a href="#sec-5-2-2-这条折叠有代价" class="lv3">2.2 这条折叠有代价</a><a href="#sec-6-2-3-派活有两条路-还有一条岔路" class="lv3">2.3 派活有两条路，还有一条岔路</a><a href="#sec-7-2-4-这个入口本身是临时的" class="lv3">2.4 这个入口本身是临时的</a><a href="#sec-8-三-第二层-12-种事件" class="">三、第二层：12 种事件</a><a href="#sec-9-3-1-done-的-reason-是四选一-不是三选一" class="lv3">3.1 done 的 reason 是四选一，不是三选一</a><a href="#sec-10-3-2-partial-不是快照" class="lv3">3.2 partial 不是快照</a><a href="#sec-11-3-3-contentindex-和-quot-活引用-quot-合起来会咬人" class="lv3">3.3 contentIndex 和&amp;quot;活引用&amp;quot;合起来会咬人</a><a href="#sec-12-3-4-流对象自己也有终局" class="lv3">3.4 流对象自己也有终局</a><a href="#sec-13-四-第三层-四条契约" class="">四、第三层：四条契约</a><a href="#sec-14-五-为什么要有-stream-和-streamsimple-两个" class="">五、为什么要有 stream 和 streamSimple 两个</a><a href="#sec-15-5-1-buildbaseoptions-才是真正的适配器" class="lv3">5.1 buildBaseOptions 才是真正的适配器</a><a href="#sec-16-5-2-maxtokens-会被夹两次" class="lv3">5.2 maxTokens 会被夹两次</a><a href="#sec-17-5-3-同一个契约-两种合规写法" class="lv3">5.3 同一个契约，两种合规写法</a><a href="#sec-18-六-思考等级是七级-不是五级" class="">六、思考等级是七级，不是五级</a><a href="#sec-19-6-1-thinkinglevelmap-的值可以是-null" class="lv3">6.1 thinkingLevelMap 的值可以是 null</a><a href="#sec-20-6-2-clamp-的两个方向" class="lv3">6.2 clamp 的两个方向</a><a href="#sec-21-6-3-从等级到-token-预算" class="lv3">6.3 从等级到 token 预算</a><a href="#sec-22-七-缓存-三种语义-四种实现" class="">七、缓存：三种语义，四种实现</a><a href="#sec-23-7-1-默认是-quot-short-quot-不是-quot-none-quo" class="lv3">7.1 默认是 &amp;quot;short&amp;quot;，不是 &amp;quot;none&amp;quot;</a><a href="#sec-24-7-2-这解释了-m03-的一个疑问" class="lv3">7.2 这解释了 M03 的一个疑问</a><a href="#sec-25-八-模型是哪来的-装配层" class="">八、模型是哪来的：装配层</a><a href="#sec-26-8-1-那串字符不是-id-是一条查询" class="lv3">8.1 那串字符不是 id，是一条查询</a><a href="#sec-27-8-2-五次判断-一条降级梯子" class="lv3">8.2 五次判断，一条降级梯子</a><a href="#sec-28-8-3-provider-只是提示-不是命名空间" class="lv3">8.3 provider/ 只是提示，不是命名空间</a><a href="#sec-29-8-4-modelruntime-不是包装-是装配车间" class="lv3">8.4 ModelRuntime 不是包装，是装配车间</a><a href="#sec-30-8-5-三层叠加-一次空校验-三重分派" class="lv3">8.5 三层叠加、一次空校验、三重分派</a><a href="#sec-31-8-6-凭据不在装配时定死" class="lv3">8.6 凭据不在装配时定死</a><a href="#sec-32-8-7-从命令行到翻译器" class="lv3">8.7 从命令行到翻译器</a><a href="#sec-33-8-8-为什么这一层不放进-ai" class="lv3">8.8 为什么这一层不放进 ai</a><a href="#sec-34-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-35-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-36-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-37-读完自检" class="">读完自检</a><a href="#sec-38-下一步" class="">下一步</a><a href="#sec-39-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

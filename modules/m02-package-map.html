@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -796,11 +797,39 @@
 </ul>
 <p>这条规则在 12 个包上全部命中。它不是玄学：切文件的方式就是作者对&quot;什么是同一个东西&quot;的理解，而理解方式直接决定了你该用什么策略去读。</p>
 <hr>
-<h2 id="sec-31-下一步">下一步</h2>
+<h2 id="sec-31-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？说不出来的那条，回右边一格重读。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>层是画的，还是算出来的？</td>
+<td>算出来的：看依赖图上的<strong>最长路径</strong>，不看构建位置</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>五个零依赖包是哪五个？</td>
+<td><code>schema</code> <code>telemetry</code> <code>tui</code> <code>mcp</code> <code>codemode</code></td>
+<td>§四</td>
+</tr>
+<tr>
+<td>为什么 <code>coding-agent</code> 不依赖 <code>durable</code>？</td>
+<td>两套会话实现故意并存，跨这条边就得二选一</td>
+<td>§9.2</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-32-下一步">下一步</h2>
 <p>图有了，接下来该下潜了。</p>
 <p>Part B 从 <code>agent-loop.ts</code> 开始——960 行，两个循环，三条出路。那是整张图里最瘦的节点，也是唯一一个&quot;少一行就少一个能力&quot;的地方。</p>
 <hr>
-<h2 id="sec-32-源码索引">源码索引</h2>
+<h2 id="sec-33-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -883,7 +912,7 @@
       <a class="next" href="m03-agent-loop.html"><span class="lbl">下一篇</span>Agent Loop —— 两层循环，三条出路</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给一个路径-你能说出它在哪层吗" class="">一、给一个路径，你能说出它在哪层吗</a><a href="#sec-2-1-1-三步判层法" class="lv3">1.1 三步判层法</a><a href="#sec-3-二-先把词对齐-包-层-边" class="">二、先把词对齐：包、层、边</a><a href="#sec-4-三-层不是画的-是算出来的" class="">三、层不是画的，是算出来的</a><a href="#sec-5-四-基础层-五个零依赖包" class="">四、基础层：五个零依赖包</a><a href="#sec-6-4-1-schema-的结构暴露了它的野心" class="lv3">4.1 schema 的结构暴露了它的野心</a><a href="#sec-7-4-2-telemetry-只有-5-个文件-但结构很讲究" class="lv3">4.2 telemetry 只有 5 个文件，但结构很讲究</a><a href="#sec-8-4-3-tui-的文件名就是一份需求清单" class="lv3">4.3 tui 的文件名就是一份需求清单</a><a href="#sec-9-4-4-mcp-里最大的不是-client" class="lv3">4.4 mcp 里最大的不是 client</a><a href="#sec-10-4-5-codemode-的-2-3-在-sandbox" class="lv3">4.5 codemode 的 2/3 在 sandbox</a><a href="#sec-11-五-中间层-两个归一层-方向相反" class="">五、中间层：两个归一层，方向相反</a><a href="#sec-12-5-1-ai-归一的是-quot-南北向差异-quot" class="lv3">5.1 ai 归一的是&amp;quot;南北向差异&amp;quot;</a><a href="#sec-13-5-2-96-个-provider-文件只有-4-020-行" class="lv3">5.2 96 个 provider 文件只有 4,020 行</a><a href="#sec-14-5-3-chord-归一的是-quot-东西向差异-quot" class="lv3">5.3 chord 归一的是&amp;quot;东西向差异&amp;quot;</a><a href="#sec-15-六-深度-2-内核与运行时" class="">六、深度 2：内核与运行时</a><a href="#sec-16-6-1-agent-只认两样东西" class="lv3">6.1 agent 只认两样东西</a><a href="#sec-17-6-2-durable-依赖-5-个包-因为它是运行时" class="lv3">6.2 durable 依赖 5 个包，因为它是运行时</a><a href="#sec-18-七-深度-3-两个产品" class="">七、深度 3：两个产品</a><a href="#sec-19-7-1-coding-agent-是产品-所以它最大" class="lv3">7.1 coding-agent 是产品，所以它最大</a><a href="#sec-20-7-2-env-把-durable-搬到远端" class="lv3">7.2 env 把 durable 搬到远端</a><a href="#sec-21-八-全景图" class="">八、全景图</a><a href="#sec-22-九-三条反直觉的边" class="">九、三条反直觉的边</a><a href="#sec-23-9-1-有-agent-schema" class="lv3">9.1 有：agent → schema</a><a href="#sec-24-9-2-没有-coding-agent-durable" class="lv3">9.2 没有：coding-agent → durable</a><a href="#sec-25-9-3-没有-coding-agent-schema" class="lv3">9.3 没有：coding-agent → schema</a><a href="#sec-26-9-4-没有-readme-里公示的包只有七个" class="lv3">9.4 没有：README 里公示的包只有七个</a><a href="#sec-27-十-验证-没有一条箭头反向" class="">十、验证：没有一条箭头反向</a><a href="#sec-28-十一-自己动手验证" class="">十一、自己动手验证</a><a href="#sec-29-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-30-十三-四个可以带走的方法" class="">十三、四个可以带走的方法</a><a href="#sec-31-下一步" class="">下一步</a><a href="#sec-32-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给一个路径-你能说出它在哪层吗" class="">一、给一个路径，你能说出它在哪层吗</a><a href="#sec-2-1-1-三步判层法" class="lv3">1.1 三步判层法</a><a href="#sec-3-二-先把词对齐-包-层-边" class="">二、先把词对齐：包、层、边</a><a href="#sec-4-三-层不是画的-是算出来的" class="">三、层不是画的，是算出来的</a><a href="#sec-5-四-基础层-五个零依赖包" class="">四、基础层：五个零依赖包</a><a href="#sec-6-4-1-schema-的结构暴露了它的野心" class="lv3">4.1 schema 的结构暴露了它的野心</a><a href="#sec-7-4-2-telemetry-只有-5-个文件-但结构很讲究" class="lv3">4.2 telemetry 只有 5 个文件，但结构很讲究</a><a href="#sec-8-4-3-tui-的文件名就是一份需求清单" class="lv3">4.3 tui 的文件名就是一份需求清单</a><a href="#sec-9-4-4-mcp-里最大的不是-client" class="lv3">4.4 mcp 里最大的不是 client</a><a href="#sec-10-4-5-codemode-的-2-3-在-sandbox" class="lv3">4.5 codemode 的 2/3 在 sandbox</a><a href="#sec-11-五-中间层-两个归一层-方向相反" class="">五、中间层：两个归一层，方向相反</a><a href="#sec-12-5-1-ai-归一的是-quot-南北向差异-quot" class="lv3">5.1 ai 归一的是&amp;quot;南北向差异&amp;quot;</a><a href="#sec-13-5-2-96-个-provider-文件只有-4-020-行" class="lv3">5.2 96 个 provider 文件只有 4,020 行</a><a href="#sec-14-5-3-chord-归一的是-quot-东西向差异-quot" class="lv3">5.3 chord 归一的是&amp;quot;东西向差异&amp;quot;</a><a href="#sec-15-六-深度-2-内核与运行时" class="">六、深度 2：内核与运行时</a><a href="#sec-16-6-1-agent-只认两样东西" class="lv3">6.1 agent 只认两样东西</a><a href="#sec-17-6-2-durable-依赖-5-个包-因为它是运行时" class="lv3">6.2 durable 依赖 5 个包，因为它是运行时</a><a href="#sec-18-七-深度-3-两个产品" class="">七、深度 3：两个产品</a><a href="#sec-19-7-1-coding-agent-是产品-所以它最大" class="lv3">7.1 coding-agent 是产品，所以它最大</a><a href="#sec-20-7-2-env-把-durable-搬到远端" class="lv3">7.2 env 把 durable 搬到远端</a><a href="#sec-21-八-全景图" class="">八、全景图</a><a href="#sec-22-九-三条反直觉的边" class="">九、三条反直觉的边</a><a href="#sec-23-9-1-有-agent-schema" class="lv3">9.1 有：agent → schema</a><a href="#sec-24-9-2-没有-coding-agent-durable" class="lv3">9.2 没有：coding-agent → durable</a><a href="#sec-25-9-3-没有-coding-agent-schema" class="lv3">9.3 没有：coding-agent → schema</a><a href="#sec-26-9-4-没有-readme-里公示的包只有七个" class="lv3">9.4 没有：README 里公示的包只有七个</a><a href="#sec-27-十-验证-没有一条箭头反向" class="">十、验证：没有一条箭头反向</a><a href="#sec-28-十一-自己动手验证" class="">十一、自己动手验证</a><a href="#sec-29-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-30-十三-四个可以带走的方法" class="">十三、四个可以带走的方法</a><a href="#sec-31-读完自检" class="">读完自检</a><a href="#sec-32-下一步" class="">下一步</a><a href="#sec-33-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

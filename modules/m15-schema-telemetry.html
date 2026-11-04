@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -42,7 +43,12 @@
       <h1>契约与遥测 —— 一份声明，五种解释</h1>
       <div class="module-meta">9,700 字 · 含 518 行代码 · 约 45 分钟</div>
     </header>
-    <p>两个包，一共 <strong>51 个文件 / 6,137 行</strong>，都不产出任何功能。</p>
+    <p>一个工具定义只有十四行，却要同时满足五个读者：发给模型的 JSON Schema、
+TypeScript 里的 <code>ReadToolInput</code>、运行时校验器、给人看的错误信息、
+provider 的 strict 方言。</p>
+<p>让五个读者各写一份，它们迟早不一致；而不一致的代价不是编译报错，是
+<strong>模型以为合法的值，运行时判非法</strong>。§一 会用一个真实字段把这句话讲实。</p>
+<p>这一章拆两个包。它们存在的全部理由，就是让这五个读者读<strong>同一份声明</strong>：</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -67,6 +73,47 @@
 </tr>
 </tbody>
 </table></div>
+<p>一共 <strong>51 个文件 / 6,137 行</strong>，占全仓不到 3%，而且<strong>不产出任何功能</strong>。</p>
+<p>翻 <code>package.json</code>，两个包的 <code>dependencies</code> 都是<strong>空的</strong>。有依赖的是用它们
+的那些包：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>使用方</th>
+<th>用 <code>schema</code> 干什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ai</code></td>
+<td>校验模型发回来的工具参数；把 schema 改写成 provider 的 strict 方言</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td><code>Static&lt;S&gt;</code> 给工具注册表定型</td>
+</tr>
+<tr>
+<td><code>durable</code></td>
+<td>工具的入参与 <code>structuredOutput</code> 两头校验</td>
+</tr>
+<tr>
+<td><code>chord</code></td>
+<td>contract、snapshot、JSON 列的类型</td>
+</tr>
+<tr>
+<td><code>coding-agent</code></td>
+<td><code>models.json</code> 这类配置文件的形状</td>
+</tr>
+</tbody>
+</table></div>
+<p>读完这一章，你应该能回答四个问题：</p>
+<ol>
+<li>一份声明喂给五个读者，为什么不能各写一份？不一致了会坏在哪一步？</li>
+<li>不用 <code>ajv</code>、不用 <code>zod</code>，自研校验器的三条硬约束是什么？</li>
+<li><code>errors()</code> 为什么只在失败路径上跑，代价是什么？</li>
+<li>同一份 schema，为什么校验器那边把每个关键字都当敌人，遥测那边一行校验都不做？</li>
+</ol>
+<p>下面两张表是文件地图。<strong>现在不用读</strong>——后面哪一节提到某个文件名，回来查就行。</p>
 <p><code>schema/src</code> 的主要文件：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -171,39 +218,6 @@
 </tr>
 </tbody>
 </table></div>
-<p>翻 <code>package.json</code>，两个包的 <code>dependencies</code> 都是<strong>空的</strong>。有依赖的是用它们
-的那些包：</p>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>使用方</th>
-<th>用 <code>schema</code> 干什么</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ai</code></td>
-<td>校验模型发回来的工具参数；把 schema 改写成 provider 的 strict 方言</td>
-</tr>
-<tr>
-<td><code>agent</code></td>
-<td><code>Static&lt;S&gt;</code> 给工具注册表定型</td>
-</tr>
-<tr>
-<td><code>durable</code></td>
-<td>工具的入参与 <code>structuredOutput</code> 两头校验</td>
-</tr>
-<tr>
-<td><code>chord</code></td>
-<td>contract、snapshot、JSON 列的类型</td>
-</tr>
-<tr>
-<td><code>coding-agent</code></td>
-<td><code>models.json</code> 这类配置文件的形状</td>
-</tr>
-</tbody>
-</table></div>
-<p>这一章要回答 <code>task.md</code> 里那句验收：<strong>把 schema 抽出来，到底解决了什么问题</strong>。</p>
 <hr>
 <h2 id="sec-1-一-问题-一份-schema-五个读者">一、问题：一份 schema，五个读者</h2>
 <p>一个工具长这样（<code>durable/src/tools/read.ts:34-43</code>）：</p>
@@ -290,6 +304,7 @@ importing TypeBox</p>
 <p>它的类型是 <code>value is T</code>，所以 <code>if (validator.check(v))</code> 之后 <code>v</code> 就变成了
 <code>T</code>，不需要断言。这就是&quot;编译产物&quot;和&quot;类型谓词&quot;合并成一件事——schema 编译
 出来的闭包，恰好就是 TypeScript 判断 <code>v is T</code> 的那件事。</p>
+<p><code>value is T</code> 这个返回值写法（而不是 <code>boolean</code>）的读法，附录 B §2.4 三行讲完。</p>
 <h3 id="sec-5-2-1-错误只在失败时才算">2.1 错误只在失败时才算</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1158,8 +1173,41 @@ draft 解释，不是它自己的 draft（另外两条 <code>it.fails</code>）�
 那个入口里 <code>{ prompt: 1 }</code> 会被校验并转成 <code>&quot;1&quot;</code>（§7.2）。这条能过，
 说明整条校验链在浏览器里可用——也就是 §1.1 第一条约束成立。</p>
 <hr>
-<h2 id="sec-48-十五-收束">十五、收束</h2>
-<h3 id="sec-49-15-1-三个可迁移的方法">15.1 三个可迁移的方法</h3>
+<h2 id="sec-48-读完自检">读完自检</h2>
+<p>四个答案，都在开头那四问里。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一份声明喂给五个读者，为什么不能各写一份？</td>
+<td>会不一致；不一致 = 模型以为合法、运行时判非法</td>
+<td>§一</td>
+</tr>
+<tr>
+<td>不用 <code>ajv</code>、不用 <code>zod</code>，三条硬约束是什么？</td>
+<td>不能 <code>eval</code>、schema 来自不可信来源、要能读 TypeBox 但不 import</td>
+<td>§1.1</td>
+</tr>
+<tr>
+<td><code>errors()</code> 为什么只在失败路径上跑？</td>
+<td>成功时只调一个闭包；代价是两套实现要永远一致</td>
+<td>§2.1、§15.1</td>
+</tr>
+<tr>
+<td>同一份 schema，遥测那边为什么一行校验都不做？</td>
+<td>防御等级跟信任边界走，不跟类型走</td>
+<td>§九、§15.1</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-49-十五-收束">十五、收束</h2>
+<h3 id="sec-50-15-1-三个可迁移的方法">15.1 三个可迁移的方法</h3>
 <p><strong>一、让贵的计算只发生在失败路径上。</strong></p>
 <p><code>check</code> 是一个普通函数，还被声明成类型谓词 <code>value is T</code>（<code>validator.ts:34</code>），
 所以它可以脱离 validator 传走。<code>errors()</code> 第一句就是 <code>if (this.check(value)) return []</code>（<code>:51</code>），<code>Explainer</code> 用 <code>??=</code> 懒建。一次工具调用成功了，
@@ -1179,7 +1227,7 @@ draft 解释，不是它自己的 draft（另外两条 <code>it.fails</code>）�
 承诺：<strong>instrument 之后，程序的行为和没 instrument 一样</strong>。</p>
 <p>代价是&quot;看不到东西的时候不知道为什么看不到&quot;（§11.2）。所以要有计数器
 ——<code>droppedSpans</code> / <code>droppedMeasurements</code> 就是这个承诺的收据。</p>
-<h3 id="sec-50-15-2-这章的边界">15.2 这章的边界</h3>
+<h3 id="sec-51-15-2-这章的边界">15.2 这章的边界</h3>
 <p>没讲的部分：</p>
 <ul>
 <li><code>annotations.ts</code>（208 行）：<code>unevaluatedProperties</code> 要靠注解追踪判断
@@ -1197,7 +1245,7 @@ JSON Schema 并列。</li>
 <code>JSON.stringify([startedMs, traceId])</code> 当 cursor（<code>:370</code>、<code>:404</code>），
 时间戳相同时靠 traceId 打破平局。</li>
 </ul>
-<h3 id="sec-51-15-3-最后一章">15.3 最后一章</h3>
+<h3 id="sec-52-15-3-最后一章">15.3 最后一章</h3>
 <p>M01 的地图上，这一章是十二个包里最小的两个（51 文件 / 6,137 行，占全仓
 不到 3%）。它们也是最不&quot;功能&quot;的两个——没有网络、没有磁盘、没有界面。
 但每个别的包都从它们那里 import 了一种<strong>说法</strong>：什么叫合法，
@@ -1207,8 +1255,10 @@ JSON Schema 并列。</li>
 被所有人依赖。</p>
 <p>附录回到起点：v0.80 到 v1.4 的迁移对照。那里会看到这两个包是怎么
 从别处拆出来的——先有重复，才有抽取。</p>
+<p>如果想横着再看一遍，翻<strong>附录 D（合龙）</strong>：一条请求从命令行到屏幕上，
+穿过二十五个落点，每一站都标了出处——读不懂哪一站，就回哪一章。</p>
 <hr>
-<h2 id="sec-52-本章源码索引">本章源码索引</h2>
+<h2 id="sec-53-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1336,7 +1386,7 @@ JSON Schema 并列。</li>
       <a class="next" href="appendix-migration.html"><span class="lbl">下一篇</span>附录 —— v0.80 → v1.4 迁移对照</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-问题-一份-schema-五个读者" class="">一、问题：一份 schema，五个读者</a><a href="#sec-2-1-1-为什么不用-ajv-不用-zod" class="lv3">1.1 为什么不用 ajv、不用 zod</a><a href="#sec-3-1-2-决定-三个关键字集合" class="lv3">1.2 决定：三个关键字集合</a><a href="#sec-4-二-编译-从-schema-到闭包" class="">二、编译：从 schema 到闭包</a><a href="#sec-5-2-1-错误只在失败时才算" class="lv3">2.1 错误只在失败时才算</a><a href="#sec-6-2-2-两次编译-restart-哨兵" class="lv3">2.2 两次编译：RESTART 哨兵</a><a href="#sec-7-三-闭包怎么造出来" class="">三、闭包怎么造出来</a><a href="#sec-8-3-1-对象的专门化-一个三元组数组" class="lv3">3.1 对象的专门化：一个三元组数组</a><a href="#sec-9-3-2-分支-and-按数量专门化" class="lv3">3.2 分支：and() 按数量专门化</a><a href="#sec-10-3-3-标签联合-省掉的是指数" class="lv3">3.3 标签联合：省掉的是指数</a><a href="#sec-11-四-失败时才解释" class="">四、失败时才解释</a><a href="#sec-12-4-1-memo-一个必要但不显然的缓存" class="lv3">4.1 memo：一个必要但不显然的缓存</a><a href="#sec-13-五-类型-static-lt-s-gt-是怎么算出来的" class="">五、类型：Static&amp;lt;S&amp;gt; 是怎么算出来的</a><a href="#sec-14-5-1-代价-unknown-是一个诚实但难用的答案" class="lv3">5.1 代价：unknown 是一个诚实但难用的答案</a><a href="#sec-15-六-引用与不可信输入" class="">六、引用与不可信输入</a><a href="#sec-16-6-1-两个-draft-的差异藏在两行里" class="lv3">6.1 两个 draft 的差异藏在两行里</a><a href="#sec-17-七-coerce-模型的三个坏习惯" class="">七、coerce：模型的三个坏习惯</a><a href="#sec-18-7-1-两个反无限循环的护栏" class="lv3">7.1 两个反无限循环的护栏</a><a href="#sec-19-7-2-一个可以跑的最小验证" class="lv3">7.2 一个可以跑的最小验证</a><a href="#sec-20-7-3-出口改写-入口还原" class="lv3">7.3 出口改写，入口还原</a><a href="#sec-21-八-第五种解释-provider-的-strict-方言" class="">八、第五种解释：provider 的 strict 方言</a><a href="#sec-22-8-1-一份黑名单-十六个关键字" class="lv3">8.1 一份黑名单，十六个关键字</a><a href="#sec-23-8-2-全部改写只有三行" class="lv3">8.2 全部改写只有三行</a><a href="#sec-24-8-3-为什么必须先-structuredclone" class="lv3">8.3 为什么必须先 structuredClone</a><a href="#sec-25-8-4-provider-的上限被写成了常量" class="lv3">8.4 provider 的上限被写成了常量</a><a href="#sec-26-九-遥测-schema-唯一一个不校验的类型" class="">九、遥测 schema：唯一一个不校验的类型</a><a href="#sec-27-9-1-同一份声明-两条命运" class="lv3">9.1 同一份声明，两条命运</a><a href="#sec-28-9-2-重名是类型错误-不是运行时错误" class="lv3">9.2 重名是类型错误，不是运行时错误</a><a href="#sec-29-十-只记形状-不记内容" class="">十、只记形状，不记内容</a><a href="#sec-30-10-1-一个内容块的四个数字" class="lv3">10.1 一个内容块的四个数字</a><a href="#sec-31-10-2-高基数进-span-低基数才进指标" class="lv3">10.2 高基数进 span，低基数才进指标</a><a href="#sec-32-10-3-500-字符是一条硬边界" class="lv3">10.3 500 字符是一条硬边界</a><a href="#sec-33-10-4-一个声明了但从不读取的字段" class="lv3">10.4 一个声明了但从不读取的字段</a><a href="#sec-34-十一-契约与实现分离" class="">十一、契约与实现分离</a><a href="#sec-35-11-1-两个实现-两种时间观" class="lv3">11.1 两个实现，两种时间观</a><a href="#sec-36-11-2-一条会静默丢数据的路径" class="lv3">11.2 一条会静默丢数据的路径</a><a href="#sec-37-11-3-conformance-把-quot-两个实现-quot-变成-quo" class="lv3">11.3 conformance：把&amp;quot;两个实现&amp;quot;变成&amp;quot;同一份用例&amp;quot;</a><a href="#sec-38-十二-两条完整链路" class="">十二、两条完整链路</a><a href="#sec-39-12-1-值-从声明到-handler" class="lv3">12.1 值：从声明到 handler</a><a href="#sec-40-12-2-旁路-从调用到日志" class="lv3">12.2 旁路：从调用到日志</a><a href="#sec-41-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-42-十四-自己动手验证" class="">十四、自己动手验证</a><a href="#sec-43-实验-1-官方套件-4-213-条用例" class="lv3">实验 1：官方套件，4,213 条用例</a><a href="#sec-44-实验-2-三遍-coerce-各自独立" class="lv3">实验 2：三遍 coerce 各自独立</a><a href="#sec-45-实验-3-ref-的两种脾气" class="lv3">实验 3：$ref 的两种脾气</a><a href="#sec-46-实验-4-同一份一致性用例-两个-adapter" class="lv3">实验 4：同一份一致性用例，两个 adapter</a><a href="#sec-47-实验-5-没有-eval" class="lv3">实验 5：没有 eval</a><a href="#sec-48-十五-收束" class="">十五、收束</a><a href="#sec-49-15-1-三个可迁移的方法" class="lv3">15.1 三个可迁移的方法</a><a href="#sec-50-15-2-这章的边界" class="lv3">15.2 这章的边界</a><a href="#sec-51-15-3-最后一章" class="lv3">15.3 最后一章</a><a href="#sec-52-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-问题-一份-schema-五个读者" class="">一、问题：一份 schema，五个读者</a><a href="#sec-2-1-1-为什么不用-ajv-不用-zod" class="lv3">1.1 为什么不用 ajv、不用 zod</a><a href="#sec-3-1-2-决定-三个关键字集合" class="lv3">1.2 决定：三个关键字集合</a><a href="#sec-4-二-编译-从-schema-到闭包" class="">二、编译：从 schema 到闭包</a><a href="#sec-5-2-1-错误只在失败时才算" class="lv3">2.1 错误只在失败时才算</a><a href="#sec-6-2-2-两次编译-restart-哨兵" class="lv3">2.2 两次编译：RESTART 哨兵</a><a href="#sec-7-三-闭包怎么造出来" class="">三、闭包怎么造出来</a><a href="#sec-8-3-1-对象的专门化-一个三元组数组" class="lv3">3.1 对象的专门化：一个三元组数组</a><a href="#sec-9-3-2-分支-and-按数量专门化" class="lv3">3.2 分支：and() 按数量专门化</a><a href="#sec-10-3-3-标签联合-省掉的是指数" class="lv3">3.3 标签联合：省掉的是指数</a><a href="#sec-11-四-失败时才解释" class="">四、失败时才解释</a><a href="#sec-12-4-1-memo-一个必要但不显然的缓存" class="lv3">4.1 memo：一个必要但不显然的缓存</a><a href="#sec-13-五-类型-static-lt-s-gt-是怎么算出来的" class="">五、类型：Static&amp;lt;S&amp;gt; 是怎么算出来的</a><a href="#sec-14-5-1-代价-unknown-是一个诚实但难用的答案" class="lv3">5.1 代价：unknown 是一个诚实但难用的答案</a><a href="#sec-15-六-引用与不可信输入" class="">六、引用与不可信输入</a><a href="#sec-16-6-1-两个-draft-的差异藏在两行里" class="lv3">6.1 两个 draft 的差异藏在两行里</a><a href="#sec-17-七-coerce-模型的三个坏习惯" class="">七、coerce：模型的三个坏习惯</a><a href="#sec-18-7-1-两个反无限循环的护栏" class="lv3">7.1 两个反无限循环的护栏</a><a href="#sec-19-7-2-一个可以跑的最小验证" class="lv3">7.2 一个可以跑的最小验证</a><a href="#sec-20-7-3-出口改写-入口还原" class="lv3">7.3 出口改写，入口还原</a><a href="#sec-21-八-第五种解释-provider-的-strict-方言" class="">八、第五种解释：provider 的 strict 方言</a><a href="#sec-22-8-1-一份黑名单-十六个关键字" class="lv3">8.1 一份黑名单，十六个关键字</a><a href="#sec-23-8-2-全部改写只有三行" class="lv3">8.2 全部改写只有三行</a><a href="#sec-24-8-3-为什么必须先-structuredclone" class="lv3">8.3 为什么必须先 structuredClone</a><a href="#sec-25-8-4-provider-的上限被写成了常量" class="lv3">8.4 provider 的上限被写成了常量</a><a href="#sec-26-九-遥测-schema-唯一一个不校验的类型" class="">九、遥测 schema：唯一一个不校验的类型</a><a href="#sec-27-9-1-同一份声明-两条命运" class="lv3">9.1 同一份声明，两条命运</a><a href="#sec-28-9-2-重名是类型错误-不是运行时错误" class="lv3">9.2 重名是类型错误，不是运行时错误</a><a href="#sec-29-十-只记形状-不记内容" class="">十、只记形状，不记内容</a><a href="#sec-30-10-1-一个内容块的四个数字" class="lv3">10.1 一个内容块的四个数字</a><a href="#sec-31-10-2-高基数进-span-低基数才进指标" class="lv3">10.2 高基数进 span，低基数才进指标</a><a href="#sec-32-10-3-500-字符是一条硬边界" class="lv3">10.3 500 字符是一条硬边界</a><a href="#sec-33-10-4-一个声明了但从不读取的字段" class="lv3">10.4 一个声明了但从不读取的字段</a><a href="#sec-34-十一-契约与实现分离" class="">十一、契约与实现分离</a><a href="#sec-35-11-1-两个实现-两种时间观" class="lv3">11.1 两个实现，两种时间观</a><a href="#sec-36-11-2-一条会静默丢数据的路径" class="lv3">11.2 一条会静默丢数据的路径</a><a href="#sec-37-11-3-conformance-把-quot-两个实现-quot-变成-quo" class="lv3">11.3 conformance：把&amp;quot;两个实现&amp;quot;变成&amp;quot;同一份用例&amp;quot;</a><a href="#sec-38-十二-两条完整链路" class="">十二、两条完整链路</a><a href="#sec-39-12-1-值-从声明到-handler" class="lv3">12.1 值：从声明到 handler</a><a href="#sec-40-12-2-旁路-从调用到日志" class="lv3">12.2 旁路：从调用到日志</a><a href="#sec-41-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-42-十四-自己动手验证" class="">十四、自己动手验证</a><a href="#sec-43-实验-1-官方套件-4-213-条用例" class="lv3">实验 1：官方套件，4,213 条用例</a><a href="#sec-44-实验-2-三遍-coerce-各自独立" class="lv3">实验 2：三遍 coerce 各自独立</a><a href="#sec-45-实验-3-ref-的两种脾气" class="lv3">实验 3：$ref 的两种脾气</a><a href="#sec-46-实验-4-同一份一致性用例-两个-adapter" class="lv3">实验 4：同一份一致性用例，两个 adapter</a><a href="#sec-47-实验-5-没有-eval" class="lv3">实验 5：没有 eval</a><a href="#sec-48-读完自检" class="">读完自检</a><a href="#sec-49-十五-收束" class="">十五、收束</a><a href="#sec-50-15-1-三个可迁移的方法" class="lv3">15.1 三个可迁移的方法</a><a href="#sec-51-15-2-这章的边界" class="lv3">15.2 这章的边界</a><a href="#sec-52-15-3-最后一章" class="lv3">15.3 最后一章</a><a href="#sec-53-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

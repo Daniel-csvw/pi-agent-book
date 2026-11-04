@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -1296,8 +1297,36 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <p>看完之后回头读 <code>session/session.ts</code> 的类注释，会突然变得很好读：
 里面每一句（组提交、延迟提交、失败即终态）都在回答&quot;崩溃之后怎么办&quot;。</p>
 <hr>
-<h2 id="sec-63-十四-收束">十四、收束</h2>
-<h3 id="sec-64-14-1-三个可迁移的方法">14.1 三个可迁移的方法</h3>
+<h2 id="sec-63-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两代会话，最根本的分歧在哪？</td>
+<td>第一代&quot;一行 entry 是原子单位&quot;，第二代&quot;一次提交是&quot;</td>
+<td>§八、§十</td>
+</tr>
+<tr>
+<td>为什么 <code>firstKeptEntryId</code> 不用下标？</td>
+<td>位置不是身份——会被重写、分叉、重排</td>
+<td>§14.1</td>
+</tr>
+<tr>
+<td>恢复时碰到坏行怎么办？</td>
+<td>静默跳过，不阻断整棵树</td>
+<td>§4.3</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-64-十四-收束">十四、收束</h2>
+<h3 id="sec-65-14-1-三个可迁移的方法">14.1 三个可迁移的方法</h3>
 <p><strong>一、区分&quot;持久化什么&quot;和&quot;暴露什么&quot;。</strong>
 第一代的 <code>context_edit</code> 已经摸到这个思路：文件里保留全文，上下文里可以删。
 第二代的 <code>head</code>、<code>edits</code>、<code>model</code>/<code>data</code> 分列，是把它做成了结构。
@@ -1309,7 +1338,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <p><strong>三、位置不是身份。</strong>
 <code>firstKeptEntryIndex</code> → <code>firstKeptEntryId</code> 是个小改动，背后的原则很大：
 只要一个东西会被重写、分叉、重排，就不能用下标引用它。</p>
-<h3 id="sec-65-14-2-两代的分工">14.2 两代的分工</h3>
+<h3 id="sec-66-14-2-两代的分工">14.2 两代的分工</h3>
 <p>最后把本章对比表压成一张：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1366,13 +1395,13 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <code>SessionManager</code>；<code>packages/durable</code> 是并行的另一条线，被 <code>harness/</code> 之上的一整层使用。</p>
 <p>所以&quot;会话搬到独立运行时&quot;这句话，准确的说法是：
 <strong>会话有了第二个实现，那个实现把会话从&quot;文件格式&quot;升级成了&quot;运行时内核&quot;</strong>。</p>
-<h3 id="sec-66-14-3-下一站">14.3 下一站</h3>
+<h3 id="sec-67-14-3-下一站">14.3 下一站</h3>
 <p>M11 进 <code>durable</code> 的上面两层：<code>harness/</code> 里的任务调度、工具任务、生成任务。
 本章只讲了&quot;提交怎么落盘&quot;，还没讲&quot;谁在制造提交&quot;。</p>
 <p>那个答案叫 <strong>task</strong>：一个带阶段和检查点的状态机。
 它才是&quot;崩溃之后能接着跑&quot;的真正原因——存储只是把它的状态记下来。</p>
 <hr>
-<h2 id="sec-67-本章源码索引">本章源码索引</h2>
+<h2 id="sec-68-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1460,7 +1489,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
       <a class="next" href="m11-durable.html"><span class="lbl">下一篇</span>持久运行时 —— 把 Agent Loop 拆成状态机</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一个数组的两个问题" class="">一、一个数组的两个问题</a><a href="#sec-2-1-1-三个必须" class="lv3">1.1 三个必须</a><a href="#sec-3-1-2-本章读法" class="lv3">1.2 本章读法</a><a href="#sec-4-二-第一代-一棵只追加的树" class="">二、第一代：一棵只追加的树</a><a href="#sec-5-2-1-四个共同字段" class="lv3">2.1 四个共同字段</a><a href="#sec-6-2-2-十一种-entry" class="lv3">2.2 十一种 entry</a><a href="#sec-7-2-3-认父不认子" class="lv3">2.3 认父不认子</a><a href="#sec-8-2-4-树上长一次" class="lv3">2.4 树上长一次</a><a href="#sec-9-三-jsonl-树怎么写进文件" class="">三、JSONL：树怎么写进文件</a><a href="#sec-10-3-1-文件在哪" class="lv3">3.1 文件在哪</a><a href="#sec-11-3-2-文件里长什么样" class="lv3">3.2 文件里长什么样</a><a href="#sec-12-3-3-懒落盘" class="lv3">3.3 懒落盘</a><a href="#sec-13-3-4-追加失败要回滚三件" class="lv3">3.4 追加失败要回滚三件</a><a href="#sec-14-3-5-什么时候全量重写" class="lv3">3.5 什么时候全量重写</a><a href="#sec-15-四-恢复-从文件读回一棵树" class="">四、恢复：从文件读回一棵树</a><a href="#sec-16-4-1-逐块解码-处理被切断的多字节字符" class="lv3">4.1 逐块解码，处理被切断的多字节字符</a><a href="#sec-17-4-2-文件末尾没有换行时" class="lv3">4.2 文件末尾没有换行时</a><a href="#sec-18-4-3-坏行静默跳过" class="lv3">4.3 坏行静默跳过</a><a href="#sec-19-4-4-三版迁移" class="lv3">4.4 三版迁移</a><a href="#sec-20-4-5-建索引-leafid-是-quot-最后一条-quot" class="lv3">4.5 建索引：leafId 是&amp;quot;最后一条&amp;quot;</a><a href="#sec-21-4-6-8-位短-id-撞了怎么办" class="lv3">4.6 8 位短 id 撞了怎么办</a><a href="#sec-22-五-从树到上下文" class="">五、从树到上下文</a><a href="#sec-23-5-1-第一步-从叶子回溯" class="lv3">5.1 第一步：从叶子回溯</a><a href="#sec-24-5-2-第二步-压缩之后的保留规则" class="lv3">5.2 第二步：压缩之后的保留规则</a><a href="#sec-25-5-3-第三步-投影与上下文编辑" class="lv3">5.3 第三步：投影与上下文编辑</a><a href="#sec-26-5-4-旧-compaction-只算一次" class="lv3">5.4 旧 compaction 只算一次</a><a href="#sec-27-六-分叉" class="">六、分叉</a><a href="#sec-28-6-1-branch-只挪一个指针" class="lv3">6.1 branch：只挪一个指针</a><a href="#sec-29-6-2-branchwithsummary-回退时留遗言" class="lv3">6.2 branchWithSummary：回退时留遗言</a><a href="#sec-30-6-3-createbranchedsession-把一条路径抠出来另存" class="lv3">6.3 createBranchedSession：把一条路径抠出来另存</a><a href="#sec-31-6-4-分叉的两种成本" class="lv3">6.4 分叉的两种成本</a><a href="#sec-32-七-树撑不住的四件事" class="">七、树撑不住的四件事</a><a href="#sec-33-7-1-一次追加要原子的不止一条-entry" class="lv3">7.1 一次追加要原子的不止一条 entry</a><a href="#sec-34-7-2-树没有-quot-未完成-quot-这个状态" class="lv3">7.2 树没有&amp;quot;未完成&amp;quot;这个状态</a><a href="#sec-35-7-3-一个文件一个写者" class="lv3">7.3 一个文件一个写者</a><a href="#sec-36-7-4-分叉的单位是文件-不是-entry" class="lv3">7.4 分叉的单位是文件，不是 entry</a><a href="#sec-37-7-5-结论" class="lv3">7.5 结论</a><a href="#sec-38-八-第二代-账本取代树" class="">八、第二代：账本取代树</a><a href="#sec-39-8-1-六种内置-kind" class="lv3">8.1 六种内置 kind</a><a href="#sec-40-8-2-head-取代-parentid" class="lv3">8.2 head 取代 parentId</a><a href="#sec-41-8-3-分叉变成-quot-新会话继承父会话-quot" class="lv3">8.3 分叉变成&amp;quot;新会话继承父会话&amp;quot;</a><a href="#sec-42-九-第二代-jsonl-marker-与-sidecar" class="">九、第二代 JSONL：marker 与 sidecar</a><a href="#sec-43-9-1-main-jsonl-里只有-marker" class="lv3">9.1 main.jsonl 里只有 marker</a><a href="#sec-44-9-2-sidecar-一行一个版本" class="lv3">9.2 sidecar 一行一个版本</a><a href="#sec-45-9-3-先写-sidecar-再写-marker" class="lv3">9.3 先写 sidecar，再写 marker</a><a href="#sec-46-9-4-recover-启动时重建全部状态" class="lv3">9.4 recover()：启动时重建全部状态</a><a href="#sec-47-十-提交作为一等公民" class="">十、提交作为一等公民</a><a href="#sec-48-10-1-一条变更线" class="lv3">10.1 一条变更线</a><a href="#sec-49-10-2-组提交" class="lv3">10.2 组提交</a><a href="#sec-50-10-3-延迟提交" class="lv3">10.3 延迟提交</a><a href="#sec-51-10-4-失败即终态" class="lv3">10.4 失败即终态</a><a href="#sec-52-10-5-几个数字" class="lv3">10.5 几个数字</a><a href="#sec-53-十一-完整链路" class="">十一、完整链路</a><a href="#sec-54-11-1-写入" class="lv3">11.1 写入</a><a href="#sec-55-11-2-重启恢复" class="lv3">11.2 重启恢复</a><a href="#sec-56-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-57-十三-自己动手验证" class="">十三、自己动手验证</a><a href="#sec-58-实验-1-看一个真实会话文件的结构" class="lv3">实验 1：看一个真实会话文件的结构</a><a href="#sec-59-实验-2-手搓一个分叉-看路径怎么选" class="lv3">实验 2：手搓一个分叉，看路径怎么选</a><a href="#sec-60-实验-3-插一条坏行-看它静默消失" class="lv3">实验 3：插一条坏行，看它静默消失</a><a href="#sec-61-实验-4-截掉文件末尾-看修补动作" class="lv3">实验 4：截掉文件末尾，看修补动作</a><a href="#sec-62-实验-5-跑-durable-的重启示例" class="lv3">实验 5：跑 durable 的重启示例</a><a href="#sec-63-十四-收束" class="">十四、收束</a><a href="#sec-64-14-1-三个可迁移的方法" class="lv3">14.1 三个可迁移的方法</a><a href="#sec-65-14-2-两代的分工" class="lv3">14.2 两代的分工</a><a href="#sec-66-14-3-下一站" class="lv3">14.3 下一站</a><a href="#sec-67-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一个数组的两个问题" class="">一、一个数组的两个问题</a><a href="#sec-2-1-1-三个必须" class="lv3">1.1 三个必须</a><a href="#sec-3-1-2-本章读法" class="lv3">1.2 本章读法</a><a href="#sec-4-二-第一代-一棵只追加的树" class="">二、第一代：一棵只追加的树</a><a href="#sec-5-2-1-四个共同字段" class="lv3">2.1 四个共同字段</a><a href="#sec-6-2-2-十一种-entry" class="lv3">2.2 十一种 entry</a><a href="#sec-7-2-3-认父不认子" class="lv3">2.3 认父不认子</a><a href="#sec-8-2-4-树上长一次" class="lv3">2.4 树上长一次</a><a href="#sec-9-三-jsonl-树怎么写进文件" class="">三、JSONL：树怎么写进文件</a><a href="#sec-10-3-1-文件在哪" class="lv3">3.1 文件在哪</a><a href="#sec-11-3-2-文件里长什么样" class="lv3">3.2 文件里长什么样</a><a href="#sec-12-3-3-懒落盘" class="lv3">3.3 懒落盘</a><a href="#sec-13-3-4-追加失败要回滚三件" class="lv3">3.4 追加失败要回滚三件</a><a href="#sec-14-3-5-什么时候全量重写" class="lv3">3.5 什么时候全量重写</a><a href="#sec-15-四-恢复-从文件读回一棵树" class="">四、恢复：从文件读回一棵树</a><a href="#sec-16-4-1-逐块解码-处理被切断的多字节字符" class="lv3">4.1 逐块解码，处理被切断的多字节字符</a><a href="#sec-17-4-2-文件末尾没有换行时" class="lv3">4.2 文件末尾没有换行时</a><a href="#sec-18-4-3-坏行静默跳过" class="lv3">4.3 坏行静默跳过</a><a href="#sec-19-4-4-三版迁移" class="lv3">4.4 三版迁移</a><a href="#sec-20-4-5-建索引-leafid-是-quot-最后一条-quot" class="lv3">4.5 建索引：leafId 是&amp;quot;最后一条&amp;quot;</a><a href="#sec-21-4-6-8-位短-id-撞了怎么办" class="lv3">4.6 8 位短 id 撞了怎么办</a><a href="#sec-22-五-从树到上下文" class="">五、从树到上下文</a><a href="#sec-23-5-1-第一步-从叶子回溯" class="lv3">5.1 第一步：从叶子回溯</a><a href="#sec-24-5-2-第二步-压缩之后的保留规则" class="lv3">5.2 第二步：压缩之后的保留规则</a><a href="#sec-25-5-3-第三步-投影与上下文编辑" class="lv3">5.3 第三步：投影与上下文编辑</a><a href="#sec-26-5-4-旧-compaction-只算一次" class="lv3">5.4 旧 compaction 只算一次</a><a href="#sec-27-六-分叉" class="">六、分叉</a><a href="#sec-28-6-1-branch-只挪一个指针" class="lv3">6.1 branch：只挪一个指针</a><a href="#sec-29-6-2-branchwithsummary-回退时留遗言" class="lv3">6.2 branchWithSummary：回退时留遗言</a><a href="#sec-30-6-3-createbranchedsession-把一条路径抠出来另存" class="lv3">6.3 createBranchedSession：把一条路径抠出来另存</a><a href="#sec-31-6-4-分叉的两种成本" class="lv3">6.4 分叉的两种成本</a><a href="#sec-32-七-树撑不住的四件事" class="">七、树撑不住的四件事</a><a href="#sec-33-7-1-一次追加要原子的不止一条-entry" class="lv3">7.1 一次追加要原子的不止一条 entry</a><a href="#sec-34-7-2-树没有-quot-未完成-quot-这个状态" class="lv3">7.2 树没有&amp;quot;未完成&amp;quot;这个状态</a><a href="#sec-35-7-3-一个文件一个写者" class="lv3">7.3 一个文件一个写者</a><a href="#sec-36-7-4-分叉的单位是文件-不是-entry" class="lv3">7.4 分叉的单位是文件，不是 entry</a><a href="#sec-37-7-5-结论" class="lv3">7.5 结论</a><a href="#sec-38-八-第二代-账本取代树" class="">八、第二代：账本取代树</a><a href="#sec-39-8-1-六种内置-kind" class="lv3">8.1 六种内置 kind</a><a href="#sec-40-8-2-head-取代-parentid" class="lv3">8.2 head 取代 parentId</a><a href="#sec-41-8-3-分叉变成-quot-新会话继承父会话-quot" class="lv3">8.3 分叉变成&amp;quot;新会话继承父会话&amp;quot;</a><a href="#sec-42-九-第二代-jsonl-marker-与-sidecar" class="">九、第二代 JSONL：marker 与 sidecar</a><a href="#sec-43-9-1-main-jsonl-里只有-marker" class="lv3">9.1 main.jsonl 里只有 marker</a><a href="#sec-44-9-2-sidecar-一行一个版本" class="lv3">9.2 sidecar 一行一个版本</a><a href="#sec-45-9-3-先写-sidecar-再写-marker" class="lv3">9.3 先写 sidecar，再写 marker</a><a href="#sec-46-9-4-recover-启动时重建全部状态" class="lv3">9.4 recover()：启动时重建全部状态</a><a href="#sec-47-十-提交作为一等公民" class="">十、提交作为一等公民</a><a href="#sec-48-10-1-一条变更线" class="lv3">10.1 一条变更线</a><a href="#sec-49-10-2-组提交" class="lv3">10.2 组提交</a><a href="#sec-50-10-3-延迟提交" class="lv3">10.3 延迟提交</a><a href="#sec-51-10-4-失败即终态" class="lv3">10.4 失败即终态</a><a href="#sec-52-10-5-几个数字" class="lv3">10.5 几个数字</a><a href="#sec-53-十一-完整链路" class="">十一、完整链路</a><a href="#sec-54-11-1-写入" class="lv3">11.1 写入</a><a href="#sec-55-11-2-重启恢复" class="lv3">11.2 重启恢复</a><a href="#sec-56-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-57-十三-自己动手验证" class="">十三、自己动手验证</a><a href="#sec-58-实验-1-看一个真实会话文件的结构" class="lv3">实验 1：看一个真实会话文件的结构</a><a href="#sec-59-实验-2-手搓一个分叉-看路径怎么选" class="lv3">实验 2：手搓一个分叉，看路径怎么选</a><a href="#sec-60-实验-3-插一条坏行-看它静默消失" class="lv3">实验 3：插一条坏行，看它静默消失</a><a href="#sec-61-实验-4-截掉文件末尾-看修补动作" class="lv3">实验 4：截掉文件末尾，看修补动作</a><a href="#sec-62-实验-5-跑-durable-的重启示例" class="lv3">实验 5：跑 durable 的重启示例</a><a href="#sec-63-读完自检" class="">读完自检</a><a href="#sec-64-十四-收束" class="">十四、收束</a><a href="#sec-65-14-1-三个可迁移的方法" class="lv3">14.1 三个可迁移的方法</a><a href="#sec-66-14-2-两代的分工" class="lv3">14.2 两代的分工</a><a href="#sec-67-14-3-下一站" class="lv3">14.3 下一站</a><a href="#sec-68-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

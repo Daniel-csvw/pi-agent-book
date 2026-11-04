@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -451,6 +452,9 @@ with different methods.</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// contract.ts:417-424（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ImplementationOf&lt;C, P = <span class="tok-kw">unknown</span>&gt; =</span><span class="ln">	C <span class="tok-kw">extends</span> RemoteContract&lt;<span class="tok-kw">infer</span> D&gt; ? ... : <span class="tok-kw">never</span>;</span></code></pre></div>
+<p><code>infer D</code> 是条件类型里&quot;就地取一个类型变量&quot;的写法：句子读作&quot;如果 <code>C</code> 长得像
+<code>RemoteContract&lt;D&gt;</code>，就把那个 <code>D</code> 记下来&quot;。读源码时见到 <code>infer</code>，后面跟的一定是
+一个待推导的名字。它和 <code>as</code> 的区别（一个反推、一个硬断言）在附录 B §2.5。</p>
 <p><code>P</code> 就是应用自己定义的 principal 类型。<code>factory</code> 的签名里它是个参数（<code>object.ts:78</code>），
 于是&quot;给谁创建&quot;是一个<strong>构造期</strong>的输入，不是每次调用都重新判断的运行时检查。</p>
 <p>好处很直接：owner 看到的方法集可以比 guest 多，而且<strong>多出来的方法在 guest 那侧根本不存在</strong>——
@@ -1519,8 +1523,36 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <p>最后一个实验不为验证代码，为验证你自己的理解：
 <strong>看完这章再读一遍 README 的 Quick start，应该能说出每一行背后发生了几次帧交换。</strong></p>
 <hr>
-<h2 id="sec-51-十三-收束">十三、收束</h2>
-<h3 id="sec-52-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
+<h2 id="sec-51-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>热重载靠什么成立？</td>
+<td>引用存地址不存函数，换实现不用重新分发引用</td>
+<td>§三、§六</td>
+</tr>
+<tr>
+<td><code>prepare</code> 和 <code>commit</code> 为什么必须分开？</td>
+<td>会失败的放一边、不可失败的放一边，安装就没有中间态</td>
+<td>§6.1、§6.4</td>
+</tr>
+<tr>
+<td>哪些变更才需要过闸门？</td>
+<td>只有两种：状态语义版本提升、独占资源替换</td>
+<td>§6.2</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-52-十三-收束">十三、收束</h2>
+<h3 id="sec-53-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
 <p><strong>一、要热重载，先让&quot;引用&quot;和&quot;实现&quot;解耦。</strong>
 引用存地址不存函数，所以换实现不需要重新分发引用。
 任何想支持热更新的系统都绕不开这一条：函数指针一旦被拷出去，就只能重启。</p>
@@ -1531,7 +1563,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <p><strong>三、闸门要窄，不要宽。</strong>
 只有&quot;状态语义版本提升&quot;和&quot;独占资源替换&quot;两种变更需要排队，其余全部无缝。
 一个把所有变更都当不兼容的系统，每次发布都是一次停服。</p>
-<h3 id="sec-53-13-2-这章的边界">13.2 这章的边界</h3>
+<h3 id="sec-54-13-2-这章的边界">13.2 这章的边界</h3>
 <p>没讲的部分：</p>
 <ul>
 <li><code>next/</code>（28,733 行）：v2 的文档与存储层。本章只在 §1.2 讲了它和 <code>durable</code> 的接缝，
@@ -1542,11 +1574,11 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 </ul>
 <p>一个必须说清楚的数字修正：<code>chord</code> 是 <strong>216 文件 / 50,101 行</strong>，不是流传的 45,619。
 后者只算了 <code>src/</code> 的一部分。</p>
-<h3 id="sec-54-13-3-下一站">13.3 下一站</h3>
+<h3 id="sec-55-13-3-下一站">13.3 下一站</h3>
 <p>M13 讲 <code>mcp</code> 与 <code>codemode</code>：模型自己写的代码，怎么在一个受控环境里跑。
 那里会出现 <code>chord</code> 的第三种用法——不是宿主应用，也不是存储层，而是<strong>沙箱的边界</strong>。</p>
 <hr>
-<h2 id="sec-55-本章源码索引">本章源码索引</h2>
+<h2 id="sec-56-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1649,7 +1681,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
       <a class="next" href="m13-mcp-codemode.html"><span class="lbl">下一篇</span>扩展入口 —— MCP 连出去，codemode 收进来</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-五个词" class="">一、五个词</a><a href="#sec-2-1-1-它和-actor-差在哪" class="lv3">1.1 它和 Actor 差在哪</a><a href="#sec-3-1-2-durable-站在哪一层" class="lv3">1.2 durable 站在哪一层</a><a href="#sec-4-二-包的地图" class="">二、包的地图</a><a href="#sec-5-2-1-v1-根层的七个大文件" class="lv3">2.1 v1 根层的七个大文件</a><a href="#sec-6-2-2-next-是什么" class="lv3">2.2 next/ 是什么</a><a href="#sec-7-三-object-地址-状态-代码" class="">三、object：地址 + 状态 + 代码</a><a href="#sec-8-3-1-一个对象是怎么被定义的" class="lv3">3.1 一个对象是怎么被定义的</a><a href="#sec-9-3-2-self-工厂能声明的五样东西" class="lv3">3.2 self：工厂能声明的五样东西</a><a href="#sec-10-3-3-引用不是对象" class="lv3">3.3 引用不是对象</a><a href="#sec-11-3-4-principal-同一个地址-两个对象" class="lv3">3.4 principal：同一个地址，两个对象</a><a href="#sec-12-3-5-生命周期-谁还拿着引用" class="lv3">3.5 生命周期：谁还拿着引用</a><a href="#sec-13-3-6-根-租约的来源" class="lv3">3.6 根：租约的来源</a><a href="#sec-14-四-state-可观察的-json" class="">四、state：可观察的 JSON</a><a href="#sec-15-4-1-一个-cell-是怎么声明的" class="lv3">4.1 一个 cell 是怎么声明的</a><a href="#sec-16-4-2-快照-增量" class="lv3">4.2 快照 + 增量</a><a href="#sec-17-4-3-replicatedstate-有三种形态" class="lv3">4.3 replicatedState 有三种形态</a><a href="#sec-18-五-contract-运行时值-不是类型" class="">五、contract：运行时值，不是类型</a><a href="#sec-19-5-1-契约有-json-形态" class="lv3">5.1 契约有 JSON 形态</a><a href="#sec-20-5-2-同一个版本号不能装两种东西" class="lv3">5.2 同一个版本号不能装两种东西</a><a href="#sec-21-5-3-accepts-按版本号索引的适配器" class="lv3">5.3 accepts：按版本号索引的适配器</a><a href="#sec-22-六-hot-reload-一次-reload-到底做了什么" class="">六、hot reload：一次 reload 到底做了什么</a><a href="#sec-23-6-1-prepare-的九步" class="lv3">6.1 prepare() 的九步</a><a href="#sec-24-6-2-只有两种变更需要闸门" class="lv3">6.2 只有两种变更需要闸门</a><a href="#sec-25-6-3-闸门-祖父条款" class="lv3">6.3 闸门：祖父条款</a><a href="#sec-26-6-4-commit-一次同步安装" class="lv3">6.4 commit()：一次同步安装</a><a href="#sec-27-6-5-三件事的顺序-为什么不能乱" class="lv3">6.5 三件事的顺序，为什么不能乱</a><a href="#sec-28-6-6-三种失败-三种结局" class="lv3">6.6 三种失败，三种结局</a><a href="#sec-29-6-7-旧代码什么时候退休" class="lv3">6.7 旧代码什么时候退休</a><a href="#sec-30-七-集群-五个帧的两阶段提交" class="">七、集群：五个帧的两阶段提交</a><a href="#sec-31-八-link-二十个帧-五个方向" class="">八、link：二十个帧，五个方向</a><a href="#sec-32-8-1-hold-是-quot-我要一个对象-quot" class="lv3">8.1 hold 是&amp;quot;我要一个对象&amp;quot;</a><a href="#sec-33-8-2-shape-先给目录-再给内容" class="lv3">8.2 shape：先给目录，再给内容</a><a href="#sec-34-8-3-三种链路-一种帧" class="lv3">8.3 三种链路，一种帧</a><a href="#sec-35-8-4-64-kb-之后压缩" class="lv3">8.4 64 KB 之后压缩</a><a href="#sec-36-九-delta-不可变是所有权约定" class="">九、delta：不可变是所有权约定</a><a href="#sec-37-9-1-谁有写权" class="lv3">9.1 谁有写权</a><a href="#sec-38-9-2-一次变更的四个动词" class="lv3">9.2 一次变更的四个动词</a><a href="#sec-39-9-3-这套东西和热重载的关系" class="lv3">9.3 这套东西和热重载的关系</a><a href="#sec-40-9-4-积压的批可以一次性重放" class="lv3">9.4 积压的批可以一次性重放</a><a href="#sec-41-十-完整链路" class="">十、完整链路</a><a href="#sec-42-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-43-11-1-十二个错误码-只有两个能重试" class="lv3">11.1 十二个错误码，只有两个能重试</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-实验-1-跑一遍热重载的核心用例" class="lv3">实验 1：跑一遍热重载的核心用例</a><a href="#sec-46-实验-2-看对象层面的重载" class="lv3">实验 2：看对象层面的重载</a><a href="#sec-47-实验-3-看集群的两阶段提交" class="lv3">实验 3：看集群的两阶段提交</a><a href="#sec-48-实验-4-自己触发一次闸门" class="lv3">实验 4：自己触发一次闸门</a><a href="#sec-49-实验-5-从教程跑一遍全链路" class="lv3">实验 5：从教程跑一遍全链路</a><a href="#sec-50-实验-6-把闸门卡死-看两种超时差在哪" class="lv3">实验 6：把闸门卡死，看两种超时差在哪</a><a href="#sec-51-十三-收束" class="">十三、收束</a><a href="#sec-52-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-53-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-54-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-55-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-五个词" class="">一、五个词</a><a href="#sec-2-1-1-它和-actor-差在哪" class="lv3">1.1 它和 Actor 差在哪</a><a href="#sec-3-1-2-durable-站在哪一层" class="lv3">1.2 durable 站在哪一层</a><a href="#sec-4-二-包的地图" class="">二、包的地图</a><a href="#sec-5-2-1-v1-根层的七个大文件" class="lv3">2.1 v1 根层的七个大文件</a><a href="#sec-6-2-2-next-是什么" class="lv3">2.2 next/ 是什么</a><a href="#sec-7-三-object-地址-状态-代码" class="">三、object：地址 + 状态 + 代码</a><a href="#sec-8-3-1-一个对象是怎么被定义的" class="lv3">3.1 一个对象是怎么被定义的</a><a href="#sec-9-3-2-self-工厂能声明的五样东西" class="lv3">3.2 self：工厂能声明的五样东西</a><a href="#sec-10-3-3-引用不是对象" class="lv3">3.3 引用不是对象</a><a href="#sec-11-3-4-principal-同一个地址-两个对象" class="lv3">3.4 principal：同一个地址，两个对象</a><a href="#sec-12-3-5-生命周期-谁还拿着引用" class="lv3">3.5 生命周期：谁还拿着引用</a><a href="#sec-13-3-6-根-租约的来源" class="lv3">3.6 根：租约的来源</a><a href="#sec-14-四-state-可观察的-json" class="">四、state：可观察的 JSON</a><a href="#sec-15-4-1-一个-cell-是怎么声明的" class="lv3">4.1 一个 cell 是怎么声明的</a><a href="#sec-16-4-2-快照-增量" class="lv3">4.2 快照 + 增量</a><a href="#sec-17-4-3-replicatedstate-有三种形态" class="lv3">4.3 replicatedState 有三种形态</a><a href="#sec-18-五-contract-运行时值-不是类型" class="">五、contract：运行时值，不是类型</a><a href="#sec-19-5-1-契约有-json-形态" class="lv3">5.1 契约有 JSON 形态</a><a href="#sec-20-5-2-同一个版本号不能装两种东西" class="lv3">5.2 同一个版本号不能装两种东西</a><a href="#sec-21-5-3-accepts-按版本号索引的适配器" class="lv3">5.3 accepts：按版本号索引的适配器</a><a href="#sec-22-六-hot-reload-一次-reload-到底做了什么" class="">六、hot reload：一次 reload 到底做了什么</a><a href="#sec-23-6-1-prepare-的九步" class="lv3">6.1 prepare() 的九步</a><a href="#sec-24-6-2-只有两种变更需要闸门" class="lv3">6.2 只有两种变更需要闸门</a><a href="#sec-25-6-3-闸门-祖父条款" class="lv3">6.3 闸门：祖父条款</a><a href="#sec-26-6-4-commit-一次同步安装" class="lv3">6.4 commit()：一次同步安装</a><a href="#sec-27-6-5-三件事的顺序-为什么不能乱" class="lv3">6.5 三件事的顺序，为什么不能乱</a><a href="#sec-28-6-6-三种失败-三种结局" class="lv3">6.6 三种失败，三种结局</a><a href="#sec-29-6-7-旧代码什么时候退休" class="lv3">6.7 旧代码什么时候退休</a><a href="#sec-30-七-集群-五个帧的两阶段提交" class="">七、集群：五个帧的两阶段提交</a><a href="#sec-31-八-link-二十个帧-五个方向" class="">八、link：二十个帧，五个方向</a><a href="#sec-32-8-1-hold-是-quot-我要一个对象-quot" class="lv3">8.1 hold 是&amp;quot;我要一个对象&amp;quot;</a><a href="#sec-33-8-2-shape-先给目录-再给内容" class="lv3">8.2 shape：先给目录，再给内容</a><a href="#sec-34-8-3-三种链路-一种帧" class="lv3">8.3 三种链路，一种帧</a><a href="#sec-35-8-4-64-kb-之后压缩" class="lv3">8.4 64 KB 之后压缩</a><a href="#sec-36-九-delta-不可变是所有权约定" class="">九、delta：不可变是所有权约定</a><a href="#sec-37-9-1-谁有写权" class="lv3">9.1 谁有写权</a><a href="#sec-38-9-2-一次变更的四个动词" class="lv3">9.2 一次变更的四个动词</a><a href="#sec-39-9-3-这套东西和热重载的关系" class="lv3">9.3 这套东西和热重载的关系</a><a href="#sec-40-9-4-积压的批可以一次性重放" class="lv3">9.4 积压的批可以一次性重放</a><a href="#sec-41-十-完整链路" class="">十、完整链路</a><a href="#sec-42-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-43-11-1-十二个错误码-只有两个能重试" class="lv3">11.1 十二个错误码，只有两个能重试</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-实验-1-跑一遍热重载的核心用例" class="lv3">实验 1：跑一遍热重载的核心用例</a><a href="#sec-46-实验-2-看对象层面的重载" class="lv3">实验 2：看对象层面的重载</a><a href="#sec-47-实验-3-看集群的两阶段提交" class="lv3">实验 3：看集群的两阶段提交</a><a href="#sec-48-实验-4-自己触发一次闸门" class="lv3">实验 4：自己触发一次闸门</a><a href="#sec-49-实验-5-从教程跑一遍全链路" class="lv3">实验 5：从教程跑一遍全链路</a><a href="#sec-50-实验-6-把闸门卡死-看两种超时差在哪" class="lv3">实验 6：把闸门卡死，看两种超时差在哪</a><a href="#sec-51-读完自检" class="">读完自检</a><a href="#sec-52-十三-收束" class="">十三、收束</a><a href="#sec-53-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-54-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-55-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-56-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

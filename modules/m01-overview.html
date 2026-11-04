@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -50,12 +51,13 @@
 <p>这句话是不是真的，不用看宣传，看行数就行。</p>
 <hr>
 <h2 id="sec-1-一-仓库自报的数字-互相打架">一、仓库自报的数字，互相打架</h2>
-<p><code>pi-main/pi-main</code> 是 v1.4.0 的完整 monorepo。从根目录数一遍：</p>
+<p>把 v1.4.0 的仓库 clone 下来，进到仓库根目录，数一遍：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"># 只数 packages/*/src 下的 .ts，排除 test / dist</span><span class="ln">find packages -path '*/src/*' -name '*.ts' | wc -l        # 920</span><span class="ln">find packages -path '*/src/*' -name '*.ts' -exec cat {} + | wc -l   # 228,895</span></code></pre></div>
 <p>920 个文件，22.9 万行 TypeScript。这个体量谈不上&quot;minimal&quot;。</p>
-<p>但按包拆开，分布是这样的（数据源 <code>docs/source-index.md</code>）：</p>
+<p>下文凡是命令行，都默认当前目录是仓库根目录（<code>git clone</code> 后的那个 <code>pi/</code>）。</p>
+<p>但按包拆开，分布是这样的（每包一个 <code>wc -l</code>，命令见 §十 实验 1）：</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -338,7 +340,7 @@
 <pre><code><span class="ln">cd packages/telemetry &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../schema &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../chord &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../tui &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../codemode &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../mcp &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../ai &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../durable &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../env &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../agent &amp;&amp; npm run build &amp;&amp;</span><span class="ln">cd ../coding-agent &amp;&amp; npm run build</span></code></pre></div>
 <p>11 步，<code>evals</code> 不在里面（它是测试工具，构建时不参与）。注意 <code>build:offline</code> 是同一个序列，只把 <code>ai</code> 换成 <code>npm run build:offline</code>——因为它默认会去网络拉模型目录。</p>
 <p>为什么必须手写这个顺序而不能交给 <code>npm run build --workspaces</code>？因为 workspace 的构建顺序取决于拓扑排序，而这个仓库里存在<strong>不经过 npm 依赖声明的隐式依赖</strong>——比如 <code>coding-agent</code> 的构建脚本会去读 <code>tui</code> 产出的原生二进制。手写顺序是&quot;显式声明拓扑&quot;，代价是每次新增包都要记得改这一行。</p>
-<p>把每个包的 <code>dependencies</code> 拿出来，能得到真正的依赖图（数据源 <code>docs/source-index.json</code>）：</p>
+<p>把每个包的 <code>dependencies</code> 拿出来，能得到真正的依赖图（数据源：各包 <code>package.json</code> 本身）：</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -782,6 +784,35 @@ plain closures</p>
 <li>想抄它的 UI → 读 M14</li>
 </ul>
 <p>每章结尾都有「自己动手验证」和「工程暗坑」，前者给能跑的命令，后者只写真踩过的坑。</p>
+<p>书末还有四页附录。三页是<strong>卡住时的入口</strong>，一页是<strong>读完后的全景</strong>：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>附录</th>
+<th>什么时候翻</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>B · TypeScript 速查</strong></td>
+<td>看到 <code>satisfies</code>、<code>keyof</code>、<code>declare module</code> 不知道什么意思</td>
+</tr>
+<tr>
+<td><strong>A · v0.80 → v1.4 迁移对照</strong></td>
+<td>读过旧版教程，发现路径或结论对不上</td>
+</tr>
+<tr>
+<td><strong>C · 把 Agent 装进你的服务</strong></td>
+<td>想把这个 Agent 接进自己的后端（HTTP + SSE）</td>
+</tr>
+<tr>
+<td><strong>D · 合龙：一次请求，二十五个落点</strong></td>
+<td>主体读完，想横向看一遍「一句话怎么走完全部五章」</td>
+</tr>
+</tbody>
+</table></div>
+<p>正文里每遇到一次这类写法，<strong>首次出现处都留了回指</strong>。不用背，卡了再翻。
+附录 D 反过来：它标的是每个结论出自哪一章，读不懂哪一站就回哪一章。</p>
 <h3 id="sec-16-9-1-十六条任务-五个里程碑">9.1 十六条任务，五个里程碑</h3>
 <p>书是分五批写完的，每批有硬判据。列在这儿，你可以用它检查我有没有偷工：</p>
 <div class="table-wrap"><table>
@@ -826,13 +857,14 @@ plain closures</p>
 <p><strong>路径一：24 小时速通（只想用）。</strong> M01 → M02 → M05（工具）→ M07（扩展）。四章，约三小时。目标：知道扩展能改什么、工具怎么加、系统提示词里的话从哪来。剩下的以后用到再查。</p>
 <p><strong>路径二：一周读通（想改内核）。</strong> 按顺序读 Part A 和 Part B，七章。重点在 M03：那章把 960 行拆成了两层循环、十三条事件、七种 stopReason。读完你应该能预测任意一段对话的事件序列。</p>
 <p><strong>路径三：只查盲区（已熟悉旧版）。</strong> M03 第六节（stopReason 的变化）+ M10 + M11。这三块是 v0.80 到 v1.4 变化最大的地方，旧教程在这里基本全错。其余章节的差异属于&quot;路径变了、结论没变&quot;。</p>
+<p>补一句：**不会 TypeScript 的话，先花十二分钟读附录 B。**它不在主线上，但缺了它，M03 的第一段代码就会卡住。</p>
 <p>三条路有一个共同的起点：先搞清楚哪一块代码属于哪一层。这就是下一章。</p>
 <hr>
 <h2 id="sec-18-十-自己动手验证">十、自己动手验证</h2>
 <p><strong>实验 1：自己数一遍行数。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">cd pi-main/pi-main</span><span class="ln">for d in packages/*/; do</span><span class="ln">  n=$(find "$d" -path '*/src/*' -name '*.ts' ! -name '*.test.ts' | wc -l)</span><span class="ln">  l=$(find "$d" -path '*/src/*' -name '*.ts' ! -name '*.test.ts' \</span><span class="ln">      -exec cat {} + 2&gt;/dev/null | wc -l)</span><span class="ln">  echo "$(basename $d) $n $l"</span><span class="ln">done | sort -k3 -rn</span></code></pre></div>
+<pre><code><span class="ln"># 在仓库根目录执行</span><span class="ln">for d in packages/*/; do</span><span class="ln">  n=$(find "$d" -path '*/src/*' -name '*.ts' ! -name '*.test.ts' | wc -l)</span><span class="ln">  l=$(find "$d" -path '*/src/*' -name '*.ts' ! -name '*.test.ts' \</span><span class="ln">      -exec cat {} + 2&gt;/dev/null | wc -l)</span><span class="ln">  echo "$(basename $d) $n $l"</span><span class="ln">done | sort -k3 -rn</span></code></pre></div>
 <p>如果数字和上表对不上，先检查两件事：有没有把 <code>dist/</code> 算进去，有没有把 <code>*.test.ts</code> 算进去。这两个是行数统计最大的污染源。</p>
 <p><strong>实验 2：验证依赖图里缺席的那条边。</strong></p>
 <div class="code-block" data-lang="bash">
@@ -873,7 +905,7 @@ plain closures</p>
 <p>判断&quot;哪些是产品包&quot;的经验规则：看 <code>packages/</code> 下有没有 <code>package.json</code>，且 <code>private</code> 不为 true。</p>
 <p><strong>2. <code>wc -l</code> 的口径不统一。</strong></p>
 <p><code>wc -l</code> 数的是换行符数量。文件末尾没有换行时，会少算 1。PowerShell 的 <code>(Get-Content x).Count</code> 又不一样——它不数末尾空行。</p>
-<p>实测：<code>agent-loop.ts</code> 用 PowerShell 数是 959，用 <code>split('\n')</code> 数是 960。<strong>全书统一用后者</strong>（和 <code>scripts/fact-check.mjs</code> 一致）。差了这 1 行，行号引用就会在边界上翻车。</p>
+<p>实测：<code>agent-loop.ts</code> 用 PowerShell 数是 959，用 <code>split('\n')</code> 数是 960。<strong>全书统一用后者</strong>（和本书的校验口径一致）。差了这 1 行，行号引用就会在边界上翻车。</p>
 <p><strong>3. 别指望从 <code>agent/src/index.ts</code> 找到 harness。</strong></p>
 <p>旧教程说过&quot;<code>agent</code> 包导出 harness / session / compaction&quot;。v1.4.0 的 <code>index.ts</code> 只有 5 行，导出 <code>agent</code>、<code>agent-loop</code>、<code>proxy</code>、<code>stream-fn</code>、<code>types</code>。harness 早就搬到 <code>durable/src/harness/</code> 了。</p>
 <p>这条是旧教程读者最容易栽的地方——按旧路径找不到文件，会以为是教程写错了，其实是源码重构了。</p>
@@ -883,11 +915,7 @@ plain closures</p>
 <p>前面已经踩过三次：<code>env</code> 不是环境变量，是远程执行环境；<code>chord</code> 不是音乐，是插件协议宿主；<code>schema</code> 不是数据库，是 JSON Schema 编译器。判断一个包干什么，<strong>只有两处可信：<code>description</code> 和 <code>src/</code> 里的文件名</strong>。README 的表格和目录名都可能滞后。</p>
 <p><strong>6. 行号会漂，漂的方式很隐蔽。</strong></p>
 <p>上游 <code>main</code> 分支持续演进，你在 GitHub 上点开的文件和本地快照未必是同一版。更阴的是&quot;文件还在，内容已换&quot;——比如 <code>tools/read.ts</code> 从 275 行重写成 224 行，旧教程引的 <code>read.ts:275</code> 直接越界。</p>
-<p>所以本书所有引用都基于本仓库副本的 v1.4.0，并且有一条命令可以验证：</p>
-<div class="code-block" data-lang="bash">
-<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node scripts/fact-check.mjs</span></code></pre></div>
-<p>它会扫全书所有 <code>文件:行号</code> 引用，检查文件存不存在、行号越不越界，结果写进 <code>docs/fact-check.md</code>。</p>
+<p>所以本书所有引用都基于 v1.4.0 这一版快照，而不是你此刻在 GitHub 上看到的最新 <code>main</code>。每次发布前，书里的每一条 <code>文件:行号</code> 还会被脚本扫一遍：文件是否存在、行号是否越界、是否命中已经搬走的旧路径。人眼会漏，脚本不会。</p>
 <hr>
 <h2 id="sec-20-十二-三个可以带走的方法">十二、三个可以带走的方法</h2>
 <p><strong>方法一：用体量分布定位权重。</strong></p>
@@ -902,25 +930,49 @@ plain closures</p>
 <hr>
 <h2 id="sec-21-十三-本书的引用口径">十三、本书的引用口径</h2>
 <p>上一节提到了行号会漂。这一节把&quot;怎么保证不漂&quot;说清楚，因为它直接决定了你能不能用书里的坐标去源码里跳。</p>
-<p><strong>一，版本锁定。</strong> 全书基于 <code>pi-main/pi-main</code> 这份 v1.4.0 副本。验证方式一行：</p>
+<p><strong>一，版本锁定。</strong> 全书基于 v1.4.0 这个发布版，不是你打开 GitHub 那一刻的 <code>main</code>。验证方式一行：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">for p in packages/*/package.json; do</span><span class="ln">  node -p "require('./$p').version"</span><span class="ln">done | sort -u</span></code></pre></div>
 <p>应该只输出一行 <code>1.4.0</code>。如果出现了第二个版本号，说明你手上的快照不是同一次发布。</p>
 <p><strong>二，行号口径。</strong> 统一用 <code>split('\n').length</code>，不用 <code>wc -l</code>，也不用 PowerShell 的 <code>(Get-Content x).Count</code>。三个工具数同一个文件会差 1–2 行，在边界行上就会误判。</p>
 <p><strong>三，引用写法。</strong> 正文里出现 <code>packages/agent/src/agent-loop.ts:342-372</code> 这种形式，意思是&quot;这个文件第 342 到 372 行&quot;。单行写成 <code>:412</code>。如果代码被改写省略，块内用 <code>// …</code> 标记，并在块首写上 <code>文件:起-止行</code>。</p>
-<p><strong>四，自动校验。</strong> 每次批量交付前跑：</p>
-<div class="code-block" data-lang="bash">
-<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node scripts/fact-check.mjs        # 扫全部引用</span></code></pre></div>
-<p>它报三类问题：文件不存在、行号越界、命中废弃路径（比如 <code>packages/agent/src/harness/</code>）。<strong>第三类最重要</strong>——它专治&quot;文件还在但东西搬走了&quot;。</p>
+<p><strong>四，机器校验。</strong> 每次发布前，全书的 <code>文件:行号</code> 都被脚本扫一遍，报三类问题：文件不存在、行号越界、命中废弃路径（比如 <code>packages/agent/src/harness/</code>）。<strong>第三类最重要</strong>——它专治&quot;文件还在但东西搬走了&quot;。</p>
 <p>现在你已经有了地图、有了坐标、有了验证手段。</p>
 <hr>
-<h2 id="sec-22-下一步">下一步</h2>
+<h2 id="sec-22-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？说不出来的那条，回右边一格重读。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>22 万行里，真正的 agent 逻辑占多少？</td>
+<td><strong>1.1%</strong>。其余 78% 在处理&quot;和模型无关的事&quot;</td>
+<td>§八</td>
+</tr>
+<tr>
+<td>README 只公示 7 个包，仓库里有几个？</td>
+<td>12 个；差额只有靠依赖图才看得全</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>build 顺序为什么不能当依赖图看？</td>
+<td>它只暴露隐式边，不描述分层；判层要看最长路径</td>
+<td>§四</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-23-下一步">下一步</h2>
 <p>十二个包的体量和依赖都清楚了，但还不知道它们怎么分层——<code>ai</code> 和 <code>agent</code> 的边界画在哪？<code>coding-agent</code> 为什么不依赖 <code>durable</code>？<code>chord</code> 凭什么被 <code>durable</code> 依赖？</p>
 <p>下一章把 12 个包摊开成一张三层架构图，每个箭头都带出处，并给出一个判据：给定一个文件路径，三步之内能说出它属于哪一层。</p>
 <hr>
-<h2 id="sec-23-源码索引">源码索引</h2>
+<h2 id="sec-24-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1010,21 +1062,6 @@ plain closures</p>
 <td>96</td>
 <td>抄 models.dev <code>:72-76</code></td>
 </tr>
-<tr>
-<td><code>docs/source-index.md</code></td>
-<td>—</td>
-<td>12 包行数分布</td>
-</tr>
-<tr>
-<td><code>docs/source-index.json</code></td>
-<td>—</td>
-<td>包依赖图</td>
-</tr>
-<tr>
-<td><code>scripts/fact-check.mjs</code></td>
-<td>—</td>
-<td>引用校验</td>
-</tr>
 </tbody>
 </table></div>
 
@@ -1033,7 +1070,7 @@ plain closures</p>
       <a class="next" href="m02-package-map.html"><span class="lbl">下一篇</span>三层架构 —— 十二个包各自站在哪一层</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-本书的引用口径" class="">十三、本书的引用口径</a><a href="#sec-22-下一步" class="">下一步</a><a href="#sec-23-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-本书的引用口径" class="">十三、本书的引用口径</a><a href="#sec-22-读完自检" class="">读完自检</a><a href="#sec-23-下一步" class="">下一步</a><a href="#sec-24-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

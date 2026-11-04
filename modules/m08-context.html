@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -1165,7 +1166,35 @@ and may change between versions&quot;。
 如果根本没有读取工具，<strong>整节不写</strong>。
 提示词里最贵的东西不是 token，是<strong>指向不存在能力的指令</strong>。</p>
 <hr>
-<h2 id="sec-43-下一步">下一步</h2>
+<h2 id="sec-43-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>提示词为什么不能是写死的一段？</td>
+<td>三个改不动的点：工具集、目录、技能每轮都在变</td>
+<td>§1.1</td>
+</tr>
+<tr>
+<td>它产出的到底是什么形状？</td>
+<td>八个键值对，不是一段字符串</td>
+<td>§二</td>
+</tr>
+<tr>
+<td>增量下发时，&quot;缺失&quot;是什么意思？</td>
+<td>全量协议里缺失=没有；增量协议里缺失=没说</td>
+<td>§七</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-44-下一步">下一步</h2>
 <p>到这一章结束，Part C 的&quot;装配&quot;部分齐了：提示词怎么拼、
 文件从哪来、增量怎么下发。但一个关键机制还挂着——
 第八节的流程图里有一行被我省略了：</p>
@@ -1176,7 +1205,7 @@ and may change between versions&quot;。
 下一章讲 <code>compaction.ts</code>：怎么判断该压、从哪里切、
 摘要怎么保持可续写、压缩之后 session 树怎么变。</p>
 <hr>
-<h2 id="sec-44-本章源码索引">本章源码索引</h2>
+<h2 id="sec-45-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1299,7 +1328,7 @@ and may change between versions&quot;。
       <a class="next" href="m09-compaction.html"><span class="lbl">下一篇</span>上下文压缩 —— 两道闸门，两种摘要</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-为什么提示词不能是写死的一段" class="">一、为什么提示词不能是写死的一段</a><a href="#sec-2-1-1-一段常量字符串-三个改不动的点" class="lv3">1.1 一段常量字符串，三个改不动的点</a><a href="#sec-3-1-2-一次请求只能有一段-system" class="lv3">1.2 一次请求只能有一段 system</a><a href="#sec-4-1-3-结论-提示词要-quot-可寻址-quot" class="lv3">1.3 结论：提示词要&amp;quot;可寻址&amp;quot;</a><a href="#sec-5-二-八节-一个真源" class="">二、八节，一个真源</a><a href="#sec-6-2-1-顺序与来源" class="lv3">2.1 顺序与来源</a><a href="#sec-7-2-2-只有-preamble-不带标签" class="lv3">2.2 只有 preamble 不带标签</a><a href="#sec-8-2-3-节的命名是被校验的" class="lv3">2.3 节的命名是被校验的</a><a href="#sec-9-2-4-空节不写-而不是写空" class="lv3">2.4 空节不写，而不是写空</a><a href="#sec-10-三-四种材料怎么进来" class="">三、四种材料怎么进来</a><a href="#sec-11-3-1-工具集-selected-与-hidden" class="lv3">3.1 工具集：selected 与 hidden</a><a href="#sec-12-3-2-一句话描述与规则子弹" class="lv3">3.2 一句话描述与规则子弹</a><a href="#sec-13-3-3-规则的三段式" class="lv3">3.3 规则的三段式</a><a href="#sec-14-3-4-三个-quot-整段替换-quot-语义完全不同" class="lv3">3.4 三个&amp;quot;整段替换&amp;quot;，语义完全不同</a><a href="#sec-15-3-5-自定义节-扩展的入口" class="lv3">3.5 自定义节：扩展的入口</a><a href="#sec-16-四-agents-md-链-从-cwd-往上爬" class="">四、AGENTS.md 链：从 cwd 往上爬</a><a href="#sec-17-4-1-五个候选名-命中即停" class="lv3">4.1 五个候选名，命中即停</a><a href="#sec-18-4-2-三段装配顺序" class="lv3">4.2 三段装配顺序</a><a href="#sec-19-4-3-worktree-遮蔽-一个很窄但真实的坑" class="lv3">4.3 worktree 遮蔽：一个很窄但真实的坑</a><a href="#sec-20-4-4-xml-包装-路径是元数据" class="lv3">4.4 XML 包装：路径是元数据</a><a href="#sec-21-五-skills-清单进提示词-正文后读" class="">五、Skills：清单进提示词，正文后读</a><a href="#sec-22-5-1-发现规则-四种情形" class="lv3">5.1 发现规则：四种情形</a><a href="#sec-23-5-2-两道校验" class="lv3">5.2 两道校验</a><a href="#sec-24-5-3-xml-与三态-filereadtool" class="lv3">5.3 XML 与三态 fileReadTool</a><a href="#sec-25-5-4-disablemodelinvocation" class="lv3">5.4 disableModelInvocation</a><a href="#sec-26-六-prompt-templates-另一条入口" class="">六、Prompt templates：另一条入口</a><a href="#sec-27-6-1-解析-bash-风格的引号" class="lv3">6.1 解析：bash 风格的引号</a><a href="#sec-28-6-2-六种占位符" class="lv3">6.2 六种占位符</a><a href="#sec-29-6-3-三条边界" class="lv3">6.3 三条边界</a><a href="#sec-30-七-增量-只发变了的那几节" class="">七、增量：只发变了的那几节</a><a href="#sec-31-7-1-每轮都算-但只在变了时发" class="lv3">7.1 每轮都算，但只在变了时发</a><a href="#sec-32-7-2-diffsystempromptsections-的两种输出" class="lv3">7.2 diffSystemPromptSections 的两种输出</a><a href="#sec-33-7-3-上一版从哪来" class="lv3">7.3 上一版从哪来</a><a href="#sec-34-7-4-两条下行路线" class="lv3">7.4 两条下行路线</a><a href="#sec-35-7-5-为什么这套设计省的是两笔钱" class="lv3">7.5 为什么这套设计省的是两笔钱</a><a href="#sec-36-八-完整装配流程" class="">八、完整装配流程</a><a href="#sec-37-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-38-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-39-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-40-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot" class="lv3">方法一：把可变提示词拆成&amp;quot;命名段 + 增量 patch&amp;quot;</a><a href="#sec-41-方法二-分层的上下文文件-用-quot-具体度-quot-排序" class="lv3">方法二：分层的上下文文件，用&amp;quot;具体度&amp;quot;排序</a><a href="#sec-42-方法三-清单进提示词-正文靠工具拉" class="lv3">方法三：清单进提示词，正文靠工具拉</a><a href="#sec-43-下一步" class="">下一步</a><a href="#sec-44-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-为什么提示词不能是写死的一段" class="">一、为什么提示词不能是写死的一段</a><a href="#sec-2-1-1-一段常量字符串-三个改不动的点" class="lv3">1.1 一段常量字符串，三个改不动的点</a><a href="#sec-3-1-2-一次请求只能有一段-system" class="lv3">1.2 一次请求只能有一段 system</a><a href="#sec-4-1-3-结论-提示词要-quot-可寻址-quot" class="lv3">1.3 结论：提示词要&amp;quot;可寻址&amp;quot;</a><a href="#sec-5-二-八节-一个真源" class="">二、八节，一个真源</a><a href="#sec-6-2-1-顺序与来源" class="lv3">2.1 顺序与来源</a><a href="#sec-7-2-2-只有-preamble-不带标签" class="lv3">2.2 只有 preamble 不带标签</a><a href="#sec-8-2-3-节的命名是被校验的" class="lv3">2.3 节的命名是被校验的</a><a href="#sec-9-2-4-空节不写-而不是写空" class="lv3">2.4 空节不写，而不是写空</a><a href="#sec-10-三-四种材料怎么进来" class="">三、四种材料怎么进来</a><a href="#sec-11-3-1-工具集-selected-与-hidden" class="lv3">3.1 工具集：selected 与 hidden</a><a href="#sec-12-3-2-一句话描述与规则子弹" class="lv3">3.2 一句话描述与规则子弹</a><a href="#sec-13-3-3-规则的三段式" class="lv3">3.3 规则的三段式</a><a href="#sec-14-3-4-三个-quot-整段替换-quot-语义完全不同" class="lv3">3.4 三个&amp;quot;整段替换&amp;quot;，语义完全不同</a><a href="#sec-15-3-5-自定义节-扩展的入口" class="lv3">3.5 自定义节：扩展的入口</a><a href="#sec-16-四-agents-md-链-从-cwd-往上爬" class="">四、AGENTS.md 链：从 cwd 往上爬</a><a href="#sec-17-4-1-五个候选名-命中即停" class="lv3">4.1 五个候选名，命中即停</a><a href="#sec-18-4-2-三段装配顺序" class="lv3">4.2 三段装配顺序</a><a href="#sec-19-4-3-worktree-遮蔽-一个很窄但真实的坑" class="lv3">4.3 worktree 遮蔽：一个很窄但真实的坑</a><a href="#sec-20-4-4-xml-包装-路径是元数据" class="lv3">4.4 XML 包装：路径是元数据</a><a href="#sec-21-五-skills-清单进提示词-正文后读" class="">五、Skills：清单进提示词，正文后读</a><a href="#sec-22-5-1-发现规则-四种情形" class="lv3">5.1 发现规则：四种情形</a><a href="#sec-23-5-2-两道校验" class="lv3">5.2 两道校验</a><a href="#sec-24-5-3-xml-与三态-filereadtool" class="lv3">5.3 XML 与三态 fileReadTool</a><a href="#sec-25-5-4-disablemodelinvocation" class="lv3">5.4 disableModelInvocation</a><a href="#sec-26-六-prompt-templates-另一条入口" class="">六、Prompt templates：另一条入口</a><a href="#sec-27-6-1-解析-bash-风格的引号" class="lv3">6.1 解析：bash 风格的引号</a><a href="#sec-28-6-2-六种占位符" class="lv3">6.2 六种占位符</a><a href="#sec-29-6-3-三条边界" class="lv3">6.3 三条边界</a><a href="#sec-30-七-增量-只发变了的那几节" class="">七、增量：只发变了的那几节</a><a href="#sec-31-7-1-每轮都算-但只在变了时发" class="lv3">7.1 每轮都算，但只在变了时发</a><a href="#sec-32-7-2-diffsystempromptsections-的两种输出" class="lv3">7.2 diffSystemPromptSections 的两种输出</a><a href="#sec-33-7-3-上一版从哪来" class="lv3">7.3 上一版从哪来</a><a href="#sec-34-7-4-两条下行路线" class="lv3">7.4 两条下行路线</a><a href="#sec-35-7-5-为什么这套设计省的是两笔钱" class="lv3">7.5 为什么这套设计省的是两笔钱</a><a href="#sec-36-八-完整装配流程" class="">八、完整装配流程</a><a href="#sec-37-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-38-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-39-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-40-方法一-把可变提示词拆成-quot-命名段-增量-patch-quot" class="lv3">方法一：把可变提示词拆成&amp;quot;命名段 + 增量 patch&amp;quot;</a><a href="#sec-41-方法二-分层的上下文文件-用-quot-具体度-quot-排序" class="lv3">方法二：分层的上下文文件，用&amp;quot;具体度&amp;quot;排序</a><a href="#sec-42-方法三-清单进提示词-正文靠工具拉" class="lv3">方法三：清单进提示词，正文靠工具拉</a><a href="#sec-43-读完自检" class="">读完自检</a><a href="#sec-44-下一步" class="">下一步</a><a href="#sec-45-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

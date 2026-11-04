@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -68,6 +69,19 @@
 <p>两者共用摘要调用与文件清单，但四个地方全不一样：
 <strong>切点算法</strong>、<strong>提示词</strong>、<strong>预算口径</strong>、<strong>摘要存放位置</strong>。
 章末有一张逐项对照表。</p>
+<p><strong>先说读法，两分钟能省你两小时。<strong>这一章的代码密度是全书最高的一章：
+10,100 字配 1,062 行代码，每千字 105 行，正好是全书均值（52）的两倍。
+其中二十五处是</strong>节选</strong>——从 1,105 行的 <code>compaction.ts</code> 里摘几行。</p>
+<p>所以读的时候记住三条：</p>
+<ul>
+<li><strong>别指望把代码块拼回原文件。</strong> 节选只保留和论证有关的那几行。</li>
+<li>行号才是真坐标。形如 <code>compaction.ts:412-470</code> 的那串数字，去仓库里定位它，
+不要按代码块的先后顺序找。</li>
+<li>真正的主线只有两条：<strong>在哪切</strong>（§四）和<strong>写什么</strong>（§五）。其余各节都是
+这两件事的边角。</li>
+</ul>
+<p>§十一 的六个实验都能照抄，其中<strong>实验 1 值得真跑</strong>：它让你亲眼看到一条
+<code>compaction</code> entry 落在磁盘上长什么样。</p>
 <hr>
 <h2 id="sec-1-一-压缩不是删除">一、压缩不是删除</h2>
 <h3 id="sec-2-1-1-磁盘上的历史一条都不能少">1.1 磁盘上的历史一条都不能少</h3>
@@ -942,7 +956,7 @@ assistant 消息里只有一次 <code>run_script</code> 调用。
 <p>摘要正文后面接两个 XML 块，形如：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">## Critical Context</span><span class="ln">- 目标是把 m09 从 4,262 字加厚到 8,000 字</span><span class="ln"></span><span class="ln">&lt;read-files&gt;</span><span class="ln">packages/coding-agent/src/core/compaction/compaction.ts</span><span class="ln">packages/coding-agent/src/core/compaction/utils.ts</span><span class="ln">&lt;/read-files&gt;</span><span class="ln"></span><span class="ln">&lt;modified-files&gt;</span><span class="ln">site/content/modules/m09-compaction.md</span></code></pre></div>
+<pre><code><span class="ln">## Critical Context</span><span class="ln">- 目标是让摘要稳定保留完整的文件清单，不靠模型复述</span><span class="ln"></span><span class="ln">&lt;read-files&gt;</span><span class="ln">packages/coding-agent/src/core/compaction/compaction.ts</span><span class="ln">&lt;/read-files&gt;</span><span class="ln"></span><span class="ln">&lt;modified-files&gt;</span><span class="ln">packages/coding-agent/src/core/compaction/utils.ts</span></code></pre></div>
 <p>为什么用 XML 而不是 Markdown 列表？
 因为<strong>列表会被摘要模型改写</strong>（它会&quot;顺手整理一下&quot;），XML 标签是结构，
 模型倾向于原样保留。而且这两个块是<strong>代码拼上去的</strong>，不经过模型——
@@ -1447,7 +1461,35 @@ O(路径长度)，不递归，不建新结构。</p>
 <p>最后一条最容易被忽略：压缩失败的成本是<strong>一次模型调用</strong>，
 而残次摘要的成本是<strong>接下来几十轮都在错误的前提下工作</strong>。差两个数量级。</p>
 <hr>
-<h2 id="sec-91-下一步">下一步</h2>
+<h2 id="sec-91-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>压缩到底是删还是追加？</td>
+<td>追加一条 <code>compaction</code> entry 当墓碑，磁盘上一条不少</td>
+<td>§一</td>
+</tr>
+<tr>
+<td>两道闸门分别守在哪？</td>
+<td>请求之前（预判）和响应之后（溢出）</td>
+<td>§二</td>
+</tr>
+<tr>
+<td>切点从哪头开始找？</td>
+<td>从后往前累加；兜底是最后一个，不是第一个</td>
+<td>§4.2、§4.3</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-92-下一步">下一步</h2>
 <p>压缩是&quot;改历史&quot;，还剩一个更基础的问题没讲：
 <strong>历史存在哪、怎么恢复、怎么分叉</strong>。</p>
 <p>M10 讲会话：<code>session-manager.ts</code> 的 JSONL 格式、<code>entry</code> 的树结构、
@@ -1456,7 +1498,7 @@ O(路径长度)，不递归，不建新结构。</p>
 它们和 <code>message</code>、<code>custom</code>、<code>model_change</code> 排在同一个数组里，
 一起被序列化、一起被重放。</p>
 <hr>
-<h2 id="sec-92-本章源码索引">本章源码索引</h2>
+<h2 id="sec-93-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1531,7 +1573,7 @@ O(路径长度)，不递归，不建新结构。</p>
       <a class="next" href="m10-session.html"><span class="lbl">下一篇</span>会话 —— 从会话树到持久运行时</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-压缩不是删除" class="">一、压缩不是删除</a><a href="#sec-2-1-1-磁盘上的历史一条都不能少" class="lv3">1.1 磁盘上的历史一条都不能少</a><a href="#sec-3-1-2-一条-entry-代替一段历史" class="lv3">1.2 一条 entry 代替一段历史</a><a href="#sec-4-1-3-三个必须守住的东西" class="lv3">1.3 三个必须守住的东西</a><a href="#sec-5-二-两道闸门" class="">二、两道闸门</a><a href="#sec-6-2-1-第一道-请求之前" class="lv3">2.1 第一道：请求之前</a><a href="#sec-7-2-2-第二道-响应之后" class="lv3">2.2 第二道：响应之后</a><a href="#sec-8-2-3-三种-reason" class="lv3">2.3 三种 reason</a><a href="#sec-9-2-4-溢出只赔一次" class="lv3">2.4 溢出只赔一次</a><a href="#sec-10-2-5-输出被截断也算溢出" class="lv3">2.5 输出被截断也算溢出</a><a href="#sec-11-2-6-手动路径" class="lv3">2.6 手动路径</a><a href="#sec-12-2-7-三条路汇到同一个函数" class="lv3">2.7 三条路汇到同一个函数</a><a href="#sec-13-三-token-从哪来" class="">三、token 从哪来</a><a href="#sec-14-3-1-第一级-provider-报回来的-usage" class="lv3">3.1 第一级：provider 报回来的 usage</a><a href="#sec-15-3-2-第二级-尾部增量估算" class="lv3">3.2 第二级：尾部增量估算</a><a href="#sec-16-3-3-estimatetokens-的九个分支" class="lv3">3.3 estimateTokens 的九个分支</a><a href="#sec-17-3-4-chars-4-这条经验法则的两面" class="lv3">3.4 chars/4 这条经验法则的两面</a><a href="#sec-18-3-5-什么时候-usage-作废" class="lv3">3.5 什么时候 usage 作废</a><a href="#sec-19-3-6-判定-一条不等式" class="lv3">3.6 判定：一条不等式</a><a href="#sec-20-四-切在哪" class="">四、切在哪</a><a href="#sec-21-4-1-哪些位置可以切" class="lv3">4.1 哪些位置可以切</a><a href="#sec-22-4-2-从后往前累加" class="lv3">4.2 从后往前累加</a><a href="#sec-23-4-3-兜底是最后一个-不是第一个" class="lv3">4.3 兜底是最后一个，不是第一个</a><a href="#sec-24-4-4-顺手吞掉不可见的元数据" class="lv3">4.4 顺手吞掉不可见的元数据</a><a href="#sec-25-4-5-split-turn-切在轮次中间" class="lv3">4.5 split turn：切在轮次中间</a><a href="#sec-26-4-6-生产路径用的是投影版" class="lv3">4.6 生产路径用的是投影版</a><a href="#sec-27-4-7-一次切分的具体样子" class="lv3">4.7 一次切分的具体样子</a><a href="#sec-28-五-写摘要" class="">五、写摘要</a><a href="#sec-29-5-1-六节模板" class="lv3">5.1 六节模板</a><a href="#sec-30-5-2-第二次压缩是-quot-更新-quot-不是-quot-重写-quot" class="lv3">5.2 第二次压缩是&amp;quot;更新&amp;quot;不是&amp;quot;重写&amp;quot;</a><a href="#sec-31-5-3-把对话拍平成文本" class="lv3">5.3 把对话拍平成文本</a><a href="#sec-32-5-4-序列化时丢掉什么" class="lv3">5.4 序列化时丢掉什么</a><a href="#sec-33-5-5-三道失败判定" class="lv3">5.5 三道失败判定</a><a href="#sec-34-5-6-不复用缓存-但要重试" class="lv3">5.6 不复用缓存，但要重试</a><a href="#sec-35-5-7-两个已经废弃的参数" class="lv3">5.7 两个已经废弃的参数</a><a href="#sec-36-六-split-turn-串行的两份摘要" class="">六、split turn：串行的两份摘要</a><a href="#sec-37-6-1-为什么必须分开" class="lv3">6.1 为什么必须分开</a><a href="#sec-38-6-2-三节模板" class="lv3">6.2 三节模板</a><a href="#sec-39-6-3-串行-不是并行" class="lv3">6.3 串行，不是并行</a><a href="#sec-40-6-4-合并格式" class="lv3">6.4 合并格式</a><a href="#sec-41-6-5-空历史也要占位" class="lv3">6.5 空历史也要占位</a><a href="#sec-42-七-文件清单-摘要里最不该丢的东西" class="">七、文件清单：摘要里最不该丢的东西</a><a href="#sec-43-7-1-三个集合" class="lv3">7.1 三个集合</a><a href="#sec-44-7-2-只认三个工具-只认-args-path" class="lv3">7.2 只认三个工具，只认 args.path</a><a href="#sec-45-7-3-codemode-的嵌套调用也要算" class="lv3">7.3 codemode 的嵌套调用也要算</a><a href="#sec-46-7-4-readfiles-是-只读未改" class="lv3">7.4 readFiles 是「只读未改」</a><a href="#sec-47-7-5-挂成-xml" class="lv3">7.5 挂成 XML</a><a href="#sec-48-八-摘要怎么生效" class="">八、摘要怎么生效</a><a href="#sec-49-8-1-落盘" class="lv3">8.1 落盘</a><a href="#sec-50-8-2-投影时变成两条消息" class="lv3">8.2 投影时变成两条消息</a><a href="#sec-51-8-3-最后一步-变成-user-消息" class="lv3">8.3 最后一步：变成 user 消息</a><a href="#sec-52-8-4-一次压缩的事件序列" class="lv3">8.4 一次压缩的事件序列</a><a href="#sec-53-8-5-压缩完还是超怎么办" class="lv3">8.5 压缩完还是超怎么办</a><a href="#sec-54-九-分支摘要-另一条完全不同的路" class="">九、分支摘要：另一条完全不同的路</a><a href="#sec-55-9-1-场景" class="lv3">9.1 场景</a><a href="#sec-56-9-2-先找公共祖先" class="lv3">9.2 先找公共祖先</a><a href="#sec-57-9-3-塞不进预算时-摘要优先" class="lv3">9.3 塞不进预算时，摘要优先</a><a href="#sec-58-9-4-跳过工具结果" class="lv3">9.4 跳过工具结果</a><a href="#sec-59-9-5-预算是输入预算-不是输出上限" class="lv3">9.5 预算是输入预算，不是输出上限</a><a href="#sec-60-9-6-五节模板" class="lv3">9.6 五节模板</a><a href="#sec-61-9-7-给摘要加一句-quot-你去过别处-quot" class="lv3">9.7 给摘要加一句&amp;quot;你去过别处&amp;quot;</a><a href="#sec-62-9-8-失败不抛-返回对象" class="lv3">9.8 失败不抛，返回对象</a><a href="#sec-63-9-9-摘要挂在目标位置" class="lv3">9.9 摘要挂在目标位置</a><a href="#sec-64-9-10-两个钩子各管一边" class="lv3">9.10 两个钩子各管一边</a><a href="#sec-65-9-11-差异表" class="lv3">9.11 差异表</a><a href="#sec-66-十-完整链路" class="">十、完整链路</a><a href="#sec-67-十一-自己动手验证" class="">十一、自己动手验证</a><a href="#sec-68-实验-1-找到会话文件-抓住一条-compaction" class="lv3">实验 1：找到会话文件，抓住一条 compaction</a><a href="#sec-69-实验-2-自定义指令能进摘要" class="lv3">实验 2：自定义指令能进摘要</a><a href="#sec-70-实验-3-把保留区调小" class="lv3">实验 3：把保留区调小</a><a href="#sec-71-实验-4-给单个模型单独设余量" class="lv3">实验 4：给单个模型单独设余量</a><a href="#sec-72-实验-5-用-sdk-手动压一次" class="lv3">实验 5：用 SDK 手动压一次</a><a href="#sec-73-实验-6-分支摘要挂在哪" class="lv3">实验 6：分支摘要挂在哪</a><a href="#sec-74-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-75-12-1-chars-4-对中文严重低估" class="lv3">12.1 chars/4 对中文严重低估</a><a href="#sec-76-12-2-图片固定-1-200-token" class="lv3">12.2 图片固定 1,200 token</a><a href="#sec-77-12-3-摘要模型会-quot-顺手整理-quot-路径" class="lv3">12.3 摘要模型会&amp;quot;顺手整理&amp;quot;路径</a><a href="#sec-78-12-4-thinking-被丢掉-等于丢掉推理链" class="lv3">12.4 thinking 被丢掉，等于丢掉推理链</a><a href="#sec-79-12-5-length-停也要当失败-否则半截摘要进会话" class="lv3">12.5 length 停也要当失败，否则半截摘要进会话</a><a href="#sec-80-12-6-溢出只赔一次-第二次直接放弃" class="lv3">12.6 溢出只赔一次，第二次直接放弃</a><a href="#sec-81-12-7-换模型后旧溢出标记会误触发" class="lv3">12.7 换模型后旧溢出标记会误触发</a><a href="#sec-82-12-8-压缩刚结束-第一轮又触发" class="lv3">12.8 压缩刚结束，第一轮又触发</a><a href="#sec-83-12-9-手动压缩会打断正在跑的-turn" class="lv3">12.9 手动压缩会打断正在跑的 turn</a><a href="#sec-84-12-10-扩展接管压缩时-文件清单可能为空" class="lv3">12.10 扩展接管压缩时，文件清单可能为空</a><a href="#sec-85-12-11-分支摘要的-90-保底可能仍然超预算" class="lv3">12.11 分支摘要的 90% 保底可能仍然超预算</a><a href="#sec-86-12-12-分支摘要跳过-toolresult-可能丢掉关键证据" class="lv3">12.12 分支摘要跳过 toolResult，可能丢掉关键证据</a><a href="#sec-87-十三-三个可以带走的方法" class="">十三、三个可以带走的方法</a><a href="#sec-88-13-1-用-追加墓碑-代替-原地删除" class="lv3">13.1 用「追加墓碑」代替「原地删除」</a><a href="#sec-89-13-2-估算要两级-可信锚点-增量外推" class="lv3">13.2 估算要两级：可信锚点 + 增量外推</a><a href="#sec-90-13-3-摘要要写成-交接单-不是-读后感" class="lv3">13.3 摘要要写成「交接单」，不是「读后感」</a><a href="#sec-91-下一步" class="">下一步</a><a href="#sec-92-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-压缩不是删除" class="">一、压缩不是删除</a><a href="#sec-2-1-1-磁盘上的历史一条都不能少" class="lv3">1.1 磁盘上的历史一条都不能少</a><a href="#sec-3-1-2-一条-entry-代替一段历史" class="lv3">1.2 一条 entry 代替一段历史</a><a href="#sec-4-1-3-三个必须守住的东西" class="lv3">1.3 三个必须守住的东西</a><a href="#sec-5-二-两道闸门" class="">二、两道闸门</a><a href="#sec-6-2-1-第一道-请求之前" class="lv3">2.1 第一道：请求之前</a><a href="#sec-7-2-2-第二道-响应之后" class="lv3">2.2 第二道：响应之后</a><a href="#sec-8-2-3-三种-reason" class="lv3">2.3 三种 reason</a><a href="#sec-9-2-4-溢出只赔一次" class="lv3">2.4 溢出只赔一次</a><a href="#sec-10-2-5-输出被截断也算溢出" class="lv3">2.5 输出被截断也算溢出</a><a href="#sec-11-2-6-手动路径" class="lv3">2.6 手动路径</a><a href="#sec-12-2-7-三条路汇到同一个函数" class="lv3">2.7 三条路汇到同一个函数</a><a href="#sec-13-三-token-从哪来" class="">三、token 从哪来</a><a href="#sec-14-3-1-第一级-provider-报回来的-usage" class="lv3">3.1 第一级：provider 报回来的 usage</a><a href="#sec-15-3-2-第二级-尾部增量估算" class="lv3">3.2 第二级：尾部增量估算</a><a href="#sec-16-3-3-estimatetokens-的九个分支" class="lv3">3.3 estimateTokens 的九个分支</a><a href="#sec-17-3-4-chars-4-这条经验法则的两面" class="lv3">3.4 chars/4 这条经验法则的两面</a><a href="#sec-18-3-5-什么时候-usage-作废" class="lv3">3.5 什么时候 usage 作废</a><a href="#sec-19-3-6-判定-一条不等式" class="lv3">3.6 判定：一条不等式</a><a href="#sec-20-四-切在哪" class="">四、切在哪</a><a href="#sec-21-4-1-哪些位置可以切" class="lv3">4.1 哪些位置可以切</a><a href="#sec-22-4-2-从后往前累加" class="lv3">4.2 从后往前累加</a><a href="#sec-23-4-3-兜底是最后一个-不是第一个" class="lv3">4.3 兜底是最后一个，不是第一个</a><a href="#sec-24-4-4-顺手吞掉不可见的元数据" class="lv3">4.4 顺手吞掉不可见的元数据</a><a href="#sec-25-4-5-split-turn-切在轮次中间" class="lv3">4.5 split turn：切在轮次中间</a><a href="#sec-26-4-6-生产路径用的是投影版" class="lv3">4.6 生产路径用的是投影版</a><a href="#sec-27-4-7-一次切分的具体样子" class="lv3">4.7 一次切分的具体样子</a><a href="#sec-28-五-写摘要" class="">五、写摘要</a><a href="#sec-29-5-1-六节模板" class="lv3">5.1 六节模板</a><a href="#sec-30-5-2-第二次压缩是-quot-更新-quot-不是-quot-重写-quot" class="lv3">5.2 第二次压缩是&amp;quot;更新&amp;quot;不是&amp;quot;重写&amp;quot;</a><a href="#sec-31-5-3-把对话拍平成文本" class="lv3">5.3 把对话拍平成文本</a><a href="#sec-32-5-4-序列化时丢掉什么" class="lv3">5.4 序列化时丢掉什么</a><a href="#sec-33-5-5-三道失败判定" class="lv3">5.5 三道失败判定</a><a href="#sec-34-5-6-不复用缓存-但要重试" class="lv3">5.6 不复用缓存，但要重试</a><a href="#sec-35-5-7-两个已经废弃的参数" class="lv3">5.7 两个已经废弃的参数</a><a href="#sec-36-六-split-turn-串行的两份摘要" class="">六、split turn：串行的两份摘要</a><a href="#sec-37-6-1-为什么必须分开" class="lv3">6.1 为什么必须分开</a><a href="#sec-38-6-2-三节模板" class="lv3">6.2 三节模板</a><a href="#sec-39-6-3-串行-不是并行" class="lv3">6.3 串行，不是并行</a><a href="#sec-40-6-4-合并格式" class="lv3">6.4 合并格式</a><a href="#sec-41-6-5-空历史也要占位" class="lv3">6.5 空历史也要占位</a><a href="#sec-42-七-文件清单-摘要里最不该丢的东西" class="">七、文件清单：摘要里最不该丢的东西</a><a href="#sec-43-7-1-三个集合" class="lv3">7.1 三个集合</a><a href="#sec-44-7-2-只认三个工具-只认-args-path" class="lv3">7.2 只认三个工具，只认 args.path</a><a href="#sec-45-7-3-codemode-的嵌套调用也要算" class="lv3">7.3 codemode 的嵌套调用也要算</a><a href="#sec-46-7-4-readfiles-是-只读未改" class="lv3">7.4 readFiles 是「只读未改」</a><a href="#sec-47-7-5-挂成-xml" class="lv3">7.5 挂成 XML</a><a href="#sec-48-八-摘要怎么生效" class="">八、摘要怎么生效</a><a href="#sec-49-8-1-落盘" class="lv3">8.1 落盘</a><a href="#sec-50-8-2-投影时变成两条消息" class="lv3">8.2 投影时变成两条消息</a><a href="#sec-51-8-3-最后一步-变成-user-消息" class="lv3">8.3 最后一步：变成 user 消息</a><a href="#sec-52-8-4-一次压缩的事件序列" class="lv3">8.4 一次压缩的事件序列</a><a href="#sec-53-8-5-压缩完还是超怎么办" class="lv3">8.5 压缩完还是超怎么办</a><a href="#sec-54-九-分支摘要-另一条完全不同的路" class="">九、分支摘要：另一条完全不同的路</a><a href="#sec-55-9-1-场景" class="lv3">9.1 场景</a><a href="#sec-56-9-2-先找公共祖先" class="lv3">9.2 先找公共祖先</a><a href="#sec-57-9-3-塞不进预算时-摘要优先" class="lv3">9.3 塞不进预算时，摘要优先</a><a href="#sec-58-9-4-跳过工具结果" class="lv3">9.4 跳过工具结果</a><a href="#sec-59-9-5-预算是输入预算-不是输出上限" class="lv3">9.5 预算是输入预算，不是输出上限</a><a href="#sec-60-9-6-五节模板" class="lv3">9.6 五节模板</a><a href="#sec-61-9-7-给摘要加一句-quot-你去过别处-quot" class="lv3">9.7 给摘要加一句&amp;quot;你去过别处&amp;quot;</a><a href="#sec-62-9-8-失败不抛-返回对象" class="lv3">9.8 失败不抛，返回对象</a><a href="#sec-63-9-9-摘要挂在目标位置" class="lv3">9.9 摘要挂在目标位置</a><a href="#sec-64-9-10-两个钩子各管一边" class="lv3">9.10 两个钩子各管一边</a><a href="#sec-65-9-11-差异表" class="lv3">9.11 差异表</a><a href="#sec-66-十-完整链路" class="">十、完整链路</a><a href="#sec-67-十一-自己动手验证" class="">十一、自己动手验证</a><a href="#sec-68-实验-1-找到会话文件-抓住一条-compaction" class="lv3">实验 1：找到会话文件，抓住一条 compaction</a><a href="#sec-69-实验-2-自定义指令能进摘要" class="lv3">实验 2：自定义指令能进摘要</a><a href="#sec-70-实验-3-把保留区调小" class="lv3">实验 3：把保留区调小</a><a href="#sec-71-实验-4-给单个模型单独设余量" class="lv3">实验 4：给单个模型单独设余量</a><a href="#sec-72-实验-5-用-sdk-手动压一次" class="lv3">实验 5：用 SDK 手动压一次</a><a href="#sec-73-实验-6-分支摘要挂在哪" class="lv3">实验 6：分支摘要挂在哪</a><a href="#sec-74-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-75-12-1-chars-4-对中文严重低估" class="lv3">12.1 chars/4 对中文严重低估</a><a href="#sec-76-12-2-图片固定-1-200-token" class="lv3">12.2 图片固定 1,200 token</a><a href="#sec-77-12-3-摘要模型会-quot-顺手整理-quot-路径" class="lv3">12.3 摘要模型会&amp;quot;顺手整理&amp;quot;路径</a><a href="#sec-78-12-4-thinking-被丢掉-等于丢掉推理链" class="lv3">12.4 thinking 被丢掉，等于丢掉推理链</a><a href="#sec-79-12-5-length-停也要当失败-否则半截摘要进会话" class="lv3">12.5 length 停也要当失败，否则半截摘要进会话</a><a href="#sec-80-12-6-溢出只赔一次-第二次直接放弃" class="lv3">12.6 溢出只赔一次，第二次直接放弃</a><a href="#sec-81-12-7-换模型后旧溢出标记会误触发" class="lv3">12.7 换模型后旧溢出标记会误触发</a><a href="#sec-82-12-8-压缩刚结束-第一轮又触发" class="lv3">12.8 压缩刚结束，第一轮又触发</a><a href="#sec-83-12-9-手动压缩会打断正在跑的-turn" class="lv3">12.9 手动压缩会打断正在跑的 turn</a><a href="#sec-84-12-10-扩展接管压缩时-文件清单可能为空" class="lv3">12.10 扩展接管压缩时，文件清单可能为空</a><a href="#sec-85-12-11-分支摘要的-90-保底可能仍然超预算" class="lv3">12.11 分支摘要的 90% 保底可能仍然超预算</a><a href="#sec-86-12-12-分支摘要跳过-toolresult-可能丢掉关键证据" class="lv3">12.12 分支摘要跳过 toolResult，可能丢掉关键证据</a><a href="#sec-87-十三-三个可以带走的方法" class="">十三、三个可以带走的方法</a><a href="#sec-88-13-1-用-追加墓碑-代替-原地删除" class="lv3">13.1 用「追加墓碑」代替「原地删除」</a><a href="#sec-89-13-2-估算要两级-可信锚点-增量外推" class="lv3">13.2 估算要两级：可信锚点 + 增量外推</a><a href="#sec-90-13-3-摘要要写成-交接单-不是-读后感" class="lv3">13.3 摘要要写成「交接单」，不是「读后感」</a><a href="#sec-91-读完自检" class="">读完自检</a><a href="#sec-92-下一步" class="">下一步</a><a href="#sec-93-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

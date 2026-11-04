@@ -34,7 +34,8 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a></div></aside>
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -150,10 +151,46 @@ them, or filter large output, instead of many separate calls.</p>
 </table></div>
 <hr>
 <h2 id="sec-2-二-mcp-一次会话的骨架">二、MCP：一次会话的骨架</h2>
+<h3 id="sec-3-先对齐一个词-mcp-是什么">先对齐一个词：MCP 是什么</h3>
+<p>如果是第一次听这个词，先读这四段，后面会顺很多。</p>
+<p><strong>MCP = Model Context Protocol</strong>，一份开放协议，规定&quot;Agent&quot;和&quot;工具服务器&quot;
+怎么说话。它不规定模型怎么想，只规定消息长什么样。</p>
+<p>三个角色，各在一侧：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>角色</th>
+<th>在 pi 里是谁</th>
+<th>干什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>host</td>
+<td><code>coding-agent</code></td>
+<td>决定要连哪些 server</td>
+</tr>
+<tr>
+<td>client</td>
+<td><code>packages/mcp</code></td>
+<td>一次连接一个 server，管握手、请求、鉴权</td>
+</tr>
+<tr>
+<td>server</td>
+<td>外部进程或 HTTP 服务</td>
+<td>报出自己有哪些工具，被调用时执行</td>
+</tr>
+</tbody>
+</table></div>
+<p>协议上的能力原语有三个：<code>tools</code>、<code>resources</code>、<code>prompts</code>。<strong><code>pi-mcp</code> 只实现了
+前两个</strong>——<code>client.ts</code> 里有 <code>listTools()</code> 和 <code>listResources()</code>，<code>protocol/types.ts</code>
+里也只有这两种的形状。没实现的那一个不影响读代码，但它提醒你：协议比实现大。</p>
+<p>消息格式是 JSON-RPC 2.0，传输有 stdio（子进程）和 HTTP 两类，后者又分
+streamable 与 SSE。§三 各有一节。</p>
 <p><code>packages/mcp</code> 的结构很干净，四层：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">mcp/src/</span><span class="ln">├── client.ts          564  会话状态机、请求/通知/响应分发</span><span class="ln">├── protocol/</span><span class="ln">│   ├── jsonrpc.ts      93  JSON-RPC 2.0 的三类消息、五个错误码</span><span class="ln">│   ├── types.ts       113  initialize、tools、resources 的形状</span><span class="ln">│   └── content.ts     106  五种内容块，以及到 LlmContent 的翻译</span><span class="ln">├── transports/</span><span class="ln">│   ├── transport.ts    53  接口 + 监听器簿记</span><span class="ln">│   ├── stdio.ts       201  子进程 + 换行分帧</span><span class="ln">│   ├── streamable-http.ts  479  一个端点两种响应形态</span><span class="ln">│   └── in-memory.ts    43  测试用</span><span class="ln">└── oauth/           1,258  RFC 9728 → RFC 8414 → PKCE</span></code></pre></div>
+<pre><code><span class="ln">mcp/src/</span><span class="ln">├── client.ts          564  会话状态机、请求/通知/响应分发</span><span class="ln">├── protocol/</span><span class="ln">│   ├── jsonrpc.ts      93  JSON-RPC 2.0 的三类消息、五个错误码</span><span class="ln">│   ├── types.ts       113  initialize、tools、resources 的形状</span><span class="ln">│   └── content.ts     106  五种内容块，以及到 LlmContent 的翻译</span><span class="ln">├── transports/</span><span class="ln">│   ├── transport.ts    53  接口 + 监听器簿记</span><span class="ln">│   ├── stdio.ts       201  子进程 + 换行分帧</span><span class="ln">│   ├── streamable-http.ts  479  一个端点两种响应形态</span><span class="ln">│   └── in-memory.ts    43  测试用</span><span class="ln">└── oauth/           1,258  鉴权发现与 PKCE（§五展开）</span></code></pre></div>
 <p><code>client.ts</code> 的全部状态只有四个字：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -161,7 +198,7 @@ them, or filter large output, instead of many separate calls.</p>
 <p>四个状态，四条合法边：<code>idle → connecting</code>（<code>connect</code>）、<code>connecting → connected</code>（<code>initialize</code> 成功）、任意 → <code>closed</code>（<code>close</code> 或传输断开）。
 在 <code>connecting</code> 期间只允许发 <code>initialize</code> 和 <code>notifications/initialized</code>，
 由 <code>requireTransport(allowConnecting)</code> 这个布尔参数把住（<code>client.ts:458-463</code>）。</p>
-<h3 id="sec-3-2-1-版本协商-服务器说自己的-客户端负责接受">2.1 版本协商：服务器说自己的，客户端负责接受</h3>
+<h3 id="sec-4-2-1-版本协商-服务器说自己的-客户端负责接受">2.1 版本协商：服务器说自己的，客户端负责接受</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// protocol/types.ts:4-10</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> LATEST_PROTOCOL_VERSION = <span class="tok-str">"2025-11-25"</span>;</span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * Versions the client accepts from a server. Servers that do not support the</span></span><span class="ln"><span class="tok-com"> * requested version answer with their own latest one, so older versions stay</span></span><span class="ln"><span class="tok-com"> * accepted for servers built on older SDKs.</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> SUPPORTED_PROTOCOL_VERSIONS =</span><span class="ln">  [LATEST_PROTOCOL_VERSION, <span class="tok-str">"2025-06-18"</span>, <span class="tok-str">"2025-03-26"</span>, <span class="tok-str">"2024-11-05"</span>] <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
@@ -174,7 +211,7 @@ them, or filter large output, instead of many separate calls.</p>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (!(SUPPORTED_PROTOCOL_VERSIONS <span class="tok-kw">as</span> <span class="tok-kw">readonly</span> <span class="tok-kw">string</span>[])</span><span class="ln">  .<span class="tok-fn">includes</span>(result.protocolVersion)) {</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"MCP server selected unsupported protocol version "</span></span><span class="ln">    + result.protocolVersion);</span><span class="ln">}</span></code></pre></div>
 <p>一旦接受，就要把这个版本号回填给传输层（<code>transport.setProtocolVersion?.()</code>），
 因为 HTTP 传输每次请求都要带 <code>MCP-Protocol-Version</code> 头（§3.2）。</p>
-<h3 id="sec-4-2-2-双向-客户端也可以是服务端">2.2 双向：客户端也可以是服务端</h3>
+<h3 id="sec-5-2-2-双向-客户端也可以是服务端">2.2 双向：客户端也可以是服务端</h3>
 <p>这是 MCP 和大多数 RPC 协议不一样的地方。看 <code>McpClient</code> 的两个字段：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -192,7 +229,7 @@ them, or filter large output, instead of many separate calls.</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// client.ts:495-505</span></span><span class="ln"><span class="tok-kw">const</span> handler = <span class="tok-kw">this</span>.requestHandlers.<span class="tok-kw">get</span>(message.method);</span><span class="ln"><span class="tok-kw">if</span> (!handler) {</span><span class="ln">  <span class="tok-kw">await</span> transport</span><span class="ln">    .<span class="tok-fn">send</span>({</span><span class="ln">      jsonrpc: <span class="tok-str">"2.0"</span>,</span><span class="ln">      id: message.id,</span><span class="ln">      error: {</span><span class="ln">        code: JSON_RPC_ERROR_CODES.methodNotFound,</span><span class="ln">        message: <span class="tok-str">`Method not found: ${message.method}`</span>,</span><span class="ln">      },</span><span class="ln">    })</span><span class="ln">    .<span class="tok-kw">catch</span>((error) =&gt; <span class="tok-kw">this</span>.<span class="tok-fn">emitError</span>(error));</span><span class="ln">  <span class="tok-kw">return</span>;</span><span class="ln">}</span></code></pre></div>
-<h3 id="sec-5-2-3-宽容解析-规范说必须有-现实里常常没有">2.3 宽容解析：规范说必须有，现实里常常没有</h3>
+<h3 id="sec-6-2-3-宽容解析-规范说必须有-现实里常常没有">2.3 宽容解析：规范说必须有，现实里常常没有</h3>
 <p><code>client.ts</code> 里最值得抄走的是三个校验函数。它们都做同一件事：<strong>把&quot;规范要求&quot;
 降级成&quot;现实可用&quot;</strong>。</p>
 <div class="code-block" data-lang="ts">
@@ -213,7 +250,7 @@ SDK 写出来，规范里的 <code>required</code> 在实现里经常是 optiona
 <pre><code><span class="ln"><span class="tok-kw">const</span> cursors = <span class="tok-kw">new</span> Set&lt;<span class="tok-kw">string</span>&gt;();</span><span class="ln"><span class="tok-kw">let</span> cursor: <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span>;</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> pageNumber = <span class="tok-num">0</span>; pageNumber &lt; MAX_LIST_PAGES; pageNumber++) {</span><span class="ln">  <span class="tok-kw">const</span> page = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">listPage</span>(method, key, isItem, cursor, options);</span><span class="ln">  items.<span class="tok-fn">push</span>(...page.items);</span><span class="ln">  <span class="tok-kw">if</span> (page.nextCursor === <span class="tok-kw">undefined</span>) <span class="tok-kw">return</span> items;</span><span class="ln">  <span class="tok-kw">if</span> (cursors.<span class="tok-fn">has</span>(page.nextCursor))</span><span class="ln">    <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(</span><span class="ln">      <span class="tok-str">`MCP ${method} returned duplicate cursor: ${page.nextCursor}`</span>,</span><span class="ln">    );</span><span class="ln">  cursors.<span class="tok-fn">add</span>(page.nextCursor);</span><span class="ln">  cursor = page.nextCursor;</span><span class="ln">}</span><span class="ln"><span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`MCP ${method} exceeded ${MAX_LIST_PAGES} pages`</span>);</span></code></pre></div>
 <p><code>MAX_LIST_PAGES = 1_000</code>。重复游标和超页数都会抛——因为这两种情况意味着
 服务器在<strong>无限分页</strong>，宽容下去就是一个死循环。</p>
-<h3 id="sec-6-2-4-超时-取消-和不许取消的那一个">2.4 超时、取消、和不许取消的那一个</h3>
+<h3 id="sec-7-2-4-超时-取消-和不许取消的那一个">2.4 超时、取消、和不许取消的那一个</h3>
 <p>请求的超时默认 30 秒：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -241,14 +278,14 @@ SDK 写出来，规范里的 <code>required</code> 在实现里经常是 optiona
 最后那句 &quot;It does not undo a message already dispatched&quot; 是在说：我们只能
 保证不再发第二次，不能保证第一次没生效。</p>
 <hr>
-<h2 id="sec-7-三-三种传输-一个接口">三、三种传输，一个接口</h2>
+<h2 id="sec-8-三-三种传输-一个接口">三、三种传输，一个接口</h2>
 <p><code>McpTransport</code> 有七个成员，前六个必须实现，最后一个可选：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// transports/transport.ts:18-26</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> McpTransport {</span><span class="ln">  <span class="tok-fn">start</span>(): Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">  <span class="tok-fn">send</span>(</span><span class="ln">    message: JsonRpcMessage, options?: McpTransportSendOptions,</span><span class="ln">  ): Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">  <span class="tok-fn">close</span>(): Promise&lt;<span class="tok-kw">void</span>&gt;;</span><span class="ln">  <span class="tok-fn">onMessage</span>(listener: McpTransportMessageListener): () =&gt; <span class="tok-kw">void</span>;</span><span class="ln">  <span class="tok-fn">onError</span>(listener: McpTransportErrorListener): () =&gt; <span class="tok-kw">void</span>;</span><span class="ln">  <span class="tok-fn">onClose</span>(listener: McpTransportCloseListener): () =&gt; <span class="tok-kw">void</span>;</span><span class="ln">  setProtocolVersion?(version: <span class="tok-kw">string</span>): <span class="tok-kw">void</span>;</span><span class="ln">}</span></code></pre></div>
 <p><code>send</code> 收一个 JSON-RPC 消息，三个 <code>on*</code> 注册监听器并返回取消函数，<code>close</code>
 关掉。所有&quot;消息怎么变成字节&quot;的差别，全在实现里。</p>
-<h3 id="sec-8-3-1-stdio-换行就是帧">3.1 stdio：换行就是帧</h3>
+<h3 id="sec-9-3-1-stdio-换行就是帧">3.1 stdio：换行就是帧</h3>
 <p>MCP 的 stdio 传输用 <strong>NDJSON</strong>——一行一个 JSON，没有长度头，没有分帧协议。</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -280,7 +317,7 @@ SDK 写出来，规范里的 <code>required</code> 在实现里经常是 optiona
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">/** Process groups of running servers, killed if the host exits early. */</span></span><span class="ln"><span class="tok-kw">const</span> liveProcessGroups = <span class="tok-kw">new</span> Set&lt;<span class="tok-kw">number</span>&gt;();</span><span class="ln"><span class="tok-kw">let</span> exitHookInstalled = <span class="tok-kw">false</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">installExitHook</span>(): <span class="tok-kw">void</span> {</span><span class="ln">  <span class="tok-kw">if</span> (exitHookInstalled) <span class="tok-kw">return</span>;</span><span class="ln">  exitHookInstalled = <span class="tok-kw">true</span>;</span><span class="ln">  process.<span class="tok-fn">once</span>(<span class="tok-str">"exit"</span>, () =&gt; {</span><span class="ln">    <span class="tok-kw">for</span> (<span class="tok-kw">const</span> pid <span class="tok-kw">of</span> liveProcessGroups) {</span><span class="ln">      <span class="tok-kw">try</span> {</span><span class="ln">        process.<span class="tok-fn">kill</span>(-pid, <span class="tok-str">"SIGTERM"</span>);</span><span class="ln">      } <span class="tok-kw">catch</span> {}</span><span class="ln">    }</span><span class="ln">  });</span><span class="ln">}</span></code></pre></div>
-<h3 id="sec-9-3-2-streamable-http-一个端点-两种响应">3.2 streamable HTTP：一个端点，两种响应</h3>
+<h3 id="sec-10-3-2-streamable-http-一个端点-两种响应">3.2 streamable HTTP：一个端点，两种响应</h3>
 <p>这是 MCP 里最反直觉的一条设计：<strong>同一个 POST 端点，可能回 JSON，也可能回
 SSE 流</strong>。</p>
 <div class="code-block" data-lang="ts">
@@ -307,7 +344,7 @@ SSE 流</strong>。</p>
 <pre><code><span class="ln"><span class="tok-com">// streamable-http.ts:339-346</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-kw">async</span> <span class="tok-fn">checkResponse</span>(response: Response): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">  <span class="tok-kw">if</span> (response.ok) <span class="tok-kw">return</span>;</span><span class="ln">  <span class="tok-com">// A copy, not a slice: V8 slices keep the whole body alive, and the</span></span><span class="ln">  <span class="tok-com">// error keeps this excerpt.</span></span><span class="ln">  <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> response.<span class="tok-fn">text</span>().<span class="tok-kw">catch</span>(() =&gt; <span class="tok-str">""</span>);</span><span class="ln">  <span class="tok-kw">const</span> body = <span class="tok-str">`${text.slice(0, MAX_ERROR_BODY_BYTES)} `</span>.<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, -<span class="tok-num">1</span>);</span><span class="ln">  <span class="tok-kw">if</span> (response.status === <span class="tok-num">401</span>) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">McpAuthRequiredError</span>(response, body);</span><span class="ln">  <span class="tok-kw">if</span> (response.status === <span class="tok-num">404</span> &amp;&amp; <span class="tok-kw">this</span>.sessionIdValue)</span><span class="ln">    <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">McpSessionExpiredError</span>(body);</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">McpHttpError</span>(</span><span class="ln">    response.status, <span class="tok-fn">describeHttpFailure</span>(response.status, body), body,</span><span class="ln">  );</span><span class="ln">}</span></code></pre></div>
 <p><strong>带着会话 ID 收到 404 = 会话已过期</strong>（服务器重启或重新部署）。这个错误类型
 后面会被 <code>withClient</code> 单独认出来，做一次无副作用的重试（§11.4）。</p>
-<h3 id="sec-10-3-3-sse-为什么自己写解析器">3.3 SSE：为什么自己写解析器</h3>
+<h3 id="sec-11-3-3-sse-为什么自己写解析器">3.3 SSE：为什么自己写解析器</h3>
 <p><code>streamable-http.ts</code> 里有一个 100 行的 SSE 解析器（<code>consumeSseStream</code>）。为什么
 不装 <code>eventsource</code>？答案在 <code>pi-mcp</code> 的依赖表里：<strong>这个包总共只有 <code>cross-spawn</code>
 一个依赖</strong>。</p>
@@ -328,7 +365,7 @@ SSE 流</strong>。</p>
 <pre><code><span class="ln"><span class="tok-com">// Bytes of the pending event's data, including the "\n" joins, so events</span></span><span class="ln"><span class="tok-com">// streamed as many short `data:` lines without a terminating blank line</span></span><span class="ln"><span class="tok-com">// cannot grow without bound.</span></span></code></pre></div>
 <p>不设上限的话，&quot;一直发 <code>data:</code> 行但永远不空行&quot;就能把宿主的内存吃光。同样，
 <code>buffered</code> 也有字节上限（<code>streamable-http.ts:100-101</code>）。</p>
-<h3 id="sec-11-3-4-断流续传">3.4 断流续传</h3>
+<h3 id="sec-12-3-4-断流续传">3.4 断流续传</h3>
 <p>服务器可以随意关闭一个响应流。如果它给了事件 ID，客户端就能续上：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -358,7 +395,7 @@ SSE 流</strong>。</p>
 <p><code>fetch</code> 把<strong>连接中途断开</strong>报成一个没有 <code>status</code> 的 <code>TypeError</code>。所以&quot;网络故障&quot;
 和&quot;服务器返回 500&quot;要分两条路判断：前者看异常类型，后者看状态码
 （408 / 429 / 5xx）。</p>
-<h3 id="sec-12-3-5-一个-cloudflare-相关的坑">3.5 一个 Cloudflare 相关的坑</h3>
+<h3 id="sec-13-3-5-一个-cloudflare-相关的坑">3.5 一个 Cloudflare 相关的坑</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// streamable-http.ts:211-215</span></span><span class="ln"><span class="tok-kw">const</span> fetch = options.fetch ?? globalThis.fetch;</span><span class="ln"><span class="tok-com">// Call fetch without a receiver. `this.fetch(...)` and `context.fetch(...)`</span></span><span class="ln"><span class="tok-com">// would pass the transport or the auth context as `this`, which Cloudflare</span></span><span class="ln"><span class="tok-com">// Workers reject for the platform fetch ("Illegal invocation").</span></span><span class="ln"><span class="tok-kw">this</span>.fetch = (input, init) =&gt; <span class="tok-fn">fetch</span>(input, init);</span></code></pre></div>
@@ -366,7 +403,7 @@ SSE 流</strong>。</p>
 &quot;Illegal invocation&quot;。包一层箭头函数是最便宜的解。这类坑不改代码就永远
 只在生产环境出现。</p>
 <hr>
-<h2 id="sec-13-四-从-contentblock-到-llmcontent">四、从 ContentBlock 到 LlmContent</h2>
+<h2 id="sec-14-四-从-contentblock-到-llmcontent">四、从 ContentBlock 到 LlmContent</h2>
 <p>MCP 定义了五种内容块，模型的 API 只认两种。</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -429,7 +466,7 @@ SSE 流</strong>。</p>
 一行占位文本，不是 bug——模型看不见的东西，最好明确告诉它&quot;我没看见&quot;，而不是
 静默丢掉。占位符里带上 MIME 类型和 URI，模型至少还能知道&quot;这里有个音频&quot;。</p>
 <hr>
-<h2 id="sec-14-五-oauth-mcp-里最长的一条路">五、OAuth：MCP 里最长的一条路</h2>
+<h2 id="sec-15-五-oauth-mcp-里最长的一条路">五、OAuth：MCP 里最长的一条路</h2>
 <p><code>packages/mcp</code> 一共 3,287 行，其中 <strong>1,358 行在 <code>src/oauth/</code> 下</strong>——占 41%。</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -455,7 +492,7 @@ WebCrypto（<code>flow.ts:165-168</code>）：</p>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (metadata?.code_challenge_methods_supported</span><span class="ln">  &amp;&amp; !metadata.code_challenge_methods_supported.<span class="tok-fn">includes</span>(<span class="tok-str">"S256"</span>)) {</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Authorization server does not support PKCE S256"</span>);</span><span class="ln">}</span></code></pre></div>
 <p>这不是苛刻。<code>plain</code> 模式的 PKCE 等于没有 PKCE——verifier 直接出现在授权
 请求里，中间人看得见。</p>
-<h3 id="sec-15-5-1-四个地址的探测顺序">5.1 四个地址的探测顺序</h3>
+<h3 id="sec-16-5-1-四个地址的探测顺序">5.1 四个地址的探测顺序</h3>
 <p>MCP 的鉴权发现是两层 RFC 拼起来的：先找<strong>资源服务器</strong>（RFC 9728），再找
 <strong>授权服务器</strong>（RFC 8414 或 OIDC）。</p>
 <div class="code-block" data-lang="ts">
@@ -473,7 +510,7 @@ WebCrypto（<code>flow.ts:165-168</code>）：</p>
 <pre><code><span class="ln"><span class="tok-com">// discovery.ts:25</span></span><span class="ln"><span class="tok-kw">return</span> (status &gt;= <span class="tok-num">400</span> &amp;&amp; status &lt; <span class="tok-num">500</span>) || status === <span class="tok-num">502</span>;</span></code></pre></div>
 <p>4xx 是&quot;这个地址没有&quot;，502 是&quot;中间网关没配好&quot;——两种都值得换下一个地址。
 但 401/403 不在里面（虽然也是 4xx）：那是&quot;有，但你没权限&quot;，换地址没用。</p>
-<h3 id="sec-16-5-2-401-之后只试一次">5.2 401 之后只试一次</h3>
+<h3 id="sec-17-5-2-401-之后只试一次">5.2 401 之后只试一次</h3>
 <p>传输层把 401（以及带 <code>insufficient_scope</code> 的 403）交给 <code>authProvider</code>，
 拿到新凭据后重试一次（<code>streamable-http.ts:295-317</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -489,7 +526,7 @@ WebCrypto（<code>flow.ts:165-168</code>）：</p>
 <p>403 要读 <code>WWW-Authenticate</code> 头里的 <code>error=&quot;insufficient_scope&quot;</code>——这是
 RFC 6750 的「权限不够，请申请更大范围」，和「你没登录」是两件事。前者可以
 一次变强，后者只能重新登录。</p>
-<h3 id="sec-17-5-3-需要人来的那一刻">5.3 需要人来的那一刻</h3>
+<h3 id="sec-18-5-3-需要人来的那一刻">5.3 需要人来的那一刻</h3>
 <p>OAuth 里有一类问题机器解决不了：用户必须在浏览器里点「同意」。这时
 <code>pi-mcp</code> 抛 <code>McpOAuthAuthorizationRequiredError</code>，<code>coding-agent</code> 侧的
 <code>McpServerConnection</code> 认出来，把连接置成 <code>needs-auth</code> 并提示用户
@@ -502,7 +539,7 @@ RFC 6750 的「权限不够，请申请更大范围」，和「你没登录」�
 <p>这条链有七个文件、一千多行，但只有一处判断真正属于「业务」：<strong>能不能
 在不问用户的情况下继续</strong>。其余全是规范和平台差异。</p>
 <hr>
-<h2 id="sec-18-六-codemode-能力只有一条">六、codemode：能力只有一条</h2>
+<h2 id="sec-19-六-codemode-能力只有一条">六、codemode：能力只有一条</h2>
 <p>现在换一个方向。<code>pi-codemode</code> 的名片值得再读一遍：</p>
 <blockquote>
 <p>Sandboxed JavaScript execution where the only capability is calling
@@ -517,7 +554,7 @@ injected tools</p>
 <p>（<code>runtime/execution.ts:4-6</code>）</p>
 <p>工具表、调用记录、输出、截止时间、调用方的取消信号、以及<strong>VM 上报内容的
 解码</strong>——六样东西都在宿主这一侧。脚本能做的只有发消息。</p>
-<h3 id="sec-19-6-1-脚本看到的世界">6.1 脚本看到的世界</h3>
+<h3 id="sec-20-6-1-脚本看到的世界">6.1 脚本看到的世界</h3>
 <p>内置 global 就这么多（<code>execution.ts:51-61</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -532,7 +569,7 @@ injected tools</p>
 <li>死锁可判——没有待处理调用时还没结束，就是永远结束了（§9.3）。</li>
 <li>确定性可能——时间只能由宿主推进（§10）。</li>
 </ol>
-<h3 id="sec-20-6-2-沙箱防的不是恶意-是跑飞">6.2 沙箱防的不是恶意，是跑飞</h3>
+<h3 id="sec-21-6-2-沙箱防的不是恶意-是跑飞">6.2 沙箱防的不是恶意，是跑飞</h3>
 <p>一个脚本能做的事被限制到「调工具」，恶意空间几乎为零：它连文件都读不到。
 真正的风险是另外两种。</p>
 <p><strong>第一种：跑飞</strong>。<code>while (true) {}</code> 或者一次算出 3 GB 的值。这不需要恶意，
@@ -546,7 +583,7 @@ injected tools</p>
 <p>（<code>runtime/host.ts:12-19</code>）</p>
 <p><strong>一次执行一个 VM</strong>。不是「一个沙箱复用 VM」，是每次 <code>execute()</code> 新开一个
 wasm 实例。代价是启动开销，换来的是：终止就是销毁，隔离不需要靠清理。</p>
-<h3 id="sec-21-6-3-execute-和-start-是两条路">6.3 <code>execute</code> 和 <code>start</code> 是两条路</h3>
+<h3 id="sec-22-6-3-execute-和-start-是两条路">6.3 <code>execute</code> 和 <code>start</code> 是两条路</h3>
 <p><code>CodemodeSandboxBase</code> 只有两个公开方法（<code>execution.ts:501</code> 和 <code>:530</code>）：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -592,7 +629,7 @@ wasm 实例。代价是启动开销，换来的是：终止就是销毁，隔离
 <p><code>execute</code> 是产品功能，<code>start</code> 是可靠性设施。后者的存在理由只有一句：
 <strong>重启之后能把上一次没跑完的脚本原样再跑一遍</strong>（§10）。</p>
 <hr>
-<h2 id="sec-22-七-桥-七个消息-全走-json-字符串">七、桥：七个消息，全走 JSON 字符串</h2>
+<h2 id="sec-23-七-桥-七个消息-全走-json-字符串">七、桥：七个消息，全走 JSON 字符串</h2>
 <p>宿主和 VM 之间的全部协议在 <code>runtime/protocol.ts</code>，85 行。</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -601,7 +638,7 @@ wasm 实例。代价是启动开销，换来的是：终止就是销毁，隔离
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> HostToWorkerMessage = {</span><span class="ln">  <span class="tok-kw">type</span>: <span class="tok-str">"result"</span>;</span><span class="ln">  id: <span class="tok-kw">number</span>;</span><span class="ln">  ok: <span class="tok-kw">boolean</span>;</span><span class="ln">  payload: <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span>;</span><span class="ln">  seq?: <span class="tok-kw">number</span>;</span><span class="ln">  now?: <span class="tok-kw">number</span>;</span><span class="ln">  properties?: <span class="tok-kw">string</span>;</span><span class="ln">};</span></code></pre></div>
-<h3 id="sec-23-7-1-为什么参数和结果都是字符串">7.1 为什么参数和结果都是字符串</h3>
+<h3 id="sec-24-7-1-为什么参数和结果都是字符串">7.1 为什么参数和结果都是字符串</h3>
 <p><code>protocol.ts:4-8</code> 的注释：</p>
 <blockquote>
 <p>Messages between the host (main thread) and the worker. Tool arguments,
@@ -627,7 +664,7 @@ VM；直接传字符串，VM 里的 <code>JSON.parse</code> 就是唯一一次�
 <p><code>parseStoreWrites</code> 就是这样写的（<code>execution.ts:112-129</code>）——它把一个 JSON
 字符串解析成 <code>{ set, delete }</code>，每个条目都检查是不是数组、第一个元素是不是
 字符串、长度是不是 1 或 2。全部检查完才认。</p>
-<h3 id="sec-24-7-2-生命周期-第一条终态消息胜出">7.2 生命周期：第一条终态消息胜出</h3>
+<h3 id="sec-25-7-2-生命周期-第一条终态消息胜出">7.2 生命周期：第一条终态消息胜出</h3>
 <p><code>execution.ts:11-22</code> 把一次执行的时序写成了三步：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -646,7 +683,7 @@ VM 的 <code>done</code>、worker 的 crash——四路并发，都走这一个�
 <p>（<code>execution.ts:440-447</code>）</p>
 <p><strong>先停 VM，再落定 Promise</strong>。反过来的话，调用方拿到结果就开始下一件事，
 而 VM 还在跑——在那个空隙里它可能已经又发起了一次工具调用。</p>
-<h3 id="sec-25-7-3-宿主侧的排队">7.3 宿主侧的排队</h3>
+<h3 id="sec-26-7-3-宿主侧的排队">7.3 宿主侧的排队</h3>
 <p>通道是异步拿到的（<code>launch</code> 返回 Promise），但 VM 可能在拿到通道之前就发消息
 了。所以有一个 <code>unsent</code> 队列（<code>execution.ts:192-193</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -658,14 +695,14 @@ VM 的 <code>done</code>、worker 的 crash——四路并发，都走这一个�
 <p>通道到达时一次性冲掉（<code>execution.ts:251-252</code>）。这个队列在 <code>finish()</code> 里
 会被清空——终态之后不再需要投递任何东西。</p>
 <hr>
-<h2 id="sec-26-八-三种沙箱-一个接口">八、三种沙箱，一个接口</h2>
+<h2 id="sec-27-八-三种沙箱-一个接口">八、三种沙箱，一个接口</h2>
 <p><code>CodemodeSandboxBase</code> 是抽象的：它管工具表、默认值、在飞的执行，把「VM 跑
 在哪」交给一个函数（<code>execution.ts:82</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> VmLauncher = (</span><span class="ln">  data: VmStartData, events: VmEvents,</span><span class="ln">) =&gt; VmChannel | Promise&lt;VmChannel&gt;;</span></code></pre></div>
 <p>三个实现，差别只在 <code>launch</code> 传什么。</p>
-<h3 id="sec-27-8-1-codemodesandbox-一个执行一个-worker">8.1 <code>CodemodeSandbox</code>：一个执行一个 worker</h3>
+<h3 id="sec-28-8-1-codemodesandbox-一个执行一个-worker">8.1 <code>CodemodeSandbox</code>：一个执行一个 worker</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// host.ts:28-37</span></span><span class="ln"><span class="tok-kw">const</span> interrupt = <span class="tok-kw">new</span> <span class="tok-fn">SharedArrayBuffer</span>(<span class="tok-num">4</span>);</span><span class="ln"><span class="tok-kw">const</span> workerData: WorkerData = { ...data, wasm: <span class="tok-kw">module</span>, interrupt };</span><span class="ln"><span class="tok-kw">const</span> releaseWorker = options.acquireWorker?.();</span><span class="ln"><span class="tok-kw">let</span> worker: Worker;</span><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">  worker = <span class="tok-kw">new</span> <span class="tok-fn">Worker</span>(options.workerUrl ?? <span class="tok-fn">defaultWorkerUrl</span>(), { workerData });</span><span class="ln">} <span class="tok-kw">catch</span> (error) {</span><span class="ln">  releaseWorker?.();</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`Failed to start worker: ${errorMessage(error)}`</span>);</span><span class="ln">}</span></code></pre></div>
@@ -688,7 +725,7 @@ VM 的 <code>done</code>、worker 的 crash——四路并发，都走这一个�
 <p><code>node --watch</code> 会把依赖加载报告混进 worker 通道。不挡掉的话，宿主会收到一条
 既没有 <code>type</code> 也没有 <code>id</code> 的对象，然后把它当成「桥接破裂」。这类问题的
 特点是：只在开发模式下出现，测试和生产都正常。</p>
-<h3 id="sec-28-8-2-inlinecodemodesandbox-和调用方共享一个线程">8.2 <code>InlineCodemodeSandbox</code>：和调用方共享一个线程</h3>
+<h3 id="sec-29-8-2-inlinecodemodesandbox-和调用方共享一个线程">8.2 <code>InlineCodemodeSandbox</code>：和调用方共享一个线程</h3>
 <p>给没有 worker 的运行时用——Cloudflare Workers、浏览器。</p>
 <p>问题写得很直白（<code>inline.ts:5-9</code>）：</p>
 <blockquote>
@@ -726,7 +763,7 @@ script.</p>
 <p>worker 里用默认的 512 KiB（Node 的 worker 线程有 4 MB 栈），主线程只有 1 MB，
 所以压到 256 KiB。QuickJS 的栈保护必须在宿主栈溢出之前触发——否则一个深递归
 会直接杀掉进程，而不是抛出可捕获的 <code>RangeError</code>。</p>
-<h3 id="sec-29-8-3-remotecodemodesandbox-vm-在另一个-isolat">8.3 <code>RemoteCodemodeSandbox</code>：VM 在另一个 isolate</h3>
+<h3 id="sec-30-8-3-remotecodemodesandbox-vm-在另一个-isolat">8.3 <code>RemoteCodemodeSandbox</code>：VM 在另一个 isolate</h3>
 <p>Cloudflare 上的正确做法。原因是一个实测数字（<code>remote.ts:5-10</code>）：</p>
 <blockquote>
 <p>Measured on Cloudflare (October 2026), a script that computed for 10 seconds
@@ -769,7 +806,7 @@ its interrupt budget is used up.</p>
 <pre><code><span class="ln"><span class="tok-com">// remote.ts:109-118（服务端裁剪）</span></span><span class="ln"><span class="tok-kw">const</span> maxBudget = options.maxInterruptBudget ?? DEFAULT_INTERRUPT_BUDGET;</span><span class="ln"><span class="tok-kw">const</span> budget = Math.<span class="tok-fn">min</span>(request.interruptBudget ?? maxBudget, maxBudget);</span><span class="ln"><span class="tok-kw">const</span> memoryLimitBytes = requestedMemory === <span class="tok-kw">undefined</span></span><span class="ln">  ? maxMemory</span><span class="ln">  : maxMemory === <span class="tok-kw">undefined</span></span><span class="ln">    ? requestedMemory</span><span class="ln">    : Math.<span class="tok-fn">min</span>(requestedMemory, maxMemory);</span></code></pre></div>
 <p>客户端要 10 MB 内存，服务端配了 32 MB，给 10 MB；客户端要 1 GB，给 32 MB。
 <code>Math.min</code> 两行，把「谁能说要多少」这条边界钉死了。</p>
-<h3 id="sec-30-8-4-三者对照">8.4 三者对照</h3>
+<h3 id="sec-31-8-4-三者对照">8.4 三者对照</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -836,10 +873,10 @@ stays in the main entry.</p>
 <code>pi-codemode/portable</code> 不可以。用打包器的解析规则，把运行时约束变成
 模块边界。</p>
 <hr>
-<h2 id="sec-31-九-quickjs-里抠出来的五个细节">九、QuickJS 里抠出来的五个细节</h2>
+<h2 id="sec-32-九-quickjs-里抠出来的五个细节">九、QuickJS 里抠出来的五个细节</h2>
 <p><code>prelude-source.ts</code> 489 行，是整章最不&quot;框架&quot;的一段代码：一段跑在 VM 里的
 字符串。它处理的全是&quot;脚本能黑你&quot;这件事。</p>
-<h3 id="sec-32-9-1-lockdown-冻结整个内置图">9.1 <code>lockdown()</code>：冻结整个内置图</h3>
+<h3 id="sec-33-9-1-lockdown-冻结整个内置图">9.1 <code>lockdown()</code>：冻结整个内置图</h3>
 <p>第一件事是把所有内置对象冻死。理由写在文件头（<code>prelude-source.ts:30-32</code>）：</p>
 <blockquote>
 <p>Before anything else the prelude freezes the built-ins and makes the
@@ -868,7 +905,7 @@ otherwise corrupt what the prelude reports to the host.</p>
 </ul>
 <p>一个 <code>freeze</code> 换成一个 <code>defineProperty</code>，语义上就等价于&quot;只能遮蔽，不能修改&quot;。
 代价是每个属性多一层存取器，而收益是整个前奏不用再担心原型污染。</p>
-<h3 id="sec-33-9-2-guard-工具名打错时告诉模型正确的名字">9.2 <code>guard()</code>：工具名打错时告诉模型正确的名字</h3>
+<h3 id="sec-34-9-2-guard-工具名打错时告诉模型正确的名字">9.2 <code>guard()</code>：工具名打错时告诉模型正确的名字</h3>
 <p>脚本要调 <code>tools.readFile</code>，但工具其实叫 <code>read</code>。直接让它抛 <code>undefined is not a function</code>，模型下一轮只能猜。所以 <code>tools</code> 是一个 Proxy：</p>
 <div class="code-block" data-lang="js">
 <div class="code-head"><span class="lang">js</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -886,7 +923,7 @@ otherwise corrupt what the prelude reports to the host.</p>
 <p>所以 <code>read_file</code>、<code>readFile</code>、<code>READ-FILE</code> 会归到同一个键。这对 MCP 工具
 尤其重要：服务器名里的 <code>-</code>、<code>_</code>、<code>.</code> 都不能进 JS 标识符，<code>toCodemodeIdentifier</code>
 会把它们都换成 <code>_</code>（§11.1）。</p>
-<h3 id="sec-34-9-3-stalled-等一个永远不会来的-promise">9.3 <code>stalled()</code>：等一个永远不会来的 promise</h3>
+<h3 id="sec-35-9-3-stalled-等一个永远不会来的-promise">9.3 <code>stalled()</code>：等一个永远不会来的 promise</h3>
 <p>没有定时器带来一个副产品：<strong>某些&quot;卡住&quot;是可以证明的</strong>。</p>
 <p>如果脚本在等一个 Promise，而没有任何一个工具调用在飞，那么它永远等不到。
 理由很简单：能让它继续的只有两件事——工具结果，或定时器；前一个不存在，
@@ -901,7 +938,7 @@ otherwise corrupt what the prelude reports to the host.</p>
 <pre><code><span class="ln"><span class="tok-fn">stalled</span>() {</span><span class="ln">  <span class="tok-kw">if</span> (finished || pending.size &gt; <span class="tok-num">0</span>) <span class="tok-kw">return</span> <span class="tok-kw">false</span>;</span><span class="ln">  <span class="tok-fn">done</span>(<span class="tok-kw">false</span>, <span class="tok-fn">stringify</span>({</span><span class="ln">    name: <span class="tok-str">"Error"</span>,</span><span class="ln">    message:</span><span class="ln">      <span class="tok-str">"The script is waiting on a promise that can never settle: "</span></span><span class="ln">      + <span class="tok-str">"no tool call is pending, and timers do not exist here."</span>,</span><span class="ln">  }));</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">true</span>;</span><span class="ln">}</span></code></pre></div>
 <p>这句错误文本本身就是文档：它告诉模型&quot;你以为在等，其实死锁了，而且这里
 没有定时器&quot;。比一句干巴巴的 <code>timeout</code> 有用得多。</p>
-<h3 id="sec-35-9-4-image-只收-base64-并且验魔数">9.4 <code>image()</code>：只收 base64，并且验魔数</h3>
+<h3 id="sec-36-9-4-image-只收-base64-并且验魔数">9.4 <code>image()</code>：只收 base64，并且验魔数</h3>
 <p><code>image()</code> 拒绝三种输入，每种有自己的理由（<code>prelude-source.ts:403-429</code>）：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -948,7 +985,7 @@ block would be resent on every later turn.</p>
 <p><code>iVBORw0KGg</code> 就是 <code>\x89PNG</code> 的 base64。因为签名在字节 0 上，它的 base64
 编码就一定是整个 base64 字符串的前缀，所以不用先解码再比对。JPEG 那里的
 <code>(?!9)</code> 是在排除 JPEG-LS（<code>\xFF\xD9\xFF</code> 前面的 <code>FF D9</code> 不合法）。</p>
-<h3 id="sec-36-9-5-四道输出上限">9.5 四道输出上限</h3>
+<h3 id="sec-37-9-5-四道输出上限">9.5 四道输出上限</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// prelude-source.ts:34-43</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> MAX_STORE_VALUE_CHARS = <span class="tok-num">256</span> * <span class="tok-num">1024</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> MAX_STORE_TOTAL_CHARS = <span class="tok-num">1024</span> * <span class="tok-num">1024</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> MAX_OUTPUT_CHARS = <span class="tok-num">16</span> * <span class="tok-num">1024</span> * <span class="tok-num">1024</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> MAX_OUTPUT_ITEMS = <span class="tok-num">100_000</span>;</span></code></pre></div>
@@ -971,9 +1008,9 @@ covers loops that print empty strings.</p>
 <p>&quot;打摘要&quot;和&quot;用工具写文件&quot;——两个具体的下一步。这是同一个原则的第四次出现：
 <strong>错要错得可行动</strong>。</p>
 <hr>
-<h2 id="sec-37-十-确定性重放">十、确定性重放</h2>
+<h2 id="sec-38-十-确定性重放">十、确定性重放</h2>
 <p><code>start()</code> 这个名字很平淡，但它是两个包中唯一为&quot;会话恢复&quot;服务的机制。</p>
-<h3 id="sec-38-10-1-问题是什么">10.1 问题是什么</h3>
+<h3 id="sec-39-10-1-问题是什么">10.1 问题是什么</h3>
 <p>Agent 在跑一段脚本，中途进程挂了。会话恢复后，这段脚本怎么接着跑？</p>
 <p>两条路：</p>
 <ul>
@@ -983,7 +1020,7 @@ covers loops that print empty strings.</p>
 </ul>
 <p>第二条简单得多，前提是：<strong>脚本在相同输入下必须产生相同输出</strong>。而 JS 不是
 默认确定的——时间、随机数、时区、GC 都能悄悄改结果。</p>
-<h3 id="sec-39-10-2-四件事被钉死">10.2 四件事被钉死</h3>
+<h3 id="sec-40-10-2-四件事被钉死">10.2 四件事被钉死</h3>
 <p><code>vm.ts:23-36</code> 把清单列了出来：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1029,7 +1066,7 @@ covers loops that print empty strings.</p>
 但 <code>Math.random</code> 根本没用它。</p>
 <p>注释里还记了一个具体的坑：QuickJS 把微秒读数转成种子时，0 会被当成 1，
 所以&quot;种子 s 实际读到 s + 1&quot;。这种偏移不写下来，以后没人能重现。</p>
-<h3 id="sec-40-10-3-为什么结果要编号">10.3 为什么结果要编号</h3>
+<h3 id="sec-41-10-3-为什么结果要编号">10.3 为什么结果要编号</h3>
 <p>因为跨进程传输不保证顺序。RPC 回复可能乱序到达，而脚本的语义要求&quot;第 2 个
 结果在第 1 个之后生效&quot;。</p>
 <div class="code-block" data-lang="ts">
@@ -1038,7 +1075,7 @@ covers loops that print empty strings.</p>
 <p>两个约束：<code>seq</code> 不能重、不能回头；<code>clock.now</code> 只能增。后者是因为<strong>重放的
 宿主时钟可能比原宿主慢</strong>——比如原进程在 10:05 挂掉，现在 10:03 重放。
 时钟倒退会让脚本里的&quot;耗时&quot;变成负数。</p>
-<h3 id="sec-41-10-4-指纹">10.4 指纹</h3>
+<h3 id="sec-42-10-4-指纹">10.4 指纹</h3>
 <p>重放不能盲目。同一个脚本在不同版本的引擎里可能走不同分支，所以 VM 报一个
 指纹（<code>vm.ts:314-321</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -1054,7 +1091,7 @@ hash, limits) already capture.</p>
 </blockquote>
 <p>它在说：<strong>指纹覆盖不到的东西，靠人手动报版本号</strong>。这是一个不得不接受的
 漏洞，但至少它被写在了代码里。</p>
-<h3 id="sec-42-10-5-during-脚本结束的那一刻在处理什么">10.5 <code>during</code>：脚本结束的那一刻在处理什么</h3>
+<h3 id="sec-43-10-5-during-脚本结束的那一刻在处理什么">10.5 <code>during</code>：脚本结束的那一刻在处理什么</h3>
 <p>确定性运行里有一个只有重放才关心的状态（<code>types.ts:200-204</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1068,9 +1105,9 @@ VM，那次 drain 的 <code>idle</code> 永远不会到达：</p>
 <pre><code><span class="ln"><span class="tok-kw">case</span> <span class="tok-str">"done"</span>: {</span><span class="ln">  <span class="tok-com">// The host stops the VM on `done`, so the `idle` of this drain never</span></span><span class="ln">  <span class="tok-com">// arrives: report its numbers here.</span></span><span class="ln">  <span class="tok-kw">const</span> during = clock ? { during: { seq: current, issued } } : {};</span><span class="ln">  ...</span><span class="ln">}</span></code></pre></div>
 <p>一个&quot;消息不会到达&quot;的推理，换成一个字段。</p>
 <hr>
-<h2 id="sec-43-十一-两条入口怎么接在一起">十一、两条入口怎么接在一起</h2>
+<h2 id="sec-44-十一-两条入口怎么接在一起">十一、两条入口怎么接在一起</h2>
 <p>前八节讲的是两个包各自长什么样。现在讲 <code>coding-agent</code> 怎么把它们接起来。</p>
-<h3 id="sec-44-11-1-四档暴露-默认是最省上下文的那档">11.1 四档暴露，默认是最省上下文的那档</h3>
+<h3 id="sec-45-11-1-四档暴露-默认是最省上下文的那档">11.1 四档暴露，默认是最省上下文的那档</h3>
 <p>MCP 服务器的 <code>exposure</code> 有四个值（<code>coding-agent/src/core/mcp-servers.ts:52</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1116,7 +1153,7 @@ VM，那次 drain 的 <code>idle</code> 永远不会到达：</p>
 只知道&quot;有这么几个服务器，要用就写脚本&quot;。</p>
 <p>而且可以逐工具覆盖（<code>toolExposure</code>）。所以真实的配置可能是：
 常用的那几个 <code>direct</code>，剩下几十个 <code>codemode</code>。</p>
-<h3 id="sec-45-11-2-嵌套调用走同一条管道">11.2 嵌套调用走同一条管道</h3>
+<h3 id="sec-46-11-2-嵌套调用走同一条管道">11.2 嵌套调用走同一条管道</h3>
 <p>这是两张图合成一张的地方。<code>codemode</code> 脚本调 <code>tools.x()</code> 时，不是直接调
 工具对象，而是穿过 <code>ctx.executeTool</code>（<code>codemode/execute.ts:540</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -1138,7 +1175,7 @@ reaches the model; nested results do not.</p>
 M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quot;，在这里被落实了。</li>
 <li><strong>只有脚本输出进模型</strong>：嵌套结果全部留在沙箱里。这是整章的性价比所在。</li>
 </ol>
-<h3 id="sec-46-11-3-一条结果里有一棵调用树">11.3 一条结果里有一棵调用树</h3>
+<h3 id="sec-47-11-3-一条结果里有一棵调用树">11.3 一条结果里有一棵调用树</h3>
 <p>既然嵌套调用走管道，它们就会产生 <code>tool_call</code> / <code>tool_result</code> 事件。不加
 处理的话，模型会看到&quot;我调了一次 codemode，却产生了七次工具调用&quot;的混乱
 历史。</p>
@@ -1150,7 +1187,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 （可单独引用），又属于父调用（可以整树折叠）。</p>
 <p>M09 讲上下文压缩时提过一句&quot;codemode 的嵌套调用也要算&quot;。这里能看全：
 <strong>成本、时长、错误、状态都记在嵌套节点上，但只有父调用的输出进上下文</strong>。</p>
-<h3 id="sec-47-11-4-声明也要预算">11.4 声明也要预算</h3>
+<h3 id="sec-48-11-4-声明也要预算">11.4 声明也要预算</h3>
 <p><code>direct</code> 档也有代价：工具声明本身占 token。所以 <code>codemode</code> 工具的描述也是
 有预算的（<code>codemode/tool.ts:136-139</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -1166,8 +1203,8 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 <pre><code><span class="ln"><span class="tok-com">// mcp/index.ts:157-163</span></span><span class="ln"><span class="tok-kw">const</span> MAX_SERVER_DESCRIPTION_CHARS = <span class="tok-num">250</span>;</span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> MAX_SERVERS_SECTION_CHARS = <span class="tok-num">4096</span>;</span></code></pre></div>
 <p>4096 字符装下所有服务器，每个描述最多 250 字，装不下就截描述，再装不下就
 把最后几个服务器折叠成一行&quot;还有 N 个，用 searchTools() 找&quot;。</p>
-<h3 id="sec-48-11-5-一张对比表">11.5 一张对比表</h3>
-<p>现在可以回答 task.md 的验收问题了。两个包不是&quot;两个功能&quot;，而是<strong>一条链的
+<h3 id="sec-49-11-5-一张对比表">11.5 一张对比表</h3>
+<p>现在可以回答开头那个问题了。两个包不是&quot;两个功能&quot;，而是<strong>一条链的
 两段</strong>：能力从外面进来（MCP），使用方式被压成脚本（codemode）。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1238,7 +1275,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 <p>最后一列那两行值得再读一遍：<strong>整个扩展生态只靠两个依赖支撑</strong>。MCP 那边是
 &quot;起一个子进程&quot;，codemode 那边是&quot;跑一个 wasm&quot;。两个都是最小的可移植假设。</p>
 <hr>
-<h2 id="sec-49-十二-完整链路">十二、完整链路</h2>
+<h2 id="sec-50-十二-完整链路">十二、完整链路</h2>
 <p>把两个包拼起来，一次&quot;在脚本里调一个 MCP 工具&quot;的完整链路：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1282,7 +1319,7 @@ M05 里那句&quot;否则权限检查就能被套一层工具调用绕过去&quo
 这两次序列化换来的是什么：<strong>脚本能改的一切都改不了宿主</strong>（§7.1 的
 <code>BridgeError</code>）。</p>
 <hr>
-<h2 id="sec-50-十三-工程暗坑">十三、工程暗坑</h2>
+<h2 id="sec-51-十三-工程暗坑">十三、工程暗坑</h2>
 <p><strong>1. <code>Math.random</code> 的种子是时钟读数的 <code>+1</code>。</strong>
 <code>vm.ts:107-115</code> 注释里那句 &quot;so seed s reads s + 1&quot; 不是笔误：QuickJS 把
 微秒读数当种子，还会把 0 当成 1。改 <code>deterministicWasi</code> 的返回值必须同步
@@ -1339,39 +1376,39 @@ dispatched&quot;。所以&quot;刷完 token 重试&quot;只对<strong>还没发<
 的<strong>工具调用</strong>时，这个检测救不了它——那要靠 <code>execute()</code> 的超时（默认
 300 秒）。两个机制管两个方向，别指望一个。</p>
 <hr>
-<h2 id="sec-51-十四-自己动手验证">十四、自己动手验证</h2>
+<h2 id="sec-52-十四-自己动手验证">十四、自己动手验证</h2>
 <p>两个包各自 <code>npx vitest --run</code> 就能跑，不需要网络：MCP 的用例走 <code>in-memory</code>
 传输，codemode 用本地 wasm。六个实验，都不用改生产代码。</p>
-<h3 id="sec-52-实验-1-看-stdio-的换行分帧">实验 1：看 stdio 的换行分帧</h3>
+<h3 id="sec-53-实验-1-看-stdio-的换行分帧">实验 1：看 stdio 的换行分帧</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cd packages/mcp</span><span class="ln">npx vitest --run test/stdio.test.ts</span></code></pre></div>
 <p>判据：用例里会出现&quot;一次 chunk 里塞两行&quot;和&quot;半个 JSON 卡在缓冲区&quot;两种输入。
 把它们和 §3.1 那个 <code>while (true)</code> 循环对着看。</p>
-<h3 id="sec-53-实验-2-看-401-只重试一次">实验 2：看 401 只重试一次</h3>
+<h3 id="sec-54-实验-2-看-401-只重试一次">实验 2：看 401 只重试一次</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">npx vitest --run test/streamable-http.test.ts</span></code></pre></div>
 <p>判据：数一下 mock server 收到几次请求。第一次 401、<code>onUnauthorized</code> 被调
 一次、然后<strong>只有一次</strong>重试。</p>
-<h3 id="sec-54-实验-3-看五种内容块怎么变成两种">实验 3：看五种内容块怎么变成两种</h3>
+<h3 id="sec-55-实验-3-看五种内容块怎么变成两种">实验 3：看五种内容块怎么变成两种</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">npx vitest --run test/content.test.ts</span></code></pre></div>
 <p>判据：音频变成 <code>[audio X omitted]</code>、<code>resource_link</code> 变成 <code>name: uri</code>。
 这一条决定了 MCP 返回的东西能不能进模型上下文。</p>
-<h3 id="sec-55-实验-4-同一段脚本跑两遍">实验 4：同一段脚本跑两遍</h3>
+<h3 id="sec-56-实验-4-同一段脚本跑两遍">实验 4：同一段脚本跑两遍</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cd packages/codemode</span><span class="ln">npx vitest --run test/deterministic.test.ts</span></code></pre></div>
 <p>判据：两遍的指纹一样、<code>seq</code> 序列一样、输出逐字节一样。把 <code>seed</code> 改一个
 数，指纹和 <code>Math.random()</code> 一起变——但<strong>其余部分不变</strong>。</p>
-<h3 id="sec-56-实验-5-看-worker-能不能被停干净">实验 5：看 worker 能不能被停干净</h3>
+<h3 id="sec-57-实验-5-看-worker-能不能被停干净">实验 5：看 worker 能不能被停干净</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">npx vitest --run test/worker-lifetime.test.ts</span></code></pre></div>
 <p>判据：跑完之后进程能退出。这一条直接对应 §13 的第 4 条（<code>unref</code>）。</p>
-<h3 id="sec-57-实验-6-自己触发一次死锁检测">实验 6：自己触发一次死锁检测</h3>
+<h3 id="sec-58-实验-6-自己触发一次死锁检测">实验 6：自己触发一次死锁检测</h3>
 <p>在 <code>test/sandbox.test.ts</code> 里加一条用例，脚本体只写一行：</p>
 <div class="code-block" data-lang="js">
 <div class="code-head"><span class="lang">js</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1381,8 +1418,36 @@ is pending, and timers do not exist here&quot;（§9.3）。</p>
 <p>再补一个反向实验：脚本体换成 <code>await tools.slow()</code>，而这个工具返回一个永不
 resolve 的 Promise。这条检测就失效了——你只能等到超时。见 §13 第 12 条。</p>
 <hr>
-<h2 id="sec-58-十五-收束">十五、收束</h2>
-<h3 id="sec-59-15-1-三个可迁移的方法">15.1 三个可迁移的方法</h3>
+<h2 id="sec-59-读完自检">读完自检</h2>
+<p>三条，能不能不看稿说出来？</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>自检</th>
+<th>一句话答案</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两个包的分工一句话说清？</td>
+<td>MCP 管&quot;能力从哪来&quot;，codemode 管&quot;能力怎么用&quot;</td>
+<td>§一</td>
+</tr>
+<tr>
+<td>沙箱的安全性来自哪？</td>
+<td>不是黑名单，是&quot;只有一条能力&quot;——只放进去 <code>tools</code></td>
+<td>§6.1</td>
+</tr>
+<tr>
+<td>要重放，得钉死几件事？</td>
+<td>五件：时间、随机、时区、GC、投递顺序，外加一个指纹</td>
+<td>§10.2、§10.4</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-60-十五-收束">十五、收束</h2>
+<h3 id="sec-61-15-1-三个可迁移的方法">15.1 三个可迁移的方法</h3>
 <p><strong>一、&quot;能力&quot;和&quot;编排&quot;分开。</strong>
 MCP 管能力怎么进来，codemode 管能力怎么被组合。两个包各自三千行上下，
 因为它们只回答一个问题。写成一个包，就得同时背协议兼容和沙箱语义两套
@@ -1394,7 +1459,7 @@ codemode 脚本里没有 <code>fetch</code>、没有 <code>process</code>、没�
 <p><strong>三、要重放，就把不确定性一次性钉死，并留指纹。</strong>
 时间、随机、时区、GC、投递顺序（§10.2），五个一起固定才有意义。固定完
 还要报一个指纹（§10.4），因为&quot;固定了&quot;和&quot;固定得一样&quot;是两件事。</p>
-<h3 id="sec-60-15-2-这章的边界">15.2 这章的边界</h3>
+<h3 id="sec-62-15-2-这章的边界">15.2 这章的边界</h3>
 <p>没讲的部分：</p>
 <ul>
 <li><code>streamable-http.ts</code>（479 行）：只讲了 401、session、续传三条主线。SSE
@@ -1411,12 +1476,12 @@ codemode 脚本里没有 <code>fetch</code>、没有 <code>process</code>、没�
 17 个文件、5,826 行</strong>——差不多一样多。协议是便宜的，把协议变成&quot;模型能用
 的东西&quot;是贵的。<code>mcp</code> 里 41% 是 OAuth，<code>codemode</code> 里 68% 是 VM 桥和三个
 沙箱实现，这两块恰好都不在&quot;扩展能力&quot;的主线上，但都躲不开。</p>
-<h3 id="sec-61-15-3-下一站">15.3 下一站</h3>
+<h3 id="sec-63-15-3-下一站">15.3 下一站</h3>
 <p>M14 讲 <code>tui</code>：46 文件、19,925 行。那里换一个方向——前面十三章都在讲&quot;怎么
 让模型跑起来&quot;，M14 讲&quot;怎么让人看见它在跑&quot;，以及<strong>一次重绘到底要写多少
 字节</strong>。</p>
 <hr>
-<h2 id="sec-62-本章源码索引">本章源码索引</h2>
+<h2 id="sec-64-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1544,7 +1609,7 @@ codemode 脚本里没有 <code>fetch</code>、没有 <code>process</code>、没�
       <a class="next" href="m14-tui.html"><span class="lbl">下一篇</span>终端渲染 —— 一个 spinner 只该写 99 个字节</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一次调用最贵的是什么" class="">一、一次调用最贵的是什么</a><a href="#sec-2-二-mcp-一次会话的骨架" class="">二、MCP：一次会话的骨架</a><a href="#sec-3-2-1-版本协商-服务器说自己的-客户端负责接受" class="lv3">2.1 版本协商：服务器说自己的，客户端负责接受</a><a href="#sec-4-2-2-双向-客户端也可以是服务端" class="lv3">2.2 双向：客户端也可以是服务端</a><a href="#sec-5-2-3-宽容解析-规范说必须有-现实里常常没有" class="lv3">2.3 宽容解析：规范说必须有，现实里常常没有</a><a href="#sec-6-2-4-超时-取消-和不许取消的那一个" class="lv3">2.4 超时、取消、和不许取消的那一个</a><a href="#sec-7-三-三种传输-一个接口" class="">三、三种传输，一个接口</a><a href="#sec-8-3-1-stdio-换行就是帧" class="lv3">3.1 stdio：换行就是帧</a><a href="#sec-9-3-2-streamable-http-一个端点-两种响应" class="lv3">3.2 streamable HTTP：一个端点，两种响应</a><a href="#sec-10-3-3-sse-为什么自己写解析器" class="lv3">3.3 SSE：为什么自己写解析器</a><a href="#sec-11-3-4-断流续传" class="lv3">3.4 断流续传</a><a href="#sec-12-3-5-一个-cloudflare-相关的坑" class="lv3">3.5 一个 Cloudflare 相关的坑</a><a href="#sec-13-四-从-contentblock-到-llmcontent" class="">四、从 ContentBlock 到 LlmContent</a><a href="#sec-14-五-oauth-mcp-里最长的一条路" class="">五、OAuth：MCP 里最长的一条路</a><a href="#sec-15-5-1-四个地址的探测顺序" class="lv3">5.1 四个地址的探测顺序</a><a href="#sec-16-5-2-401-之后只试一次" class="lv3">5.2 401 之后只试一次</a><a href="#sec-17-5-3-需要人来的那一刻" class="lv3">5.3 需要人来的那一刻</a><a href="#sec-18-六-codemode-能力只有一条" class="">六、codemode：能力只有一条</a><a href="#sec-19-6-1-脚本看到的世界" class="lv3">6.1 脚本看到的世界</a><a href="#sec-20-6-2-沙箱防的不是恶意-是跑飞" class="lv3">6.2 沙箱防的不是恶意，是跑飞</a><a href="#sec-21-6-3-execute-和-start-是两条路" class="lv3">6.3 execute 和 start 是两条路</a><a href="#sec-22-七-桥-七个消息-全走-json-字符串" class="">七、桥：七个消息，全走 JSON 字符串</a><a href="#sec-23-7-1-为什么参数和结果都是字符串" class="lv3">7.1 为什么参数和结果都是字符串</a><a href="#sec-24-7-2-生命周期-第一条终态消息胜出" class="lv3">7.2 生命周期：第一条终态消息胜出</a><a href="#sec-25-7-3-宿主侧的排队" class="lv3">7.3 宿主侧的排队</a><a href="#sec-26-八-三种沙箱-一个接口" class="">八、三种沙箱，一个接口</a><a href="#sec-27-8-1-codemodesandbox-一个执行一个-worker" class="lv3">8.1 CodemodeSandbox：一个执行一个 worker</a><a href="#sec-28-8-2-inlinecodemodesandbox-和调用方共享一个线程" class="lv3">8.2 InlineCodemodeSandbox：和调用方共享一个线程</a><a href="#sec-29-8-3-remotecodemodesandbox-vm-在另一个-isolat" class="lv3">8.3 RemoteCodemodeSandbox：VM 在另一个 isolate</a><a href="#sec-30-8-4-三者对照" class="lv3">8.4 三者对照</a><a href="#sec-31-九-quickjs-里抠出来的五个细节" class="">九、QuickJS 里抠出来的五个细节</a><a href="#sec-32-9-1-lockdown-冻结整个内置图" class="lv3">9.1 lockdown()：冻结整个内置图</a><a href="#sec-33-9-2-guard-工具名打错时告诉模型正确的名字" class="lv3">9.2 guard()：工具名打错时告诉模型正确的名字</a><a href="#sec-34-9-3-stalled-等一个永远不会来的-promise" class="lv3">9.3 stalled()：等一个永远不会来的 promise</a><a href="#sec-35-9-4-image-只收-base64-并且验魔数" class="lv3">9.4 image()：只收 base64，并且验魔数</a><a href="#sec-36-9-5-四道输出上限" class="lv3">9.5 四道输出上限</a><a href="#sec-37-十-确定性重放" class="">十、确定性重放</a><a href="#sec-38-10-1-问题是什么" class="lv3">10.1 问题是什么</a><a href="#sec-39-10-2-四件事被钉死" class="lv3">10.2 四件事被钉死</a><a href="#sec-40-10-3-为什么结果要编号" class="lv3">10.3 为什么结果要编号</a><a href="#sec-41-10-4-指纹" class="lv3">10.4 指纹</a><a href="#sec-42-10-5-during-脚本结束的那一刻在处理什么" class="lv3">10.5 during：脚本结束的那一刻在处理什么</a><a href="#sec-43-十一-两条入口怎么接在一起" class="">十一、两条入口怎么接在一起</a><a href="#sec-44-11-1-四档暴露-默认是最省上下文的那档" class="lv3">11.1 四档暴露，默认是最省上下文的那档</a><a href="#sec-45-11-2-嵌套调用走同一条管道" class="lv3">11.2 嵌套调用走同一条管道</a><a href="#sec-46-11-3-一条结果里有一棵调用树" class="lv3">11.3 一条结果里有一棵调用树</a><a href="#sec-47-11-4-声明也要预算" class="lv3">11.4 声明也要预算</a><a href="#sec-48-11-5-一张对比表" class="lv3">11.5 一张对比表</a><a href="#sec-49-十二-完整链路" class="">十二、完整链路</a><a href="#sec-50-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-51-十四-自己动手验证" class="">十四、自己动手验证</a><a href="#sec-52-实验-1-看-stdio-的换行分帧" class="lv3">实验 1：看 stdio 的换行分帧</a><a href="#sec-53-实验-2-看-401-只重试一次" class="lv3">实验 2：看 401 只重试一次</a><a href="#sec-54-实验-3-看五种内容块怎么变成两种" class="lv3">实验 3：看五种内容块怎么变成两种</a><a href="#sec-55-实验-4-同一段脚本跑两遍" class="lv3">实验 4：同一段脚本跑两遍</a><a href="#sec-56-实验-5-看-worker-能不能被停干净" class="lv3">实验 5：看 worker 能不能被停干净</a><a href="#sec-57-实验-6-自己触发一次死锁检测" class="lv3">实验 6：自己触发一次死锁检测</a><a href="#sec-58-十五-收束" class="">十五、收束</a><a href="#sec-59-15-1-三个可迁移的方法" class="lv3">15.1 三个可迁移的方法</a><a href="#sec-60-15-2-这章的边界" class="lv3">15.2 这章的边界</a><a href="#sec-61-15-3-下一站" class="lv3">15.3 下一站</a><a href="#sec-62-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一次调用最贵的是什么" class="">一、一次调用最贵的是什么</a><a href="#sec-2-二-mcp-一次会话的骨架" class="">二、MCP：一次会话的骨架</a><a href="#sec-3-先对齐一个词-mcp-是什么" class="lv3">先对齐一个词：MCP 是什么</a><a href="#sec-4-2-1-版本协商-服务器说自己的-客户端负责接受" class="lv3">2.1 版本协商：服务器说自己的，客户端负责接受</a><a href="#sec-5-2-2-双向-客户端也可以是服务端" class="lv3">2.2 双向：客户端也可以是服务端</a><a href="#sec-6-2-3-宽容解析-规范说必须有-现实里常常没有" class="lv3">2.3 宽容解析：规范说必须有，现实里常常没有</a><a href="#sec-7-2-4-超时-取消-和不许取消的那一个" class="lv3">2.4 超时、取消、和不许取消的那一个</a><a href="#sec-8-三-三种传输-一个接口" class="">三、三种传输，一个接口</a><a href="#sec-9-3-1-stdio-换行就是帧" class="lv3">3.1 stdio：换行就是帧</a><a href="#sec-10-3-2-streamable-http-一个端点-两种响应" class="lv3">3.2 streamable HTTP：一个端点，两种响应</a><a href="#sec-11-3-3-sse-为什么自己写解析器" class="lv3">3.3 SSE：为什么自己写解析器</a><a href="#sec-12-3-4-断流续传" class="lv3">3.4 断流续传</a><a href="#sec-13-3-5-一个-cloudflare-相关的坑" class="lv3">3.5 一个 Cloudflare 相关的坑</a><a href="#sec-14-四-从-contentblock-到-llmcontent" class="">四、从 ContentBlock 到 LlmContent</a><a href="#sec-15-五-oauth-mcp-里最长的一条路" class="">五、OAuth：MCP 里最长的一条路</a><a href="#sec-16-5-1-四个地址的探测顺序" class="lv3">5.1 四个地址的探测顺序</a><a href="#sec-17-5-2-401-之后只试一次" class="lv3">5.2 401 之后只试一次</a><a href="#sec-18-5-3-需要人来的那一刻" class="lv3">5.3 需要人来的那一刻</a><a href="#sec-19-六-codemode-能力只有一条" class="">六、codemode：能力只有一条</a><a href="#sec-20-6-1-脚本看到的世界" class="lv3">6.1 脚本看到的世界</a><a href="#sec-21-6-2-沙箱防的不是恶意-是跑飞" class="lv3">6.2 沙箱防的不是恶意，是跑飞</a><a href="#sec-22-6-3-execute-和-start-是两条路" class="lv3">6.3 execute 和 start 是两条路</a><a href="#sec-23-七-桥-七个消息-全走-json-字符串" class="">七、桥：七个消息，全走 JSON 字符串</a><a href="#sec-24-7-1-为什么参数和结果都是字符串" class="lv3">7.1 为什么参数和结果都是字符串</a><a href="#sec-25-7-2-生命周期-第一条终态消息胜出" class="lv3">7.2 生命周期：第一条终态消息胜出</a><a href="#sec-26-7-3-宿主侧的排队" class="lv3">7.3 宿主侧的排队</a><a href="#sec-27-八-三种沙箱-一个接口" class="">八、三种沙箱，一个接口</a><a href="#sec-28-8-1-codemodesandbox-一个执行一个-worker" class="lv3">8.1 CodemodeSandbox：一个执行一个 worker</a><a href="#sec-29-8-2-inlinecodemodesandbox-和调用方共享一个线程" class="lv3">8.2 InlineCodemodeSandbox：和调用方共享一个线程</a><a href="#sec-30-8-3-remotecodemodesandbox-vm-在另一个-isolat" class="lv3">8.3 RemoteCodemodeSandbox：VM 在另一个 isolate</a><a href="#sec-31-8-4-三者对照" class="lv3">8.4 三者对照</a><a href="#sec-32-九-quickjs-里抠出来的五个细节" class="">九、QuickJS 里抠出来的五个细节</a><a href="#sec-33-9-1-lockdown-冻结整个内置图" class="lv3">9.1 lockdown()：冻结整个内置图</a><a href="#sec-34-9-2-guard-工具名打错时告诉模型正确的名字" class="lv3">9.2 guard()：工具名打错时告诉模型正确的名字</a><a href="#sec-35-9-3-stalled-等一个永远不会来的-promise" class="lv3">9.3 stalled()：等一个永远不会来的 promise</a><a href="#sec-36-9-4-image-只收-base64-并且验魔数" class="lv3">9.4 image()：只收 base64，并且验魔数</a><a href="#sec-37-9-5-四道输出上限" class="lv3">9.5 四道输出上限</a><a href="#sec-38-十-确定性重放" class="">十、确定性重放</a><a href="#sec-39-10-1-问题是什么" class="lv3">10.1 问题是什么</a><a href="#sec-40-10-2-四件事被钉死" class="lv3">10.2 四件事被钉死</a><a href="#sec-41-10-3-为什么结果要编号" class="lv3">10.3 为什么结果要编号</a><a href="#sec-42-10-4-指纹" class="lv3">10.4 指纹</a><a href="#sec-43-10-5-during-脚本结束的那一刻在处理什么" class="lv3">10.5 during：脚本结束的那一刻在处理什么</a><a href="#sec-44-十一-两条入口怎么接在一起" class="">十一、两条入口怎么接在一起</a><a href="#sec-45-11-1-四档暴露-默认是最省上下文的那档" class="lv3">11.1 四档暴露，默认是最省上下文的那档</a><a href="#sec-46-11-2-嵌套调用走同一条管道" class="lv3">11.2 嵌套调用走同一条管道</a><a href="#sec-47-11-3-一条结果里有一棵调用树" class="lv3">11.3 一条结果里有一棵调用树</a><a href="#sec-48-11-4-声明也要预算" class="lv3">11.4 声明也要预算</a><a href="#sec-49-11-5-一张对比表" class="lv3">11.5 一张对比表</a><a href="#sec-50-十二-完整链路" class="">十二、完整链路</a><a href="#sec-51-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-52-十四-自己动手验证" class="">十四、自己动手验证</a><a href="#sec-53-实验-1-看-stdio-的换行分帧" class="lv3">实验 1：看 stdio 的换行分帧</a><a href="#sec-54-实验-2-看-401-只重试一次" class="lv3">实验 2：看 401 只重试一次</a><a href="#sec-55-实验-3-看五种内容块怎么变成两种" class="lv3">实验 3：看五种内容块怎么变成两种</a><a href="#sec-56-实验-4-同一段脚本跑两遍" class="lv3">实验 4：同一段脚本跑两遍</a><a href="#sec-57-实验-5-看-worker-能不能被停干净" class="lv3">实验 5：看 worker 能不能被停干净</a><a href="#sec-58-实验-6-自己触发一次死锁检测" class="lv3">实验 6：自己触发一次死锁检测</a><a href="#sec-59-读完自检" class="">读完自检</a><a href="#sec-60-十五-收束" class="">十五、收束</a><a href="#sec-61-15-1-三个可迁移的方法" class="lv3">15.1 三个可迁移的方法</a><a href="#sec-62-15-2-这章的边界" class="lv3">15.2 这章的边界</a><a href="#sec-63-15-3-下一站" class="lv3">15.3 下一站</a><a href="#sec-64-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>
