@@ -928,27 +928,68 @@ plain closures</p>
 <p>README 承认的四件不做的事（sub-agent、plan mode、权限系统、orchestrator），拼起来正好是内核的边界。<strong>框架的能力上限由它做什么决定，它的可维护性由它不做什么决定。</strong></p>
 <p>Pi 全部四个&quot;不做&quot;，都指向同一个动作：把策略推到钩子外面。</p>
 <hr>
-<h2 id="sec-21-十三-回到标题那句问话">十三、回到标题那句问话</h2>
-<p>开篇立的靶子是：README 说 Pi 是 minimal 的，不用信，看行数。行数看完了，
-该把那句话还上。</p>
-<p><strong>时间花在哪。</strong> 960 行的循环 + 2,587 行的完整内核包 + 4,206 行测试，
-三样加起来不到 8,000 行，却是一个<strong>能读完、改得动、改错了测试会告你</strong>的
-agent 实现。市面上多数 agent 框架，光是&quot;读完&quot;这一条就不成立——不是它写得差，
+<h2 id="sec-21-十三-三个问题-一个答案">十三、三个问题，一个答案</h2>
+<p>标题那句问话，旧版教程给过一个更好懂的答法：先承认三种人点开它，
+再一一对上三个身份。这儿借它的骨架，数字全部按 v1.4 重核。</p>
+<p>你点开这本书，多半是下面三句话里有一句像你：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你的动机</th>
+<th>Pi 的对应身份</th>
+<th>一句话答案</th>
+<th>证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&quot;想找个好用、透明的编码 agent&quot;</td>
+<td>工具</td>
+<td>缺的功能它不塞给你，但每条都留了出口让你自己造</td>
+<td>§二、§五</td>
+</tr>
+<tr>
+<td>&quot;想知道 agent 到底怎么做的&quot;</td>
+<td>教材</td>
+<td>内核 2,587 行，一下午读得完；4,206 行测试兜底</td>
+<td>§一、§八</td>
+</tr>
+<tr>
+<td>&quot;要做自己的 agent&quot;</td>
+<td>SDK</td>
+<td>十行起一个 session，对外契约只有 <code>index.ts</code> 那 5 行</td>
+<td>§一、§六、附录 C</td>
+</tr>
+</tbody>
+</table></div>
+<p>三个动机指向同一个 1.1% 的包，这件事本身就值得好奇。多数框架只能满足其中
+一条：好用的读不透，读得透的没测试，能当 SDK 的得先把它整个运行时啃完。</p>
+<p>顺手交代一句：旧版那张&quot;关键数字&quot;表是 v0.80.2 口径，别照抄——4 核心 + 3 辅助
+工具（v1.4 是 <strong>8 个</strong>，多了 <code>powershell</code>）、4 个核心包（现在 <strong>12 个</strong>）、TUI
+~12,000 行（现在 <strong>19,971 行</strong>）、还有一个 <code>orchestrator</code> 包（v1.4 <strong>已整个删掉</strong>）。
+逐项对照见附录 A 的 4.6。</p>
+<p><strong>展开说，&quot;值得&quot;是三笔账。</strong></p>
+<p><strong>第一笔，当工具用。</strong> 五个入口（交互 / print / JSON / RPC / SDK）共用同一套
+机制（§五），八个内置工具各自配一个配套件（§八）。它明说不做权限系统、不做
+sub-agent、不做 plan mode，但每一个&quot;不做&quot;后面都跟着&quot;你想要就自己写，出口在
+这张表里&quot;（§二）。<strong>花时间换来的是能改成自己的，不是配置项多一点。</strong></p>
+<p><strong>第二笔，当教材读。</strong> 一个 agent 框架最难自学的是边界在哪。Pi 把边界写得很
+便宜：内核只占 1.1%（§一），&quot;不做&quot;清单直接就是边界的描述（§十二 方法三），
+78% 的代码在处理和模型无关的事（§八）。你读的这 2,587 行是<strong>通用机制</strong>——换个
+语言、换个模型商，两层循环和三条出路照样成立。而 §1.1 那句&quot;源码小、测试大、
+文档厚&quot;会让你顺手看见一个高质量 agent 的真实成本结构，这是只用别人的 agent
+学不到的一栏。</p>
+<p><strong>第三笔，当 SDK 用。</strong> <code>agent</code> 包的对外契约收敛在 5 行 <code>index.ts</code> 里（§一），
+§六 那十行代码里没有一行循环，却跑完了整场。你不需要碰 <code>tui</code>，不需要碰
+<code>coding-agent</code> 那 77,614 行——只要能拿到 <code>stream(model, context, options)</code> 和它吐
+的那串事件。附录 C 把这条路走完：一个 HTTP + SSE 的服务，里面包着一个 agent。</p>
+<p>三笔账底下是同一块东西：960 行的循环，加上 4,206 行把它的每个边界条件单独
+钉住的测试。市面上多数 agent 框架，光是&quot;读完&quot;这一条就不成立——不是它写得差，
 是内核和策略搅在一起，没人能在一个下午之内看清边界。</p>
-<p><strong>换回什么。</strong> 三样，而且都不只适用于 Pi：</p>
-<ol>
-<li><strong>一条分层样板</strong>：机制进内核，策略推到钩子外面。这是 §二 那张&quot;不做&quot;表
-的全部意义，下一章把它画成三层架构图。</li>
-<li><strong>三个判读方法</strong>（§十二）：体量分布定权重、build 顺序反推隐式依赖、把
-&quot;不做&quot;当设计文档。换一个陌生仓库照样能用。</li>
-<li><strong>一个起点</strong>：§六 那 20 行是你自己 harness 的最小形态，§二 的出口表告诉你
-它能往哪长。读完之后，&quot;用别人的 agent&quot;和&quot;知道 agent 怎么回事&quot;是两件事，
-你不用再选一件。</li>
-</ol>
 <p><strong>什么人不用花时间。</strong> 三种情况直说：</p>
 <ul>
 <li>只想装个 CLI 就能用 → 装就是了，别读源码。Pi 不带权限系统、不带 sub-agent，
-&quot;开箱即用&quot;这件事上它不如别家（§二）。</li>
+开箱能直接用的那块它给得很少（§二）。</li>
 <li>不会 TypeScript 又不想学 → 先花十二分钟读附录 B（9.2 说过），否则 M03 第一段
 代码就卡住。</li>
 <li>想学提示词工程 → 本书不是那类书。M08 讲的是 Pi 自己那八节提示词怎么装配、
@@ -984,7 +1025,7 @@ agent 实现。市面上多数 agent 框架，光是&quot;读完&quot;这一条�
 <tbody>
 <tr>
 <td>Pi 凭什么值得你花时间？</td>
-<td>内核读得完、策略全外置、方法带得走；只想用 CLI 的人不用读</td>
+<td>三种动机对三个身份：能改成自己的 / 内核读得完 / 十行接进自己进程；只想用 CLI 的人不用读</td>
 <td>§十三</td>
 </tr>
 <tr>
@@ -1106,7 +1147,7 @@ agent 实现。市面上多数 agent 框架，光是&quot;读完&quot;这一条�
       <a class="next" href="m02-package-map.html"><span class="lbl">下一篇</span>三层架构 —— 十二个包各自站在哪一层</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-回到标题那句问话" class="">十三、回到标题那句问话</a><a href="#sec-22-十四-本书的引用口径" class="">十四、本书的引用口径</a><a href="#sec-23-读完自检" class="">读完自检</a><a href="#sec-24-下一步" class="">下一步</a><a href="#sec-25-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-三个问题-一个答案" class="">十三、三个问题，一个答案</a><a href="#sec-22-十四-本书的引用口径" class="">十四、本书的引用口径</a><a href="#sec-23-读完自检" class="">读完自检</a><a href="#sec-24-下一步" class="">下一步</a><a href="#sec-25-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>
