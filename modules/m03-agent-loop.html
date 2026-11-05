@@ -41,7 +41,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M03</div>
       <h1>Agent Loop —— 两层循环，三条出路</h1>
-      <div class="module-meta">10,100 字 · 含 589 行代码 · 约 46 分钟</div>
+      <div class="module-meta">10,800 字 · 含 585 行代码 · 约 49 分钟</div>
     </header>
     <p>上一章我们把 12 个包摊在桌上，看清了分层：<code>coding-agent</code> 管业务，<code>agent</code> 是无状态内核，<code>ai</code> 统一各家模型。</p>
 <p>但架构图是静态的。Agent 之所以是 Agent，靠的是 <code>packages/agent/src/agent-loop.ts</code> 里那个 <code>while (true)</code>。</p>
@@ -233,7 +233,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">import</span> {</span><span class="ln">	<span class="tok-kw">type</span> AssistantMessage,</span><span class="ln">	<span class="tok-kw">type</span> ClientIdentity,</span><span class="ln">	EventStream,</span><span class="ln">	getCurrentTools,</span><span class="ln">	getToolStateChanges,</span><span class="ln">	mergeClientIdentity,</span><span class="ln">	normalizeContext,</span><span class="ln">	PI_ATTRIBUTION,</span><span class="ln">	<span class="tok-kw">type</span> SystemMessage,</span><span class="ln">	<span class="tok-kw">type</span> ToolResultMessage,</span><span class="ln">	<span class="tok-kw">type</span> ToolStateChanges,</span><span class="ln">	toToolDeclaration,</span><span class="ln">	validateToolArguments,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-ai"</span>;</span><span class="ln"><span class="tok-kw">import</span> { getDefaultStreamFn } <span class="tok-kw">from</span> <span class="tok-str">"./stream-fn.ts"</span>;</span></code></pre></div>
-<p>13 个符号全来自 <code>pi-ai</code>，没有一个是 <code>coding-agent</code> 的。这不是巧合，是分层的结果——<code>packages/agent/package.json</code> 的 dependencies 只有两个：<code>pi-ai</code> 和 <code>pi-schema</code>。而 <code>pi-schema</code> 在整个包里只露过一次面（<code>types.ts:17</code>）：</p>
+<p>13 个符号全来自 <code>pi-ai</code>，没有一个是 <code>coding-agent</code> 的。这不是巧合，是分层的结果——<code>packages/agent/package.json</code> 的 dependencies 只有两个：<code>pi-ai</code> 和 <code>pi-schema</code>。M02 §8.1 把这件事叫&quot;依赖定编译边界&quot;：箭头指谁，谁就得先 build；至于运行时真正干活的是谁，那是注入的事。而 <code>pi-schema</code> 在整个包里只露过一次面（<code>types.ts:17</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { Static } <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-schema"</span>;</span></code></pre></div>
@@ -509,119 +509,7 @@
 <pre><code><span class="ln"><span class="tok-kw">if</span> (</span><span class="ln">	output.content.<span class="tok-fn">some</span>((b) =&gt; b.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>) &amp;&amp;</span><span class="ln">	output.stopReason === <span class="tok-str">"stop"</span></span><span class="ln">) {</span><span class="ln">	output.stopReason = <span class="tok-str">"toolUse"</span>;</span><span class="ln">}</span></code></pre></div>
 <p>但内核选择不依赖这层归一：<strong>&quot;模型还要不要干活&quot;，用消息内容自证，比用 provider 的标签可靠</strong>。</p>
 <p>这是版本演进里一个典型的判断：标签是外部给的，内容是自己在攒的。控制流押在后者上。</p>
-<h3 id="sec-18-6-2-出路一-steering-跑到一半插话">6.2 出路一：steering —— 跑到一半插话</h3>
-<p>场景：agent 正在读第 12 个文件，你发现方向错了，想让它别读了。</p>
-<p><code>Agent.steer(message)</code>（<code>agent.ts:308</code>）把消息塞进 <code>steeringQueue</code>。队列在 <code>createLoopConfig</code> 里被包成 <code>getSteeringMessages</code>（<code>agent.ts:506-512</code>）：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">getSteeringMessages: <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (skipInitialSteeringPoll) {</span><span class="ln">		skipInitialSteeringPoll = <span class="tok-kw">false</span>;</span><span class="ln">		<span class="tok-kw">return</span> [];</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.steeringQueue.<span class="tok-fn">drain</span>();</span><span class="ln">},</span></code></pre></div>
-<p>循环在两个位置拉它：</p>
-<ul>
-<li><code>:185</code>，开跑之前（用户可能在你按回车前就插了话）；</li>
-<li><code>:304</code>，每轮工具执行完、<code>turn_end</code> 之后。</li>
-</ul>
-<p>拉到之后，<code>:220-225</code> 把它们和 <code>preparedMessages</code> 一起注入：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> <span class="tok-fn">declareToolChanges</span>(currentContext, [</span><span class="ln">	...preparedMessages,</span><span class="ln">	...pendingMessages,</span><span class="ln">])) {</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"message_start"</span>, message });</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"message_end"</span>, message });</span><span class="ln">	currentContext.messages.<span class="tok-fn">push</span>(message);</span><span class="ln">	newMessages.<span class="tok-fn">push</span>(message);</span><span class="ln">}</span></code></pre></div>
-<p>注入时又走了一次 <code>declareToolChanges</code>——插话可能带着新工具，工具集差异还得再声明。</p>
-<p>这里藏着一个非常具体的细节（<code>:210-215</code>）：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-com">// Preparation can be long-running (for example, compaction). Pick up steering</span></span><span class="ln"><span class="tok-com">// queued while it ran. Only poll again if the earlier poll returned nothing;</span></span><span class="ln"><span class="tok-com">// otherwise one-at-a-time mode would deliver two messages in this turn.</span></span><span class="ln"><span class="tok-kw">if</span> (pendingMessages.length === <span class="tok-num">0</span>) {</span><span class="ln">	pendingMessages = (<span class="tok-kw">await</span> config.getSteeringMessages?.()) || [];</span><span class="ln">}</span></code></pre></div>
-<p>为什么要有这个 <code>if</code>？</p>
-<p>因为 <code>prepareNextTurn</code> 可能很慢——真实宿主就在里面做上下文压缩（<code>packages/coding-agent/src/core/agent-session.ts:920-921</code>）。压缩跑几十秒，这期间用户又插了一句，得补拉一次。</p>
-<p>但如果第一次已经拉到一条了，再拉就会在<strong>同一个 turn 里塞两条</strong>——破坏 <code>one-at-a-time</code> 语义。所以：只在&quot;上一轮一无所获&quot;时才补拉。</p>
-<p><code>one-at-a-time</code> 是默认值（<code>agent.ts:255</code>），由 <code>PendingMessageQueue.peek()</code> 控制（<code>agent.ts:165-169</code>）：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-fn">peek</span>(): AgentMessage[] {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.mode === <span class="tok-str">"all"</span>) <span class="tok-kw">return</span> <span class="tok-kw">this</span>.messages.<span class="tok-fn">slice</span>();</span><span class="ln">	<span class="tok-kw">const</span> first = <span class="tok-kw">this</span>.messages[<span class="tok-num">0</span>];</span><span class="ln">	<span class="tok-kw">return</span> first ? [first] : [];</span><span class="ln">}</span></code></pre></div>
-<p>&quot;一次只说一句&quot;——插话是打断，连着塞三条等于让模型同时听三个人指挥。</p>
-<h3 id="sec-19-6-3-出路二-follow-up-等你说完我再说">6.3 出路二：follow-up —— 等你说完我再说</h3>
-<p><code>Agent.followUp(message)</code>（<code>agent.ts:313</code>）塞的是另一个队列。它只在<strong>外层</strong>被拉（<code>:311</code>）：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">const</span> followUpMessages = (<span class="tok-kw">await</span> config.getFollowUpMessages?.()) || [];</span><span class="ln"><span class="tok-kw">if</span> (followUpMessages.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	explicitContinuation = <span class="tok-kw">false</span>;</span><span class="ln">	pendingMessages = followUpMessages;</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
-<p>触发条件是&quot;内层已经停了&quot;——没工具调用了、没插话了。也就是说，它<strong>不打断</strong>当前工作，只负责&quot;既然你完事了，这儿还有一件&quot;。</p>
-<p>两者的区别：</p>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th></th>
-<th>steering</th>
-<th>follow-up</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>队列</td>
-<td><code>steeringQueue</code></td>
-<td><code>followUpQueue</code></td>
-</tr>
-<tr>
-<td>拉取位置</td>
-<td><code>:185</code>、<code>:304</code>（内层）</td>
-<td><code>:311</code>（外层）</td>
-</tr>
-<tr>
-<td>触发时机</td>
-<td>工具执行完，立刻</td>
-<td>整个内层停下后</td>
-</tr>
-<tr>
-<td>效果</td>
-<td>打断当前方向</td>
-<td>排队承接</td>
-</tr>
-<tr>
-<td>比喻</td>
-<td>&quot;别读了，回头&quot;</td>
-<td>&quot;干完了顺便把这个也做了&quot;</td>
-</tr>
-</tbody>
-</table></div>
-<h3 id="sec-20-6-4-出路三-finishturn-宿主说了算">6.4 出路三：finishTurn —— 宿主说了算</h3>
-<p><code>:295</code>：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">const</span> decision = <span class="tok-kw">await</span> config.finishTurn?.(lastCompletedTurn, signal);</span></code></pre></div>
-<p>返回值三种（<code>types.ts:147</code>）：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> AgentTurnDecision = { action: <span class="tok-str">"continue"</span> } | { action: <span class="tok-str">"end"</span> };</span></code></pre></div>
-<ul>
-<li><code>{action:&quot;end&quot;}</code> → 立刻停（<code>:298</code>）；</li>
-<li><code>{action:&quot;continue&quot;}</code> → 请求&quot;再来一轮&quot;；</li>
-<li><code>undefined</code> → 正常调度。</li>
-</ul>
-<p><code>continue</code> 的兑现方式有点绕，在 <code>:320-323</code>：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">if</span> (explicitContinuation) {</span><span class="ln">	explicitContinuation = <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
-<p>此时内层已经退出、也没有 follow-up，但宿主说要继续。怎么办？<strong>用当前上下文再发一次请求</strong>——注释（<code>:319</code>）管这叫 &quot;one context-only turn&quot;。</p>
-<p>上下文里没有新东西，模型看到的还是上一轮的样子。为什么允许这种&quot;空转&quot;？因为宿主需要它：扩展想在 <code>turn_end</code> 时让 agent 再想想，<code>agent-session.ts:895-899</code> 就是这么用的——扩展返回 <code>continue</code>，agent 就多跑一轮。</p>
-<h3 id="sec-21-6-5-真实宿主怎么用这三个钩子">6.5 真实宿主怎么用这三个钩子</h3>
-<p><code>coding-agent</code> 把四个钩子全挂上了，而且都是&quot;包裹&quot;式安装——先存旧值，再套一层（<code>agent-session.ts:902-912</code>）：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">_installAgentBoundaryHooks</span>(): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">const</span> previousFinishTurn = <span class="tok-kw">this</span>.agent.finishTurn;</span><span class="ln">	<span class="tok-kw">this</span>.agent.finishTurn = <span class="tok-kw">async</span> (turn, signal) =&gt; {</span><span class="ln">		<span class="tok-kw">this</span>._boundaryDispatchedMessages.<span class="tok-fn">add</span>(turn.message);</span><span class="ln">		<span class="tok-kw">const</span> extensionContinue = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_dispatchTurnEndBoundary</span>(</span><span class="ln">			turn.message,</span><span class="ln">			turn.toolResults,</span><span class="ln">		);</span><span class="ln">		<span class="tok-kw">const</span> previousDecision = <span class="tok-kw">await</span> previousFinishTurn?.(turn, signal);</span><span class="ln">		<span class="tok-kw">if</span> (previousDecision?.action === <span class="tok-str">"end"</span>) <span class="tok-kw">return</span> previousDecision;</span><span class="ln">		<span class="tok-kw">if</span> (extensionContinue || previousDecision?.action === <span class="tok-str">"continue"</span>) {</span><span class="ln">			<span class="tok-kw">return</span> { action: <span class="tok-str">"continue"</span> };</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
-<p>这段是&quot;钩子该怎么写&quot;的范本：</p>
-<ol>
-<li><strong>先干自己的事</strong>（分发扩展的 <code>turn_end</code> 边界事件）；</li>
-<li><strong>再调上游</strong>（<code>previousFinishTurn</code>）；</li>
-<li><strong>合并决策</strong>，而且 <code>end</code> 优先——上游说停就停，不让扩展覆盖。</li>
-</ol>
-<p><code>prepareRequest</code> 的用法更重（<code>agent-session.ts:803-860</code>），每次请求前重建整个上下文投影：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">const</span> projection = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">buildSessionProjection</span>();</span><span class="ln"><span class="tok-kw">const</span> canonicalContext = {</span><span class="ln">	...request.context,</span><span class="ln">	messages: projection.messages,</span><span class="ln">	<span class="tok-com">// Messages declare the provider-visible loadout;</span></span><span class="ln">	<span class="tok-com">// context.tools keeps executable implementations.</span></span><span class="ln">	tools: <span class="tok-kw">this</span>.agent.state.tools.<span class="tok-fn">slice</span>(),</span><span class="ln">};</span></code></pre></div>
-<p>那行注释点出了 <code>declareToolChanges</code> 的前提：<strong>messages 声明&quot;模型能看到什么&quot;，context.tools 声明&quot;运行时能执行什么&quot;</strong>，两者分开，差异由 system 消息补上。</p>
-<h3 id="sec-22-6-6-那七个-stopreason-都去哪了">6.6 那七个 stopReason 都去哪了</h3>
-<p><code>StopReason</code>（<code>packages/ai/src/types.ts:489</code>）有 7 个取值：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">type</span> StopReason =</span><span class="ln">	| <span class="tok-str">"pending"</span></span><span class="ln">	| <span class="tok-str">"stop"</span> | <span class="tok-str">"length"</span> | <span class="tok-str">"toolUse"</span></span><span class="ln">	| <span class="tok-str">"error"</span> | <span class="tok-str">"aborted"</span> | <span class="tok-str">"deferred"</span>;</span></code></pre></div>
-<p>循环只认两个。剩下五个各自有归属：</p>
+<p>七个取值各自去哪，一次列清：</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -676,12 +564,171 @@
 </tr>
 </tbody>
 </table></div>
-<p><code>pending</code> 是纯内部值。每个 provider 开流时先造一条 <code>content: []</code>、<code>stopReason: &quot;pending&quot;</code> 的 partial 消息（<code>anthropic-messages.ts:601</code>、<code>openai-completions.ts:333</code> 等 11 处都是这么开的，见 <code>ai/src/api/</code>），<code>done</code> 一到就换成终态。循环永远碰不到它。</p>
-<p><code>toolUse</code> 的存在最有意思：类型里还留着，4 个 provider 也还在发（<code>anthropic-messages.ts:1670</code>、<code>openai-completions.ts:1569</code>、<code>mistral-conversations.ts:917</code>、<code>bedrock-converse-stream.ts:1238</code>），<strong>但循环已经不看它了</strong>。</p>
-<p>这是兼容性残留——<code>coding-agent</code> 的 UI、<code>durable</code> 的日志格式可能还在读这个字段，删掉会破契约，所以类型留着，判断搬到别处。读源码时看到这种&quot;还在产出、但核心逻辑已经不用&quot;的东西，往往就是历史的断面，它比 commit 记录更能说明这一步重构是怎么走的。</p>
-<p><code>deferred</code> 更能说明分层。<code>ai/src/types.ts:382</code> 有个 <code>deferred</code> 请求选项，某些 provider 支持&quot;先接单、稍后取结果&quot;。这时返回的 assistant 消息 <code>stopReason</code> 是 <code>deferred</code>，附带一个句柄。</p>
-<p>循环完全不认识这个概念。它只看到&quot;这条消息没有 <code>toolCall</code>&quot;，于是内层退出、外层问 follow-up、没有就 <code>agent_end</code>。<strong>&quot;稍后取&quot;这件事整个交给宿主在 <code>finishTurn</code> 里处理</strong>，内核一行代码都没加。</p>
-<p>这就是内核对未知特性的默认姿态：不认识就按&quot;这一轮结束了&quot;处理，扩展点留在外面。反过来看，如果内核当初为 <code>deferred</code> 加了个特殊分支，那每来一个新特性都得改核心——这正是旧版把 <code>stopReason</code> 当信号灯的病根。</p>
+<p><code>pending</code> 是纯内部值：provider 开流时先造一条 <code>content: []</code> 的 partial，<code>done</code> 一到就换成终态（<code>anthropic-messages.ts:601</code> 等 11 处），循环碰不到它。</p>
+<p><code>toolUse</code> 更有意思：类型里留着，4 个 provider 也还在发（<code>anthropic-messages.ts:1670</code>、<code>openai-completions.ts:1569</code> 等 4 处），<strong>循环已经不看它了</strong>。这是兼容性残留——UI 和 <code>durable</code> 的日志格式还在读这个字段，删掉会破契约。读源码时看到这种&quot;还在产出、核心却不用&quot;的东西，往往就是历史的断面。</p>
+<p><code>deferred</code> 最能说明分层：<code>ai/src/types.ts:382</code> 有这个请求选项，provider 先接单、稍后给结果，消息的 <code>stopReason</code> 记为 <code>deferred</code> 并附一个句柄。循环完全不认识它，只看到&quot;这条消息没有 <code>toolCall</code>&quot;，于是内层退出、外层问 follow-up、没有就 <code>agent_end</code>——<strong>&quot;稍后取&quot;整个交给宿主在 <code>finishTurn</code> 里处理，内核一行代码都没加</strong>。不认识就按&quot;这一轮结束了&quot;处理，扩展点留在外面；当初若为它加个特殊分支，往后每来一个新特性都得改核心，那正是旧版把 <code>stopReason</code> 当信号灯的病根。</p>
+<p>停只是循环的一半。另一半是&quot;谁能让它再转一圈&quot;——6.2 到 6.4 是三盏灯，6.6 把它们放到同一条时间线上跑一次。</p>
+<h3 id="sec-18-6-2-出路一-steering-跑到一半插话">6.2 出路一：steering —— 跑到一半插话</h3>
+<p>场景：agent 正在读第 12 个文件，你发现方向错了，想让它别读了。</p>
+<p><code>Agent.steer(message)</code>（<code>agent.ts:308</code>）把消息塞进 <code>steeringQueue</code>。队列在 <code>createLoopConfig</code> 里被包成 <code>getSteeringMessages</code>（<code>agent.ts:506-512</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">getSteeringMessages: <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (skipInitialSteeringPoll) {</span><span class="ln">		skipInitialSteeringPoll = <span class="tok-kw">false</span>;</span><span class="ln">		<span class="tok-kw">return</span> [];</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> <span class="tok-kw">this</span>.steeringQueue.<span class="tok-fn">drain</span>();</span><span class="ln">},</span></code></pre></div>
+<p>循环在两个位置拉它：</p>
+<ul>
+<li><code>:185</code>，开跑之前（用户可能在你按回车前就插了话）；</li>
+<li><code>:304</code>，每轮工具执行完、<code>turn_end</code> 之后。</li>
+</ul>
+<p>拉到之后，<code>:220-225</code> 把它们和 <code>preparedMessages</code> 一起注入：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> <span class="tok-fn">declareToolChanges</span>(currentContext, [</span><span class="ln">	...preparedMessages,</span><span class="ln">	...pendingMessages,</span><span class="ln">])) {</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"message_start"</span>, message });</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"message_end"</span>, message });</span><span class="ln">	currentContext.messages.<span class="tok-fn">push</span>(message);</span><span class="ln">	newMessages.<span class="tok-fn">push</span>(message);</span><span class="ln">}</span></code></pre></div>
+<p>注入时又走了一次 <code>declareToolChanges</code>——插话可能带着新工具，工具集差异还得再声明。</p>
+<p>这里藏着一个非常具体的细节（<code>:210-215</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// Preparation can be long-running (for example, compaction). Pick up steering</span></span><span class="ln"><span class="tok-com">// queued while it ran. Only poll again if the earlier poll returned nothing;</span></span><span class="ln"><span class="tok-com">// otherwise one-at-a-time mode would deliver two messages in this turn.</span></span><span class="ln"><span class="tok-kw">if</span> (pendingMessages.length === <span class="tok-num">0</span>) {</span><span class="ln">	pendingMessages = (<span class="tok-kw">await</span> config.getSteeringMessages?.()) || [];</span><span class="ln">}</span></code></pre></div>
+<p>为什么要有这个 <code>if</code>？</p>
+<p>因为 <code>prepareNextTurn</code> 可能很慢——真实宿主就在里面做上下文压缩（<code>packages/coding-agent/src/core/agent-session.ts:920-921</code>）。压缩跑几十秒，这期间用户又插了一句，得补拉一次。</p>
+<p>但如果第一次已经拉到一条了，再拉就会在<strong>同一个 turn 里塞两条</strong>——破坏 <code>one-at-a-time</code> 语义。所以：只在&quot;上一轮一无所获&quot;时才补拉。</p>
+<p><code>one-at-a-time</code> 是默认值（<code>agent.ts:255</code>），由 <code>PendingMessageQueue.peek()</code> 控制（<code>agent.ts:165-169</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-fn">peek</span>(): AgentMessage[] {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.mode === <span class="tok-str">"all"</span>) <span class="tok-kw">return</span> <span class="tok-kw">this</span>.messages.<span class="tok-fn">slice</span>();</span><span class="ln">	<span class="tok-kw">const</span> first = <span class="tok-kw">this</span>.messages[<span class="tok-num">0</span>];</span><span class="ln">	<span class="tok-kw">return</span> first ? [first] : [];</span><span class="ln">}</span></code></pre></div>
+<p>&quot;一次只说一句&quot;——插话是打断，连着塞三条等于让模型同时听三个人指挥。</p>
+<h3 id="sec-19-6-3-出路二-follow-up-等你说完我再说">6.3 出路二：follow-up —— 等你说完我再说</h3>
+<p><code>Agent.followUp(message)</code>（<code>agent.ts:313</code>）塞的是另一个队列。它只在<strong>外层</strong>被拉（<code>:311</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> followUpMessages = (<span class="tok-kw">await</span> config.getFollowUpMessages?.()) || [];</span><span class="ln"><span class="tok-kw">if</span> (followUpMessages.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">	explicitContinuation = <span class="tok-kw">false</span>;</span><span class="ln">	pendingMessages = followUpMessages;</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p>触发条件是&quot;内层已经停了&quot;——没工具调用了、没插话了。也就是说，它<strong>不打断</strong>当前工作，只负责&quot;既然你完事了，这儿还有一件&quot;。</p>
+<p>三条出路的区别：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>steering</th>
+<th>follow-up</th>
+<th><code>finishTurn</code> 返回 <code>continue</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>队列</td>
+<td><code>steeringQueue</code></td>
+<td><code>followUpQueue</code></td>
+<td>无，直接返回值</td>
+</tr>
+<tr>
+<td>拉取位置</td>
+<td><code>:185</code>、<code>:304</code>（内层）</td>
+<td><code>:311</code>（外层）</td>
+<td><code>:295</code> 判、<code>:320</code> 兑现（外层）</td>
+</tr>
+<tr>
+<td>触发时机</td>
+<td>工具执行完，立刻</td>
+<td>整个内层停下后</td>
+<td>内层停了，也没有 follow-up</td>
+</tr>
+<tr>
+<td>效果</td>
+<td>打断当前方向</td>
+<td>排队承接</td>
+<td><strong>不注入任何消息</strong>，空转一轮</td>
+</tr>
+<tr>
+<td>比喻</td>
+<td>&quot;别读了，回头&quot;</td>
+<td>&quot;干完了顺便把这个也做了&quot;</td>
+<td>&quot;你到底还是再想一遍&quot;</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="sec-20-6-4-出路三-finishturn-宿主说了算">6.4 出路三：finishTurn —— 宿主说了算</h3>
+<p><code>:295</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> decision = <span class="tok-kw">await</span> config.finishTurn?.(lastCompletedTurn, signal);</span></code></pre></div>
+<p>返回值三种（<code>types.ts:147</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> AgentTurnDecision = { action: <span class="tok-str">"continue"</span> } | { action: <span class="tok-str">"end"</span> };</span></code></pre></div>
+<ul>
+<li><code>{action:&quot;end&quot;}</code> → 立刻停（<code>:298</code>）；</li>
+<li><code>{action:&quot;continue&quot;}</code> → 请求&quot;再来一轮&quot;；</li>
+<li><code>undefined</code> → 正常调度。</li>
+</ul>
+<p><code>continue</code> 的兑现方式有点绕，在 <code>:320-323</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (explicitContinuation) {</span><span class="ln">	explicitContinuation = <span class="tok-kw">false</span>;</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p>此时内层已经退出、也没有 follow-up，但宿主说要继续。怎么办？<strong>用当前上下文再发一次请求</strong>——注释（<code>:319</code>）管这叫 &quot;one context-only turn&quot;。</p>
+<p>上下文里没有新东西，模型看到的还是上一轮的样子。为什么允许这种&quot;空转&quot;？因为宿主需要它：扩展想在 <code>turn_end</code> 时让 agent 再想想，<code>agent-session.ts:895-899</code> 就是这么用的——扩展返回 <code>continue</code>，agent 就多跑一轮。</p>
+<h3 id="sec-21-6-5-真实宿主怎么用这三个钩子">6.5 真实宿主怎么用这三个钩子</h3>
+<p><code>coding-agent</code> 把四个钩子全挂上了，而且都是&quot;包裹&quot;式安装——先存旧值，再套一层（<code>agent-session.ts:902-912</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">_installAgentBoundaryHooks</span>(): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">const</span> previousFinishTurn = <span class="tok-kw">this</span>.agent.finishTurn;</span><span class="ln">	<span class="tok-kw">this</span>.agent.finishTurn = <span class="tok-kw">async</span> (turn, signal) =&gt; {</span><span class="ln">		<span class="tok-kw">this</span>._boundaryDispatchedMessages.<span class="tok-fn">add</span>(turn.message);</span><span class="ln">		<span class="tok-kw">const</span> extensionContinue = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_dispatchTurnEndBoundary</span>(</span><span class="ln">			turn.message,</span><span class="ln">			turn.toolResults,</span><span class="ln">		);</span><span class="ln">		<span class="tok-kw">const</span> previousDecision = <span class="tok-kw">await</span> previousFinishTurn?.(turn, signal);</span><span class="ln">		<span class="tok-kw">if</span> (previousDecision?.action === <span class="tok-str">"end"</span>) <span class="tok-kw">return</span> previousDecision;</span><span class="ln">		<span class="tok-kw">if</span> (extensionContinue || previousDecision?.action === <span class="tok-str">"continue"</span>) {</span><span class="ln">			<span class="tok-kw">return</span> { action: <span class="tok-str">"continue"</span> };</span><span class="ln">		}</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">	};</span><span class="ln">}</span></code></pre></div>
+<p>这段是&quot;钩子该怎么写&quot;的范本：</p>
+<ol>
+<li><strong>先干自己的事</strong>（分发扩展的 <code>turn_end</code> 边界事件）；</li>
+<li><strong>再调上游</strong>（<code>previousFinishTurn</code>）；</li>
+<li><strong>合并决策</strong>，而且 <code>end</code> 优先——上游说停就停，不让扩展覆盖。</li>
+</ol>
+<p><code>prepareRequest</code> 的用法更重（<code>agent-session.ts:803-860</code>），每次请求前重建整个上下文投影：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> projection = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">buildSessionProjection</span>();</span><span class="ln"><span class="tok-kw">const</span> canonicalContext = {</span><span class="ln">	...request.context,</span><span class="ln">	messages: projection.messages,</span><span class="ln">	<span class="tok-com">// Messages declare the provider-visible loadout;</span></span><span class="ln">	<span class="tok-com">// context.tools keeps executable implementations.</span></span><span class="ln">	tools: <span class="tok-kw">this</span>.agent.state.tools.<span class="tok-fn">slice</span>(),</span><span class="ln">};</span></code></pre></div>
+<p>那行注释是&quot;变更即追加&quot;的前提，7.3 会正式拆开讲。（本节讲的是三盏灯；<code>prepareRequest</code>、<code>getApiKey</code> 属于另一组&quot;请求前钩子&quot;，见 7.2。）</p>
+<h3 id="sec-22-6-6-一次-run-把三条出路都走一遍">6.6 一次 run 把三条出路都走一遍</h3>
+<p>上面三节是分开讲的：三个开关，三张脸。合到一条时间线上，才看得清它们怎么互相让路。</p>
+<p>场景：<code>pi.prompt(&quot;找出所有 TODO&quot;)</code>。中途用户插一句&quot;别读 tests&quot;，过一会儿又说&quot;顺便统计行数&quot;，扩展在某一轮结束时要求再想一遍。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>轮</th>
+<th>模型这轮给了什么</th>
+<th>内层这两个数</th>
+<th>谁让它继续</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>文本 + 2 个 <code>read</code></td>
+<td><code>hasMoreToolCalls=true</code>；<code>:304</code> 拉到 1 条 steering</td>
+<td>内层 <code>:192</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>插话已注入（<code>:220-225</code>），纯文本无工具</td>
+<td><code>false</code>；<code>:304</code> 空</td>
+<td>内层退出 → <code>:311</code> 拉到 follow-up → <code>continue</code>（<code>:316</code>）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>注入了 follow-up，1 个 <code>bash</code></td>
+<td><code>true</code>；<code>:304</code> 空</td>
+<td>内层 <code>:192</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>纯文本无工具</td>
+<td><code>false</code>；<code>:304</code> 空</td>
+<td>内层退出 → <code>:295</code> 给 <code>{continue}</code>（<code>:303</code> 立记号）→ <code>:311</code> 空 → <code>:320</code> 兑现</td>
+</tr>
+<tr>
+<td>5</td>
+<td>纯文本，上下文一个字没变</td>
+<td><code>false</code>；<code>:304</code> 空</td>
+<td><code>:326</code> break → <code>:329</code> <code>agent_end</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>第 1 轮那条插话是搭顺风车的：它没让内层多转一圈，只是赶上了工具调用本来就要求的下一轮，到 <code>:220-225</code> 才真正注入。所以 steering 的效果取决于<strong>它在哪个 turn 边界被拉到</strong>，不取决于你什么时候按的回车——实验 2 会撞上这件事。</p>
+<p>第 5 轮是整次 run 里唯一&quot;什么新东西都没有还发请求&quot;的一轮，注释（<code>:319</code>）管它叫 <code>one context-only turn</code>。它能发生只靠两行：<code>:321</code> 清掉记号后 <code>continue</code>，以及 <code>:189</code> 把 <code>hasMoreToolCalls</code> 重置成 <code>true</code>——否则 <code>:192</code> 的条件为假，循环直接掉到 <code>:326</code>。<strong>内层循环唯一的&quot;重置点&quot;在 <code>:189</code>，而它躺在 <code>while (true)</code> 里面。</strong></p>
+<p>三盏灯不是并列选项，是三个先后判断：自然推进 / steering（<code>:305</code> 清记号）&gt; follow-up（<code>:314</code> 清记号）&gt; 宿主续命（<code>:320</code> 兑现）。前一个成立，后面的根本没机会执行——表里第 1、2、4 轮各演了一条。</p>
 <hr>
 <h2 id="sec-23-七-一次请求之前">七、一次请求之前</h2>
 <h3 id="sec-24-7-1-三级流水线">7.1 三级流水线</h3>
@@ -1140,6 +1187,11 @@
 <hr>
 <h2 id="sec-44-十二-自己动手验证">十二、自己动手验证</h2>
 <p>六个实验，从易到难。</p>
+<p>先备好一件事：<strong>没有 API key 也能跑完这六个实验。</strong> 实验 1、2、5 都要真的发请求，不想花额度（或者手上没 key），就把 <code>streamFn</code> 换成固定假回复——二十行以内：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> streamFn = () =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> s = <span class="tok-fn">createAssistantMessageEventStream</span>();</span><span class="ln">	<span class="tok-fn">queueMicrotask</span>(() =&gt; s.<span class="tok-fn">push</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, reason: <span class="tok-str">"stop"</span>, message }));</span><span class="ln">	<span class="tok-kw">return</span> s;</span><span class="ln">};</span></code></pre></div>
+<p><code>message</code> 是那条 <code>stopReason: &quot;stop&quot;</code> 的 <code>AssistantMessage</code>，形状照 <code>agent-loop.test.ts:48-62</code> 抄；跑法用 M01 §7.2 那条 <code>--import</code> 命令。后面每个实验都能用它跑——需要什么 <code>stopReason</code>，就在 <code>message</code> 上写什么。</p>
 <p><strong>实验 1：数清事件。</strong></p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1160,6 +1212,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> agent = <span class="tok-kw">new</span> <span class="tok-fn">Agent</span>({</span><span class="ln">	streamFn: (model, context, options) =&gt;</span><span class="ln">		models.<span class="tok-fn">streamSimple</span>(model, context, { ...options, maxTokens: <span class="tok-num">30</span> }),</span><span class="ln">	initialState: { model },</span><span class="ln">});</span></code></pre></div>
 <p>看事件日志：你应该看到 <code>tool_execution_start</code> 后面紧跟着 <code>tool_execution_end</code>，<code>isError: true</code>，中间没有实际执行时间——这就是 <code>failToolCallsFromTruncatedMessage</code>。</p>
+<p>没 key 也一样造：在假 <code>streamFn</code> 里让 <code>message</code> 带一个 <code>toolCall</code> 块、<code>stopReason</code> 写 <code>&quot;length&quot;</code>（<code>done.reason</code> 同步写 <code>&quot;length&quot;</code>），<code>:277</code> 就整批判失败——截不截断只看那个字段，不看是谁吐的。</p>
 <p>然后对比另一种失败：把 <code>apiKey</code> 故意填错，重跑一次。这次 <code>stopReason</code> 是 <code>error</code>，走 <code>:254</code> 直接 <code>agent_end</code>，一个工具都不会尝试。</p>
 <p><strong>同样是&quot;模型这轮不正常&quot;，一个继续、一个终止，区别就在&quot;模型还有没有机会补救&quot;。</strong></p>
 <p><strong>实验 5：让钩子炸掉。</strong></p>
@@ -1195,12 +1248,6 @@
 状态不对」，这种错最难查。</li>
 <li><strong>回滚</strong>　把那行的 <code>// </code> 去掉。</li>
 </ul>
-<p>没有 API key 怎么跑：把 <code>streamFn</code> 换成固定假回复即可，二十行以内。</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">const</span> streamFn = () =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> s = <span class="tok-fn">createAssistantMessageEventStream</span>();</span><span class="ln">	<span class="tok-fn">queueMicrotask</span>(() =&gt; s.<span class="tok-fn">push</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, reason: <span class="tok-str">"stop"</span>, message }));</span><span class="ln">	<span class="tok-kw">return</span> s;</span><span class="ln">};</span></code></pre></div>
-<p><code>message</code> 是那条 <code>stopReason: &quot;stop&quot;</code> 的 <code>AssistantMessage</code>，形状照
-<code>agent-loop.test.ts:48-62</code> 抄。跑法用 M01 §7.2 那条 <code>--import</code> 命令。</p>
 <hr>
 <h2 id="sec-45-十三-工程暗坑">十三、工程暗坑</h2>
 <p><strong>1. <code>runAgentLoopContinue</code> 会污染你传进去的数组。</strong></p>
@@ -1223,7 +1270,7 @@
 <p>如果你在监听器里存了 <code>event.message</code> 的引用并指望它&quot;持续更新&quot;——不会，每次都是新对象。反过来，如果你存了 <code>context.messages</code> 的引用，会看到它&quot;悄悄变了&quot;。</p>
 <p><strong>3. <code>agentLoop</code> 的 streamFn 类型必填，运行时却有兜底。</strong></p>
 <p>签名要求传（<code>:52</code>），内部却是 <code>streamFn ?? getDefaultStreamFn()</code>（<code>:133</code>）。传 <code>undefined</code> 也能跑，前提是 <code>setDefaultStreamFn</code> 被调过（<code>stream-fn.ts:11-13</code>），否则抛 <code>No default stream function configured</code>（<code>stream-fn.ts:17</code>）。</p>
-<p>这个兜底存在的理由是：<code>Agent</code> 允许不传 <code>streamFn</code>（<code>agent.ts:244</code>），而它内部要调 <code>runAgentLoop</code>。</p>
+<p>这个兜底存在的理由是：<code>Agent</code> 允许不传 <code>streamFn</code>（<code>agent.ts:244</code>），而它内部要调 <code>runAgentLoop</code>。M02 §8.1 的另一半——&quot;调用由注入决定&quot;——在这里就是这行 <code>??</code>：类型要求必填，运行期允许宿主从外面塞。</p>
 <p><strong>4. <code>one-at-a-time</code> 意味着插话会排队，可能等好几轮。</strong></p>
 <p>默认 <code>steeringMode</code> 是 <code>&quot;one-at-a-time&quot;</code>（<code>agent.ts:255</code>）。连插三句，第一句在下一个 drain 点生效，第二、三句要再等。想一次性全塞，设 <code>steeringMode = &quot;all&quot;</code>。</p>
 <p><strong>5. 串行降级是整批的，不是单个的。</strong></p>
@@ -1344,7 +1391,7 @@
       <a class="next" href="m04-model-call.html"><span class="lbl">下一篇</span>模型调用 —— 一行代码背后的十层翻译</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-引子-同一个模型-三种用法" class="">一、引子：同一个模型，三种用法</a><a href="#sec-2-二-先把词对齐" class="">二、先把词对齐</a><a href="#sec-3-三-全景-一次-prompt-的完整旅程" class="">三、全景：一次 prompt 的完整旅程</a><a href="#sec-4-四-五个函数-撑起一个循环" class="">四、五个函数，撑起一个循环</a><a href="#sec-5-4-1-为什么-agentloop-不是-async" class="lv3">4.1 为什么 agentLoop 不是 async</a><a href="#sec-6-4-2-agent_end-一身二职" class="lv3">4.2 agent_end 一身二职</a><a href="#sec-7-4-3-continue-的两道前置校验" class="lv3">4.3 continue 的两道前置校验</a><a href="#sec-8-4-4-文件头那-13-个符号-划出了内核的势力范围" class="lv3">4.4 文件头那 13 个符号，划出了内核的势力范围</a><a href="#sec-9-五-两层循环" class="">五、两层循环</a><a href="#sec-10-5-1-骨架" class="lv3">5.1 骨架</a><a href="#sec-11-5-2-内层在转什么" class="lv3">5.2 内层在转什么</a><a href="#sec-12-5-3-外层在补什么" class="lv3">5.3 外层在补什么</a><a href="#sec-13-5-4-三条退出路径" class="lv3">5.4 三条退出路径</a><a href="#sec-14-5-5-turn_start-为什么有两个发出点" class="lv3">5.5 turn_start 为什么有两个发出点</a><a href="#sec-15-5-6-runloop-里的五个可变状态" class="lv3">5.6 runLoop 里的五个可变状态</a><a href="#sec-16-六-旧版的那盏信号灯-新版拆成了三盏" class="">六、旧版的那盏信号灯，新版拆成了三盏</a><a href="#sec-17-6-1-stopreason-退居二线" class="lv3">6.1 stopReason 退居二线</a><a href="#sec-18-6-2-出路一-steering-跑到一半插话" class="lv3">6.2 出路一：steering —— 跑到一半插话</a><a href="#sec-19-6-3-出路二-follow-up-等你说完我再说" class="lv3">6.3 出路二：follow-up —— 等你说完我再说</a><a href="#sec-20-6-4-出路三-finishturn-宿主说了算" class="lv3">6.4 出路三：finishTurn —— 宿主说了算</a><a href="#sec-21-6-5-真实宿主怎么用这三个钩子" class="lv3">6.5 真实宿主怎么用这三个钩子</a><a href="#sec-22-6-6-那七个-stopreason-都去哪了" class="lv3">6.6 那七个 stopReason 都去哪了</a><a href="#sec-23-七-一次请求之前" class="">七、一次请求之前</a><a href="#sec-24-7-1-三级流水线" class="lv3">7.1 三级流水线</a><a href="#sec-25-7-2-三个-quot-请求前-quot-钩子-别搞混" class="lv3">7.2 三个&amp;quot;请求前&amp;quot;钩子，别搞混</a><a href="#sec-26-7-3-贯穿全章的一条哲学-变更即追加" class="lv3">7.3 贯穿全章的一条哲学：变更即追加</a><a href="#sec-27-7-4-两个钩子的返回值-形状故意不一样" class="lv3">7.4 两个钩子的返回值，形状故意不一样</a><a href="#sec-28-八-流式响应如何落进-transcript" class="">八、流式响应如何落进 transcript</a><a href="#sec-29-8-1-provider-吐-12-种事件-这里只写了-4-个分支" class="lv3">8.1 provider 吐 12 种事件，这里只写了 4 个分支</a><a href="#sec-30-九-工具执行" class="">九、工具执行</a><a href="#sec-31-9-1-分派-一个坏苹果拖垮整批" class="lv3">9.1 分派：一个坏苹果拖垮整批</a><a href="#sec-32-9-2-并行执行-顺序记账" class="lv3">9.2 并行执行，顺序记账</a><a href="#sec-33-9-3-terminate-全体一致才能停" class="lv3">9.3 terminate：全体一致才能停</a><a href="#sec-34-9-4-一次工具调用的四道关" class="lv3">9.4 一次工具调用的四道关</a><a href="#sec-35-9-5-截断保护" class="lv3">9.5 截断保护</a><a href="#sec-36-9-6-并行版的类型把戏-一个数组装两种东西" class="lv3">9.6 并行版的类型把戏：一个数组装两种东西</a><a href="#sec-37-9-7-执行期的三个守卫" class="lv3">9.7 执行期的三个守卫</a><a href="#sec-38-十-失败也是消息" class="">十、失败也是消息</a><a href="#sec-39-十一-agent-有状态的那层" class="">十一、Agent：有状态的那层</a><a href="#sec-40-11-1-systemprompt-是算出来的" class="lv3">11.1 systemPrompt 是算出来的</a><a href="#sec-41-11-2-单飞" class="lv3">11.2 单飞</a><a href="#sec-42-11-3-reducer" class="lv3">11.3 reducer</a><a href="#sec-43-11-4-agent_end-不等于-idle" class="lv3">11.4 agent_end 不等于 idle</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-46-十四-三个可以带走的方法" class="">十四、三个可以带走的方法</a><a href="#sec-47-读完自检" class="">读完自检</a><a href="#sec-48-下一步" class="">下一步</a><a href="#sec-49-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-引子-同一个模型-三种用法" class="">一、引子：同一个模型，三种用法</a><a href="#sec-2-二-先把词对齐" class="">二、先把词对齐</a><a href="#sec-3-三-全景-一次-prompt-的完整旅程" class="">三、全景：一次 prompt 的完整旅程</a><a href="#sec-4-四-五个函数-撑起一个循环" class="">四、五个函数，撑起一个循环</a><a href="#sec-5-4-1-为什么-agentloop-不是-async" class="lv3">4.1 为什么 agentLoop 不是 async</a><a href="#sec-6-4-2-agent_end-一身二职" class="lv3">4.2 agent_end 一身二职</a><a href="#sec-7-4-3-continue-的两道前置校验" class="lv3">4.3 continue 的两道前置校验</a><a href="#sec-8-4-4-文件头那-13-个符号-划出了内核的势力范围" class="lv3">4.4 文件头那 13 个符号，划出了内核的势力范围</a><a href="#sec-9-五-两层循环" class="">五、两层循环</a><a href="#sec-10-5-1-骨架" class="lv3">5.1 骨架</a><a href="#sec-11-5-2-内层在转什么" class="lv3">5.2 内层在转什么</a><a href="#sec-12-5-3-外层在补什么" class="lv3">5.3 外层在补什么</a><a href="#sec-13-5-4-三条退出路径" class="lv3">5.4 三条退出路径</a><a href="#sec-14-5-5-turn_start-为什么有两个发出点" class="lv3">5.5 turn_start 为什么有两个发出点</a><a href="#sec-15-5-6-runloop-里的五个可变状态" class="lv3">5.6 runLoop 里的五个可变状态</a><a href="#sec-16-六-旧版的那盏信号灯-新版拆成了三盏" class="">六、旧版的那盏信号灯，新版拆成了三盏</a><a href="#sec-17-6-1-stopreason-退居二线" class="lv3">6.1 stopReason 退居二线</a><a href="#sec-18-6-2-出路一-steering-跑到一半插话" class="lv3">6.2 出路一：steering —— 跑到一半插话</a><a href="#sec-19-6-3-出路二-follow-up-等你说完我再说" class="lv3">6.3 出路二：follow-up —— 等你说完我再说</a><a href="#sec-20-6-4-出路三-finishturn-宿主说了算" class="lv3">6.4 出路三：finishTurn —— 宿主说了算</a><a href="#sec-21-6-5-真实宿主怎么用这三个钩子" class="lv3">6.5 真实宿主怎么用这三个钩子</a><a href="#sec-22-6-6-一次-run-把三条出路都走一遍" class="lv3">6.6 一次 run 把三条出路都走一遍</a><a href="#sec-23-七-一次请求之前" class="">七、一次请求之前</a><a href="#sec-24-7-1-三级流水线" class="lv3">7.1 三级流水线</a><a href="#sec-25-7-2-三个-quot-请求前-quot-钩子-别搞混" class="lv3">7.2 三个&amp;quot;请求前&amp;quot;钩子，别搞混</a><a href="#sec-26-7-3-贯穿全章的一条哲学-变更即追加" class="lv3">7.3 贯穿全章的一条哲学：变更即追加</a><a href="#sec-27-7-4-两个钩子的返回值-形状故意不一样" class="lv3">7.4 两个钩子的返回值，形状故意不一样</a><a href="#sec-28-八-流式响应如何落进-transcript" class="">八、流式响应如何落进 transcript</a><a href="#sec-29-8-1-provider-吐-12-种事件-这里只写了-4-个分支" class="lv3">8.1 provider 吐 12 种事件，这里只写了 4 个分支</a><a href="#sec-30-九-工具执行" class="">九、工具执行</a><a href="#sec-31-9-1-分派-一个坏苹果拖垮整批" class="lv3">9.1 分派：一个坏苹果拖垮整批</a><a href="#sec-32-9-2-并行执行-顺序记账" class="lv3">9.2 并行执行，顺序记账</a><a href="#sec-33-9-3-terminate-全体一致才能停" class="lv3">9.3 terminate：全体一致才能停</a><a href="#sec-34-9-4-一次工具调用的四道关" class="lv3">9.4 一次工具调用的四道关</a><a href="#sec-35-9-5-截断保护" class="lv3">9.5 截断保护</a><a href="#sec-36-9-6-并行版的类型把戏-一个数组装两种东西" class="lv3">9.6 并行版的类型把戏：一个数组装两种东西</a><a href="#sec-37-9-7-执行期的三个守卫" class="lv3">9.7 执行期的三个守卫</a><a href="#sec-38-十-失败也是消息" class="">十、失败也是消息</a><a href="#sec-39-十一-agent-有状态的那层" class="">十一、Agent：有状态的那层</a><a href="#sec-40-11-1-systemprompt-是算出来的" class="lv3">11.1 systemPrompt 是算出来的</a><a href="#sec-41-11-2-单飞" class="lv3">11.2 单飞</a><a href="#sec-42-11-3-reducer" class="lv3">11.3 reducer</a><a href="#sec-43-11-4-agent_end-不等于-idle" class="lv3">11.4 agent_end 不等于 idle</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-46-十四-三个可以带走的方法" class="">十四、三个可以带走的方法</a><a href="#sec-47-读完自检" class="">读完自检</a><a href="#sec-48-下一步" class="">下一步</a><a href="#sec-49-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

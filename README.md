@@ -4,7 +4,7 @@
 
 **对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent**
 
-<sub>19 篇 · 140,200 字 · 7,163 行源码引用 · 约 12 小时读完</sub>
+<sub>19 篇 · 140,900 字 · 7,159 行源码引用 · 约 12 小时读完</sub>
 
 <br>
 
@@ -84,7 +84,7 @@
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M03 | [Agent Loop —— 两层循环，三条出路](https://daniel-csvw.github.io/pi-agent-book/modules/m03-agent-loop.html) | 10,100 字 · 589 行 |
+| M03 | [Agent Loop —— 两层循环，三条出路](https://daniel-csvw.github.io/pi-agent-book/modules/m03-agent-loop.html) | 10,800 字 · 585 行 |
 | M04 | [模型调用 —— 一行代码背后的十层翻译](https://daniel-csvw.github.io/pi-agent-book/modules/m04-model-call.html) | 8,300 字 · 464 行 |
 | M05 | [工具系统 —— 八个工具，一道文件锁](https://daniel-csvw.github.io/pi-agent-book/modules/m05-tools.html) | 6,200 字 · 218 行 |
 | M06 | [消息系统 —— 四种给模型看，八种给系统记](https://daniel-csvw.github.io/pi-agent-book/modules/m06-messages.html) | 6,200 字 · 166 行 |
