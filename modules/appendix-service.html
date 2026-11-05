@@ -121,7 +121,7 @@ settings 里的默认值、各 provider 的默认模型。都找不到时把原�
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-kw">this</span>.model) {</span><span class="ln">	<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-fn">formatNoModelSelectedMessage</span>());</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> hasConfiguredAuth =</span><span class="ln">	<span class="tok-kw">this</span>._modelRuntime.<span class="tok-fn">hasConfiguredAuth</span>(<span class="tok-kw">this</span>.model.provider) ||</span><span class="ln">	(<span class="tok-kw">await</span> <span class="tok-kw">this</span>._modelRuntime.<span class="tok-fn">checkAuth</span>(<span class="tok-kw">this</span>.model.provider))</span><span class="ln">		!== <span class="tok-kw">undefined</span>;</span></code></pre></div>
 <p>凭据默认从 <code>~/.pi/agent/auth.json</code> 读（<code>sdk.ts:196-198</code> 用 <code>agentDir</code> 拼出来）。
-这和 M01 §7.2 那条快速路用的是同一份。</p>
+这和 M01 §8.2 那条快速路用的是同一份。</p>
 <p>本机实测（<code>createAgentSession()</code> 零参数，只打两个字段）：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -130,7 +130,7 @@ settings 里的默认值、各 provider 的默认模型。都找不到时把原�
 <p><strong>未实跑</strong>：把 <code>auth.json</code> 挪走会怎样。按 <code>:2174-2191</code> 读，
 <code>model</code> 会是 <code>undefined</code>，<code>prompt()</code> 抛 <code>No model selected</code>；
 若模型在但 key 没了，抛 <code>No API key found for provider …</code>（<code>:2190</code>）。</p>
-<p>所以这一页的所有示例，先决条件都是<strong>你已经跑通 M01 §7.2</strong>。</p>
+<p>所以这一页的所有示例，先决条件都是<strong>你已经跑通 M01 §8.2</strong>。</p>
 <hr>
 <h2 id="sec-3-三-十行嵌入">三、十行嵌入</h2>
 <p>最短能跑的形状：</p>

@@ -1264,7 +1264,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> streamFn = () =&gt; {</span><span class="ln">	<span class="tok-kw">const</span> s = <span class="tok-fn">createAssistantMessageEventStream</span>();</span><span class="ln">	<span class="tok-fn">queueMicrotask</span>(() =&gt; s.<span class="tok-fn">push</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, reason: <span class="tok-str">"stop"</span>, message }));</span><span class="ln">	<span class="tok-kw">return</span> s;</span><span class="ln">};</span></code></pre></div>
-<p><code>message</code> 是那条 <code>stopReason: &quot;stop&quot;</code> 的 <code>AssistantMessage</code>，形状照 <code>agent-loop.test.ts:48-62</code> 抄；跑法用 M01 §7.2 那条 <code>--import</code> 命令。后面每个实验都能用它跑——需要什么 <code>stopReason</code>，就在 <code>message</code> 上写什么。</p>
+<p><code>message</code> 是那条 <code>stopReason: &quot;stop&quot;</code> 的 <code>AssistantMessage</code>，形状照 <code>agent-loop.test.ts:48-62</code> 抄；跑法用 M01 §8.2 那条 <code>--import</code> 命令。后面每个实验都能用它跑——需要什么 <code>stopReason</code>，就在 <code>message</code> 上写什么。</p>
 <p><strong>实验 1：数清事件。</strong></p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
