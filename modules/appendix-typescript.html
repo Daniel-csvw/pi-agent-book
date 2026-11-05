@@ -77,7 +77,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// packages/ai/src/types.ts:489</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> StopReason =</span><span class="ln">	| <span class="tok-str">"pending"</span> | <span class="tok-str">"stop"</span> | <span class="tok-str">"length"</span> | <span class="tok-str">"toolUse"</span></span><span class="ln">	| <span class="tok-str">"error"</span> | <span class="tok-str">"aborted"</span> | <span class="tok-str">"deferred"</span>;</span></code></pre></div>
-<p>七个字符串之一。M03 §六整节都在讲这七个值分别什么时候出现。</p>
+<p>七个字符串之一。七值归属表在 M03 §6.1；三个&quot;还在产出、已经没人读&quot;的取值在 M03 §6.7。</p>
 <p>Python 是 <code>Literal</code>：</p>
 <div class="code-block" data-lang="python">
 <div class="code-head"><span class="lang">python</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>

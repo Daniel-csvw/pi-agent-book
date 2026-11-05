@@ -359,7 +359,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">/** Ask a capable provider to return a durable handle and</span></span><span class="ln"><span class="tok-com"> *  continue the request asynchronously. */</span></span><span class="ln">deferred?: <span class="tok-kw">boolean</span> | { window?: <span class="tok-str">"15m"</span> | <span class="tok-str">"1h"</span> | <span class="tok-str">"24h"</span> };</span></code></pre></div>
-<p><code>deferred</code> 不在 12 种事件里另开一个类型，它只是 <code>done</code> 的一个 reason 值。这个选择很省：Agent 循环不需要认识&quot;延迟&quot;这个概念，它只会看到&quot;这轮结束，但没调用工具&quot;，于是正常收尾。M03 第六节说的&quot;<code>deferred</code> 内核完全不认识，自然收尾&quot;就是这个意思。</p>
+<p><code>deferred</code> 不在 12 种事件里另开一个类型，它只是 <code>done</code> 的一个 reason 值。这个选择很省：Agent 循环不需要认识&quot;延迟&quot;这个概念，它只会看到&quot;这轮结束，但没调用工具&quot;，于是正常收尾。M03 §6.7 讲的就是这件事的内核那一侧：循环不认识 <code>deferred</code>，只看到&quot;这条消息没有 <code>toolCall</code>&quot;，于是照常收尾。</p>
 <p><strong>一个能力可以只用一个枚举值换进来。</strong> 这是加扩展时最便宜的位置——不动协议，不动消费方。</p>
 <h3 id="sec-10-3-2-partial-不是快照">3.2 <code>partial</code> 不是快照</h3>
 <p><code>types.ts</code> 在事件定义上方写了 16 行注释，其中最要命的一句：</p>

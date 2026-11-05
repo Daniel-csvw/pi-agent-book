@@ -277,7 +277,7 @@
 <pre><code><span class="ln"><span class="tok-com">// agent-loop.ts 内层循环的续命条件</span></span><span class="ln"><span class="tok-kw">const</span> toolCalls = message.content.<span class="tok-fn">filter</span>((c) =&gt; c.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span></code></pre></div>
 <p><code>stopReason</code> 的七个取值里，循环只关心三个：<code>error</code> / <code>aborted</code>（硬退出）、<code>length</code>（整批工具失败）。<code>toolUse</code> 仍然被四个 provider 发出来，但<strong>循环不看它</strong>——纯兼容性残留。</p>
 <p>为什么改？因为&quot;信号灯由谁点亮&quot;不可靠。七家 provider 对&quot;这轮有没有工具调用&quot;的表达不一致，有的在 <code>stopReason</code> 里说，有的只在 <code>content</code> 里放。数 <code>content</code> 是唯一不需要 trust 任何 provider 的做法。</p>
-<p>M03 第六节有完整的七值归属表。</p>
+<p>M03 §6.1 有完整的七值归属表。</p>
 <h3 id="sec-11-4-5-quot-工具集在请求前算出来就固定了-quot">4.5 &quot;工具集在请求前算出来就固定了&quot;</h3>
 <p>作废。工具集现在是<strong>从 transcript 动态算出来的</strong>：</p>
 <div class="code-block" data-lang="ts">
