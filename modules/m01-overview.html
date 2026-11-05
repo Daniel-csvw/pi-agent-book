@@ -928,8 +928,39 @@ plain closures</p>
 <p>README 承认的四件不做的事（sub-agent、plan mode、权限系统、orchestrator），拼起来正好是内核的边界。<strong>框架的能力上限由它做什么决定，它的可维护性由它不做什么决定。</strong></p>
 <p>Pi 全部四个&quot;不做&quot;，都指向同一个动作：把策略推到钩子外面。</p>
 <hr>
-<h2 id="sec-21-十三-本书的引用口径">十三、本书的引用口径</h2>
-<p>上一节提到了行号会漂。这一节把&quot;怎么保证不漂&quot;说清楚，因为它直接决定了你能不能用书里的坐标去源码里跳。</p>
+<h2 id="sec-21-十三-回到标题那句问话">十三、回到标题那句问话</h2>
+<p>开篇立的靶子是：README 说 Pi 是 minimal 的，不用信，看行数。行数看完了，
+该把那句话还上。</p>
+<p><strong>时间花在哪。</strong> 960 行的循环 + 2,587 行的完整内核包 + 4,206 行测试，
+三样加起来不到 8,000 行，却是一个<strong>能读完、改得动、改错了测试会告你</strong>的
+agent 实现。市面上多数 agent 框架，光是&quot;读完&quot;这一条就不成立——不是它写得差，
+是内核和策略搅在一起，没人能在一个下午之内看清边界。</p>
+<p><strong>换回什么。</strong> 三样，而且都不只适用于 Pi：</p>
+<ol>
+<li><strong>一条分层样板</strong>：机制进内核，策略推到钩子外面。这是 §二 那张&quot;不做&quot;表
+的全部意义，下一章把它画成三层架构图。</li>
+<li><strong>三个判读方法</strong>（§十二）：体量分布定权重、build 顺序反推隐式依赖、把
+&quot;不做&quot;当设计文档。换一个陌生仓库照样能用。</li>
+<li><strong>一个起点</strong>：§六 那 20 行是你自己 harness 的最小形态，§二 的出口表告诉你
+它能往哪长。读完之后，&quot;用别人的 agent&quot;和&quot;知道 agent 怎么回事&quot;是两件事，
+你不用再选一件。</li>
+</ol>
+<p><strong>什么人不用花时间。</strong> 三种情况直说：</p>
+<ul>
+<li>只想装个 CLI 就能用 → 装就是了，别读源码。Pi 不带权限系统、不带 sub-agent，
+&quot;开箱即用&quot;这件事上它不如别家（§二）。</li>
+<li>不会 TypeScript 又不想学 → 先花十二分钟读附录 B（9.2 说过），否则 M03 第一段
+代码就卡住。</li>
+<li>想学提示词工程 → 本书不是那类书。M08 讲的是 Pi 自己那八节提示词怎么装配、
+从哪条目录链读来，不教你怎么写 prompt。</li>
+</ul>
+<p>所以&quot;minimal&quot;算成立，但成立的只有第一个含义：<strong>不是整个项目小，是核心小</strong>
+（§一）。22 万行外围一行没少，只是它们全在可替换的那一侧。值得花时间的理由也
+在这儿——你不需要读完 22 万行，而你需要读完的那一小块，正好是最难自己想清楚的
+那一块。</p>
+<hr>
+<h2 id="sec-22-十四-本书的引用口径">十四、本书的引用口径</h2>
+<p>§十一 的坑 6 提到了行号会漂。这一节把&quot;怎么保证不漂&quot;说清楚，因为它直接决定了你能不能用书里的坐标去源码里跳。</p>
 <p><strong>一，版本锁定。</strong> 全书基于 v1.4.0 这个发布版，不是你打开 GitHub 那一刻的 <code>main</code>。验证方式一行：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -940,7 +971,7 @@ plain closures</p>
 <p><strong>四，机器校验。</strong> 每次发布前，全书的 <code>文件:行号</code> 都被脚本扫一遍，报三类问题：文件不存在、行号越界、命中废弃路径（比如 <code>packages/agent/src/harness/</code>）。<strong>第三类最重要</strong>——它专治&quot;文件还在但东西搬走了&quot;。</p>
 <p>现在你已经有了地图、有了坐标、有了验证手段。</p>
 <hr>
-<h2 id="sec-22-读完自检">读完自检</h2>
+<h2 id="sec-23-读完自检">读完自检</h2>
 <p>三条，能不能不看稿说出来？说不出来的那条，回右边一格重读。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -951,6 +982,11 @@ plain closures</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>Pi 凭什么值得你花时间？</td>
+<td>内核读得完、策略全外置、方法带得走；只想用 CLI 的人不用读</td>
+<td>§十三</td>
+</tr>
 <tr>
 <td>22 万行里，真正的 agent 逻辑占多少？</td>
 <td><strong>1.1%</strong>。其余 78% 在处理&quot;和模型无关的事&quot;</td>
@@ -968,11 +1004,11 @@ plain closures</p>
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-23-下一步">下一步</h2>
+<h2 id="sec-24-下一步">下一步</h2>
 <p>十二个包的体量和依赖都清楚了，但还不知道它们怎么分层——<code>ai</code> 和 <code>agent</code> 的边界画在哪？<code>coding-agent</code> 为什么不依赖 <code>durable</code>？<code>chord</code> 凭什么被 <code>durable</code> 依赖？</p>
 <p>下一章把 12 个包摊开成一张三层架构图，每个箭头都带出处，并给出一个判据：给定一个文件路径，三步之内能说出它属于哪一层。</p>
 <hr>
-<h2 id="sec-24-源码索引">源码索引</h2>
+<h2 id="sec-25-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1070,7 +1106,7 @@ plain closures</p>
       <a class="next" href="m02-package-map.html"><span class="lbl">下一篇</span>三层架构 —— 十二个包各自站在哪一层</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-本书的引用口径" class="">十三、本书的引用口径</a><a href="#sec-22-读完自检" class="">读完自检</a><a href="#sec-23-下一步" class="">下一步</a><a href="#sec-24-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-2-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-3-二-它刻意不做的四件事" class="">二、它刻意不做的四件事</a><a href="#sec-4-三-readme-公示-7-个包-仓库里有-12-个" class="">三、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-5-四-build-顺序就是一张倒过来的依赖图" class="">四、build 顺序就是一张倒过来的依赖图</a><a href="#sec-6-五-五个入口-一套机制" class="">五、五个入口，一套机制</a><a href="#sec-7-六-二十行跑起一个-agent-然后拆开看" class="">六、二十行跑起一个 agent，然后拆开看</a><a href="#sec-8-七-把仓库跑起来" class="">七、把仓库跑起来</a><a href="#sec-9-7-1-四步-每步一个判据" class="lv3">7.1 四步，每步一个判据</a><a href="#sec-10-7-2-那条长命令-三个词" class="lv3">7.2 那条长命令，三个词</a><a href="#sec-11-7-3-改一行-看到变化" class="lv3">7.3 改一行，看到变化</a><a href="#sec-12-7-4-另外两条路-build-与-test" class="lv3">7.4 另外两条路：build 与 test</a><a href="#sec-13-7-5-装依赖-四个坑-本机全踩了" class="lv3">7.5 装依赖：四个坑，本机全踩了</a><a href="#sec-14-八-那-22-万行到底在补什么" class="">八、那 22 万行到底在补什么</a><a href="#sec-15-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-16-9-1-十六条任务-五个里程碑" class="lv3">9.1 十六条任务，五个里程碑</a><a href="#sec-17-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-18-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-19-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-20-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-21-十三-回到标题那句问话" class="">十三、回到标题那句问话</a><a href="#sec-22-十四-本书的引用口径" class="">十四、本书的引用口径</a><a href="#sec-23-读完自检" class="">读完自检</a><a href="#sec-24-下一步" class="">下一步</a><a href="#sec-25-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>
