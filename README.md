@@ -176,7 +176,7 @@ python -m http.server 8000
 
 ## 作者
 
-**Daniel** · 上汽大众有限公司 · 一名码农
+**Daniel** 
 
 邮件：[luhui215@hotmail.com](mailto:luhui215@hotmail.com)
 站点：<https://daniel-csvw.github.io/pi-agent-book/>
