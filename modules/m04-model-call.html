@@ -58,7 +58,14 @@
 </ul>
 <p>正文里的代码块为贴合 80 列做过折行（原文件多为单行），语义不变。</p>
 <hr>
-<h2 id="sec-1-一-四个维度同时不一致">一、四个维度同时不一致</h2>
+<h2 id="sec-1-零-读这章之前-你需要先知道一件事">零、读这章之前，你需要先知道一件事</h2>
+<p><strong>流式与增量</strong>：模型不是等全部生成完再返回，而是一边生成一边把片段吐出来；
+每次吐出的那一小段叫增量（<code>delta</code>），拼起来才是完整回答。</p>
+<p><strong>没有它会怎样</strong>：以为 <code>stream()</code> 返回的是一个字符串。它返回的是一串事件，
+<code>text_delta</code> 里的 <code>delta</code> 要你自己拼——不拼就只能看到一堆碎片。</p>
+<p><strong>本书哪里用到</strong>：§二 四个维度里的&quot;返回形状&quot;；事件序列的完整体在 M07。</p>
+<hr>
+<h2 id="sec-2-一-四个维度同时不一致">一、四个维度同时不一致</h2>
 <p>先说清楚要解决什么。</p>
 <p>假设用户说了句&quot;帮我读一下 main.ts&quot;。在 Pi 内部它是一条统一消息：</p>
 <div class="code-block" data-lang="ts">
@@ -102,7 +109,7 @@
 </tbody>
 </table></div>
 <p>四个维度乘以十个 API，就是这一层的全部工作量。</p>
-<h3 id="sec-2-1-1-十个-api-不是一个数字">1.1 十个 api，不是一个数字</h3>
+<h3 id="sec-3-1-1-十个-api-不是一个数字">1.1 十个 api，不是一个数字</h3>
 <p><code>KnownApi</code>（<code>types.ts:64-74</code>）正好十个取值。它们和翻译器文件是<strong>一一对应</strong>的：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -176,7 +183,7 @@
 <pre><code><span class="ln">独立实现    anthropic 1687   bedrock 1462   mistral 925</span><span class="ln">            openai-completions 1729        codex 1720</span><span class="ln">共享骨架    openai-responses 454  +  shared 892</span><span class="ln">            google-generative-ai 467 + shared 575</span><span class="ln">            google-vertex 562</span><span class="ln">薄壳        azure 256 / pi-messages 466</span></code></pre></div>
 <p>十个翻译器合计 9,728 行，加上共享层 1,467 行，约 11,195 行——占整个 <code>ai</code> 包 28,551 行的 39%。<strong>将近四成代码只做一件事：把同一种意思翻译成十种方言。</strong></p>
 <hr>
-<h2 id="sec-3-二-分三层-但真正解耦的只有一条线">二、分三层，但真正解耦的只有一条线</h2>
+<h2 id="sec-4-二-分三层-但真正解耦的只有一条线">二、分三层，但真正解耦的只有一条线</h2>
 <p>Pi 的切法：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -184,7 +191,7 @@
 <p>类比国际翻译公司：前台查通讯录派活，翻译员各懂一门语言，但交付的报告必须用公司统一模板。前台不懂外语，翻译员不懂流程。</p>
 <p>这个类比的要害是：<strong>第一层和第三层之间只靠第二层连接，互不知道对方存在。</strong></p>
 <p>但这里有一个比&quot;三层&quot;更重要的设计，藏在入口函数的第一行。</p>
-<h3 id="sec-4-2-1-入口里藏了一个折叠动作">2.1 入口里藏了一个折叠动作</h3>
+<h3 id="sec-5-2-1-入口里藏了一个折叠动作">2.1 入口里藏了一个折叠动作</h3>
 <p><code>stream()</code> 的骨架（<code>compat.ts:252-267</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -206,11 +213,11 @@
 <p>所以&quot;工具集从 transcript 算出来&quot;不是个精巧的算法，是<strong>因为源头就只有这一份数据</strong>。系统提示词同理——它不在别处，就在首条 system 消息的 <code>content</code> 里。</p>
 <p><strong>一个 Context 只有一种表示形式，就是 messages。</strong> 这是整个 <code>ai</code> 层最省事的一个决定：provider 只需要处理&quot;一个消息数组&quot;，不需要知道 system prompt 和 tools 是独立概念。</p>
 <p>顺带一个反直觉的地方：<code>timestamp: 0</code>。为什么不是 <code>Date.now()</code>？因为这条消息是<strong>推导出来的</strong>，不是&quot;发生过的事件&quot;。给它一个假时间戳才能保证同一次请求两次归一化产生<strong>字节完全相同</strong>的结果——2.2 和第七节的缓存都依赖这一点。</p>
-<h3 id="sec-5-2-2-这条折叠有代价">2.2 这条折叠有代价</h3>
+<h3 id="sec-6-2-2-这条折叠有代价">2.2 这条折叠有代价</h3>
 <p>代价是：<strong>首条 system 消息不能随便删。</strong></p>
 <p>压缩（M09）要扔掉老消息时，必须保住首条 system 消息，否则系统提示词和工具定义一起没了。你在 <code>coding-agent</code> 里看到的&quot;压缩时总是保留开头&quot;不是保守，是<strong>结构上的必须</strong>。</p>
 <p>第二个代价是语义变窄：<code>Context</code> 上那个 <code>systemPrompt</code> 一旦折进去，就再也拿不回来了。想在请求途中&quot;改一句系统提示词&quot;，唯一合法的做法是追加一条新的 system 消息（带 <code>sections</code>），而不是改第一条。M03 的&quot;变更即追加&quot;在 <code>ai</code> 层不是风格选择，是<strong>这个折叠逼出来的唯一解</strong>。</p>
-<h3 id="sec-6-2-3-派活有两条路-还有一条岔路">2.3 派活有两条路，还有一条岔路</h3>
+<h3 id="sec-7-2-3-派活有两条路-还有一条岔路">2.3 派活有两条路，还有一条岔路</h3>
 <p><code>stream()</code> 里的 <code>if (builtinProvider)</code> 藏着三档优先级：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -231,7 +238,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (model.provider.<span class="tok-fn">startsWith</span>(<span class="tok-str">"cloudflare-"</span>) &amp;&amp;</span><span class="ln">	!<span class="tok-fn">hasResolvedCloudflareAuth</span>(options)) {</span><span class="ln">	<span class="tok-kw">return</span> compatModels.<span class="tok-fn">stream</span>(model, transcript, options);</span><span class="ln">}</span></code></pre></div>
 <p>Cloudflare Workers AI 可以走 binding（进程内对象调用，根本没有 API key 的概念），这时不能走普通翻译器那条路。这类&quot;平台特例&quot;在任何多 provider 系统里都会长出来，Pi 的处理是<strong>只加一个 if，不污染抽象</strong>。</p>
-<h3 id="sec-7-2-4-这个入口本身是临时的">2.4 这个入口本身是临时的</h3>
+<h3 id="sec-8-2-4-这个入口本身是临时的">2.4 这个入口本身是临时的</h3>
 <p>看 <code>compat.ts</code> 的文件头注释（<code>:1-11</code>）：</p>
 <blockquote>
 <p>Temporary compatibility entrypoint preserving the old global pi-ai API surface... <strong>This module is deleted with the coding-agent ModelManager migration.</strong> New code uses <code>createModels()</code> and the provider factories.</p>
@@ -253,7 +260,7 @@
 </blockquote>
 <p><code>@earendil-works/pi-ai</code> 是纯内核，provider 工厂在 <code>/providers/*</code>，api 实现在 <code>/api/*</code>，旧全局 API 在 <code>/compat</code>。<strong>一个包四个入口，靠子路径切开依赖性，而不是靠 tree-shaking 事后补救。</strong></p>
 <hr>
-<h2 id="sec-8-三-第二层-12-种事件">三、第二层：12 种事件</h2>
+<h2 id="sec-9-三-第二层-12-种事件">三、第二层：12 种事件</h2>
 <p><code>AssistantMessageEvent</code>（<code>types.ts:823-839</code>）一共 12 个成员。下面这张表可以当查表用：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -346,7 +353,7 @@
 <pre><code><span class="ln">start</span><span class="ln">  text_start      → text_delta      → text_end</span><span class="ln">  thinking_start  → thinking_delta  → thinking_end</span><span class="ln">  toolcall_start  → toolcall_delta  → toolcall_end</span><span class="ln">done | error</span></code></pre></div>
 <p>为什么每类都是三步？因为流式。先声明&quot;文字要开始了&quot;，然后逐字推，最后说&quot;文字结束了&quot;。</p>
 <p><code>contentIndex</code> 是这块内容在 <code>content[]</code> 数组里的下标。一轮回复可以同时有思考、文字、多个工具调用，靠这个下标区分。</p>
-<h3 id="sec-9-3-1-done-的-reason-是四选一-不是三选一">3.1 <code>done</code> 的 reason 是四选一，不是三选一</h3>
+<h3 id="sec-10-3-1-done-的-reason-是四选一-不是三选一">3.1 <code>done</code> 的 reason 是四选一，不是三选一</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">| { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>; reason: ...; message: AssistantMessage }</span><span class="ln">| { <span class="tok-kw">type</span>: <span class="tok-str">"error"</span>; reason: ...; error: AssistantMessage };</span></code></pre></div>
@@ -359,9 +366,9 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">/** Ask a capable provider to return a durable handle and</span></span><span class="ln"><span class="tok-com"> *  continue the request asynchronously. */</span></span><span class="ln">deferred?: <span class="tok-kw">boolean</span> | { window?: <span class="tok-str">"15m"</span> | <span class="tok-str">"1h"</span> | <span class="tok-str">"24h"</span> };</span></code></pre></div>
-<p><code>deferred</code> 不在 12 种事件里另开一个类型，它只是 <code>done</code> 的一个 reason 值。这个选择很省：Agent 循环不需要认识&quot;延迟&quot;这个概念，它只会看到&quot;这轮结束，但没调用工具&quot;，于是正常收尾。M03 §6.7 讲的就是这件事的内核那一侧：循环不认识 <code>deferred</code>，只看到&quot;这条消息没有 <code>toolCall</code>&quot;，于是照常收尾。</p>
+<p><code>deferred</code> 不在 12 种事件里另开一个类型，它只是 <code>done</code> 的一个 reason 值。这选择省事：Agent 循环不认识&quot;延迟&quot;，只看到&quot;这轮结束，但没调用工具&quot;，于是正常收尾。内核那一侧 M03 §6.7 已讲，这里不再重复。</p>
 <p><strong>一个能力可以只用一个枚举值换进来。</strong> 这是加扩展时最便宜的位置——不动协议，不动消费方。</p>
-<h3 id="sec-10-3-2-partial-不是快照">3.2 <code>partial</code> 不是快照</h3>
+<h3 id="sec-11-3-2-partial-不是快照">3.2 <code>partial</code> 不是快照</h3>
 <p><code>types.ts</code> 在事件定义上方写了 16 行注释，其中最要命的一句：</p>
 <blockquote>
 <p><code>partial</code> is the shared live response-so-far helper, not an event-time snapshot.</p>
@@ -370,14 +377,14 @@
 <p>M03 第八节讲过循环那边怎么处理（每次 <code>{ ...partialMessage }</code> 浅拷一份）。这里补充另一半：<strong>为什么 provider 不直接给增量？</strong></p>
 <p>因为增量要求消费者维护状态机：&quot;这是第几个 block、拼到第几个字符、thinking 和 text 交错怎么办&quot;。全量快照把这些全免了——消费者只需要&quot;覆盖&quot;。</p>
 <p>代价是每次事件都传一份完整消息，带宽略大。这是典型的<strong>用带宽换状态</strong>。</p>
-<h3 id="sec-11-3-3-contentindex-和-quot-活引用-quot-合起来会咬人">3.3 <code>contentIndex</code> 和&quot;活引用&quot;合起来会咬人</h3>
+<h3 id="sec-12-3-3-contentindex-和-quot-活引用-quot-合起来会咬人">3.3 <code>contentIndex</code> 和&quot;活引用&quot;合起来会咬人</h3>
 <p>单看两条都没问题，合起来有个坑：<strong>你不可能只记下 <code>partial</code> 的一个片段。</strong></p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> textSoFar = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">number</span>, <span class="tok-kw">string</span>&gt;();</span><span class="ln">session.<span class="tok-fn">subscribe</span>((e) =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (e.<span class="tok-kw">type</span> === <span class="tok-str">"text_delta"</span>) {</span><span class="ln">		<span class="tok-com">// 想"只存当前这块文字"——做不到，因为 partial 是整条消息</span></span><span class="ln">		textSoFar.<span class="tok-kw">set</span>(e.contentIndex, e.partial.content[e.contentIndex].text);</span><span class="ln">	}</span><span class="ln">});</span></code></pre></div>
 <p>这行看着对，其实读的是<strong>整条消息的第 N 个 block</strong>，不是&quot;第 N 个 delta&quot;。如果 <code>partial</code> 恰好在这一帧把后面的 block 也填了（某些 provider 会提前把工具调用参数塞进来），你读到的就不是你以为的那块。</p>
 <p>正确姿势只有两个：要么整体浅拷贝（<code>{ ...e.partial }</code>），要么只用 <code>e.delta</code> 自己拼。<strong>不要混用</strong>——<code>delta</code> 是增量，<code>partial</code> 是全量，混着读会出现&quot;文字重复一遍&quot;这种经典 bug。</p>
-<h3 id="sec-12-3-4-流对象自己也有终局">3.4 流对象自己也有终局</h3>
+<h3 id="sec-13-3-4-流对象自己也有终局">3.4 流对象自己也有终局</h3>
 <p>前 12 种事件都是&quot;给 <code>for await</code> 看的&quot;。但流对象还有另一个出口，不走迭代器：<code>result()</code>。</p>
 <p>实现在 <code>utils/event-stream.ts</code>，一共 135 行。核心是 <code>EventStream&lt;T, R&gt;</code> 里的两个队列和一段 <code>push</code>：</p>
 <div class="code-block" data-lang="ts">
@@ -400,7 +407,7 @@
 <p><strong><code>await complete()</code> 在鉴权失败、网络断开时不会 reject，它返回一条 <code>stopReason: &quot;error&quot;</code> 的消息。</strong> 这是&quot;失败也是消息&quot;的最后一块拼图——不只是协议层这么约定，连&quot;等最终结果&quot;这个 API 都照着它实现。</p>
 <p>想用异常流只有两条路：自己检查 <code>stopReason</code>，或者拿 <code>streamSimple()</code> 手动迭代。</p>
 <hr>
-<h2 id="sec-13-四-第三层-四条契约">四、第三层：四条契约</h2>
+<h2 id="sec-14-四-第三层-四条契约">四、第三层：四条契约</h2>
 <p><code>StreamFunction</code> 的定义（<code>types.ts:398-402</code>）就三行，但上面有 8 行注释，是这套抽象真正的宪法：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -427,7 +434,7 @@
 <p>这条是&quot;失败也是消息&quot;在协议层的落地：<strong>错误不是一个信号，是一条消息。</strong></p>
 <p>为什么值得这么费劲？因为 transcript 是唯一事实源。如果错误只是抛了个异常，就会被记成&quot;这一轮没发生&quot;；而失败的一轮在语义上<strong>发生过</strong>——模型被调用了、花了钱、返回了东西（哪怕是空的）。把它记成消息，后续的压缩、成本统计、重放才有依据。</p>
 <hr>
-<h2 id="sec-14-五-为什么要有-stream-和-streamsimple-两个">五、为什么要有 <code>stream</code> 和 <code>streamSimple</code> 两个</h2>
+<h2 id="sec-15-五-为什么要有-stream-和-streamsimple-两个">五、为什么要有 <code>stream</code> 和 <code>streamSimple</code> 两个</h2>
 <p>两个函数体几乎一样（<code>compat.ts:252</code> 和 <code>:278</code>），差别只在 options 类型：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -466,7 +473,7 @@
 </tbody>
 </table></div>
 <p><code>stream()</code> 是机制，<code>streamSimple()</code> 是策略。Agent 循环选策略版，因为它不关心&quot;模型到底支不支持 xhigh&quot;。</p>
-<h3 id="sec-15-5-1-buildbaseoptions-才是真正的适配器">5.1 <code>buildBaseOptions</code> 才是真正的适配器</h3>
+<h3 id="sec-16-5-1-buildbaseoptions-才是真正的适配器">5.1 <code>buildBaseOptions</code> 才是真正的适配器</h3>
 <p><code>streamSimple</code> 多做的事集中在 <code>api/simple-options.ts</code> 的 <code>buildBaseOptions</code>（<code>:36-66</code>）。它把 6 个&quot;简单选项&quot;展开成 21 个字段：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -474,7 +481,7 @@
 <p>两个细节值得停一下。</p>
 <p><strong><code>options?.reasoning ?? &quot;off&quot;</code></strong>：思考等级在这个字段里，不叫 <code>thinkingLevel</code>。名字的差异有实际后果——你写 <code>thinkingLevel: &quot;high&quot;</code> 会被无视，因为根本没人读这个字段。</p>
 <p><strong>21 个字段里有 6 个是回调</strong>（<code>onPayload</code> / <code>onResponse</code> / <code>onProviderStreamEvent</code> / <code>fetch</code> / <code>transport</code> / <code>signal</code>）。这说明这一层不只做&quot;参数翻译&quot;，还留了<strong>观测和替换的插口</strong>：想看真实发出的请求体用 <code>onPayload</code>，想自己接管网络用 <code>fetch</code>，想中途取消用 <code>signal</code>。M15 讲 telemetry 时会回到这里。</p>
-<h3 id="sec-16-5-2-maxtokens-会被夹两次">5.2 <code>maxTokens</code> 会被夹两次</h3>
+<h3 id="sec-17-5-2-maxtokens-会被夹两次">5.2 <code>maxTokens</code> 会被夹两次</h3>
 <p><code>clampMaxTokensToContext</code>（<code>simple-options.ts:18-22</code>）:</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -488,7 +495,7 @@
 <p>顺序是：先按上下文夹 → 再加思考预算 → 再按上下文夹 → 最后给答案留 1024。</p>
 <p>结果是一种<strong>优雅降级</strong>：上下文快满时，先被砍的不是请求，而是思考预算——<code>maxTokens - 1024</code> 变成 0，思考关掉，请求照发。</p>
 <p>这解释了一个真实困惑：<strong>长会话到后面几轮，Agent 会明显&quot;变笨&quot;</strong>。不是模型退化，是思考预算被挤没了。你在 M09 里看到的&quot;压缩要早做&quot;，根子在这里。</p>
-<h3 id="sec-17-5-3-同一个契约-两种合规写法">5.3 同一个契约，两种合规写法</h3>
+<h3 id="sec-18-5-3-同一个契约-两种合规写法">5.3 同一个契约，两种合规写法</h3>
 <p>回到 2.4 的差异：旧门面先 <code>resolveApiProvider</code> 再返回流，新入口先返回流再在 <code>async</code> 里解析 provider。</p>
 <p>按第四节第三条契约，两者都合规：</p>
 <div class="table-wrap"><table>
@@ -520,7 +527,7 @@
 <p>新写法的调用方更省事，代价是<strong>错误发生的时刻不可预测</strong>——你拿到流不代表请求已经开始。这是一个典型取舍：<strong>把麻烦从调用方挪到实现方。</strong></p>
 <p>判断依据很简单：这个 API 会被多少不认识实现细节的人调用？越多，越应该&quot;先返回流，错误进流&quot;。</p>
 <hr>
-<h2 id="sec-18-六-思考等级是七级-不是五级">六、思考等级是七级，不是五级</h2>
+<h2 id="sec-19-六-思考等级是七级-不是五级">六、思考等级是七级，不是五级</h2>
 <p>大多数资料写五级或六级。实际定义在 <code>providers/model-schema.ts:16-17</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -531,7 +538,7 @@
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">off  minimal  low  medium  high  xhigh  max</span><span class="ln"> │      │      │     │       │      │      │</span><span class="ln">不思考  └──────── 六档，由模型自己声明支持哪几档 ────────┘</span></code></pre></div>
 <p>多出来的 <code>max</code> 和 <code>xhigh</code> 是给&quot;愿意为一次思考付更多 token&quot;的模型用的。而&quot;哪几档真的可用&quot;由模型自己声明。</p>
-<h3 id="sec-19-6-1-thinkinglevelmap-的值可以是-null">6.1 <code>thinkingLevelMap</code> 的值可以是 <code>null</code></h3>
+<h3 id="sec-20-6-1-thinkinglevelmap-的值可以是-null">6.1 <code>thinkingLevelMap</code> 的值可以是 <code>null</code></h3>
 <p>定义在 <code>model-schema.ts:27</code>：<code>union([str(), nul()])</code>——<strong>每个级别的映射值要么是字符串，要么是 <code>null</code></strong>。</p>
 <p><code>null</code> 不是&quot;没配置&quot;，是**&quot;这个级别明确不支持&quot;**。schema 的 description 里写得很清楚（<code>:40</code>）：</p>
 <blockquote>
@@ -566,14 +573,14 @@
 </table></div>
 <p><strong><code>undefined</code> 和 <code>null</code> 在别的地方也这么用</strong>——M03 讲 <code>mergeClientIdentity</code> 时，<code>attribution</code> 字段的 <code>undefined</code> 是&quot;我没意见&quot;、<code>null</code> 是&quot;明确不要&quot;。同一个约定，两处独立使用。</p>
 <p><code>xhigh</code> / <code>max</code> 特殊对待的理由：这两档会显著增加成本，默认不开，必须模型显式声明。</p>
-<h3 id="sec-20-6-2-clamp-的两个方向">6.2 clamp 的两个方向</h3>
+<h3 id="sec-21-6-2-clamp-的两个方向">6.2 clamp 的两个方向</h3>
 <p><code>clampThinkingLevel</code>（<code>models.ts:1272-1291</code>）先向上找，再向下找：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> availableLevels = <span class="tok-fn">getSupportedThinkingLevels</span>(model);</span><span class="ln"><span class="tok-kw">if</span> (availableLevels.<span class="tok-fn">includes</span>(level)) <span class="tok-kw">return</span> level;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> requestedIndex = EXTENDED_THINKING_LEVELS.<span class="tok-fn">indexOf</span>(level);</span><span class="ln"><span class="tok-kw">if</span> (requestedIndex === -<span class="tok-num">1</span>) <span class="tok-kw">return</span> availableLevels[<span class="tok-num">0</span>] ?? <span class="tok-str">"off"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = requestedIndex; i &lt; EXTENDED_THINKING_LEVELS.length; i++) {</span><span class="ln">	<span class="tok-kw">const</span> candidate = EXTENDED_THINKING_LEVELS[i];</span><span class="ln">	<span class="tok-kw">if</span> (availableLevels.<span class="tok-fn">includes</span>(candidate)) <span class="tok-kw">return</span> candidate;   <span class="tok-com">// 向上</span></span><span class="ln">}</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = requestedIndex - <span class="tok-num">1</span>; i &gt;= <span class="tok-num">0</span>; i--) {</span><span class="ln">	<span class="tok-kw">const</span> candidate = EXTENDED_THINKING_LEVELS[i];</span><span class="ln">	<span class="tok-kw">if</span> (availableLevels.<span class="tok-fn">includes</span>(candidate)) <span class="tok-kw">return</span> candidate;   <span class="tok-com">// 向下</span></span><span class="ln">}</span><span class="ln"><span class="tok-kw">return</span> availableLevels[<span class="tok-num">0</span>] ?? <span class="tok-str">"off"</span>;</span></code></pre></div>
 <p>为什么先向上？因为<strong>思考更多通常比更少安全</strong>。请求 <code>xhigh</code> 但模型只到 <code>high</code>，降到 <code>high</code> 比降到 <code>off</code> 好——用户想要的是&quot;想得深&quot;，不是&quot;想得久&quot;。</p>
 <p><code>requestedIndex === -1</code> 那行是给&quot;运行时传了个不认识的字符串&quot;兜底——<code>ModelThinkingLevel</code> 只是类型，JSON 配置里的值不归它管。</p>
-<h3 id="sec-21-6-3-从等级到-token-预算">6.3 从等级到 token 预算</h3>
+<h3 id="sec-22-6-3-从等级到-token-预算">6.3 从等级到 token 预算</h3>
 <p>七级只是<strong>语义</strong>。落到 provider 上还有第二层翻译，而且不止一种：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -627,7 +634,7 @@
 <p><code>xhigh</code> / <code>max</code> 在 token 制里被 <code>clampReasoning</code>（<code>:78-80</code>）折成 <code>high</code>——因为预算制没有&quot;更努力&quot;这个维度，只有&quot;更多 token&quot;。<strong>同一个语义，在不同厂商那里能表达的粒度不同</strong>，这是 provider 抽象永远漏不掉的一层。</p>
 <p>再加一条约束：<code>MIN_ANSWER_TOKENS = 1024</code>（<code>:69</code>）。当 <code>maxTokens &lt;= thinkingBudget</code> 时，预算被压到 <code>maxTokens - 1024</code>，保证答案还有地方写。否则会出现&quot;模型思考完，没配额输出&quot;这种空回复。</p>
 <hr>
-<h2 id="sec-22-七-缓存-三种语义-四种实现">七、缓存：三种语义，四种实现</h2>
+<h2 id="sec-23-七-缓存-三种语义-四种实现">七、缓存：三种语义，四种实现</h2>
 <p>Agent 对话是有状态的：第 50 轮会把前 49 轮全发一遍。缓存就是告诉服务端&quot;这段没变，别重算&quot;。</p>
 <p>抽象只有三个值（<code>model-schema.ts:19</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -682,7 +689,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">...(cacheControl &amp;&amp; index === tools.length - <span class="tok-num">1</span></span><span class="ln">	? { cache_control: cacheControl }</span><span class="ln">	: {}),</span></code></pre></div>
 <p>为什么只给最后一个 tool？因为缓存按前缀匹配：把标记放在第 N 个 tool 上，等于声明&quot;前 N 个 tool 都不变&quot;。标在中间是浪费——请求最多 4 个断点，要用在覆盖范围最大的位置。</p>
-<h3 id="sec-23-7-1-默认是-quot-short-quot-不是-quot-none-quo">7.1 默认是 <code>&quot;short&quot;</code>，不是 <code>&quot;none&quot;</code></h3>
+<h3 id="sec-24-7-1-默认是-quot-short-quot-不是-quot-none-quo">7.1 默认是 <code>&quot;short&quot;</code>，不是 <code>&quot;none&quot;</code></h3>
 <p>这是最容易搞错的一条。<code>anthropic-messages.ts:75-83</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -690,12 +697,12 @@
 <p>调用方<strong>什么都不传</strong>时，结果是 <code>&quot;short&quot;</code>。也就是说 Anthropic 那条路上<strong>缓存默认是开的</strong>。</p>
 <p>为什么会这样？因为不缓存纯亏：同一条系统提示词每轮重算一次，钱和延迟都翻倍。默认开是&quot;防呆&quot;，<code>none</code> 是给调试和对比实验留的开关。</p>
 <p>顺带一个成本细节（<code>models.ts:1247-1253</code>）：1h 缓存写入按输入价的 <strong>2 倍</strong>计费。所以 <code>long</code> 不是无脑更省——短会话用 <code>long</code> 反而更贵。这是 <code>CACHE_RETENTIONS</code> 分三档而不是两档的原因。</p>
-<h3 id="sec-24-7-2-这解释了-m03-的一个疑问">7.2 这解释了 M03 的一个疑问</h3>
+<h3 id="sec-25-7-2-这解释了-m03-的一个疑问">7.2 这解释了 M03 的一个疑问</h3>
 <p>M03 说过：&quot;每轮都重建 llmContext，为什么不会破坏缓存？&quot;</p>
 <p>答案在这一节：<strong>缓存命中靠内容字节前缀匹配，跟你是第几轮调用无关。</strong> 只要 system 和 tools 的字节没变、标记位置没变，后端就能命中。重建数组不是问题，改内容才是。</p>
 <p>而 2.1 的 <code>timestamp: 0</code> 正是为了让&quot;每轮重建&quot;产生字节完全一致的 system 消息。如果那里写成 <code>Date.now()</code>，缓存命中率会归零——<strong>一个看起来无关紧要的假值，是整条缓存链的地基。</strong></p>
 <hr>
-<h2 id="sec-25-八-模型是哪来的-装配层">八、模型是哪来的：装配层</h2>
+<h2 id="sec-26-八-模型是哪来的-装配层">八、模型是哪来的：装配层</h2>
 <p>前七节都在 <code>packages/ai</code> 里。但 <code>stream(model, context, options)</code> 的第一个参数是
 <code>Model</code> 对象——谁把它造出来的？</p>
 <p>在 <code>ai</code> 包里搜 <code>apiKey</code>，只能搜到&quot;从 options 里读&quot;。它不读环境变量、不看
@@ -729,7 +736,7 @@ context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从�
 </tbody>
 </table></div>
 <p>三个文件对应三个动作：<strong>解析 → 装配 → 派活</strong>。一个一个看。</p>
-<h3 id="sec-26-8-1-那串字符不是-id-是一条查询">8.1 那串字符不是 id，是一条查询</h3>
+<h3 id="sec-27-8-1-那串字符不是-id-是一条查询">8.1 那串字符不是 id，是一条查询</h3>
 <p><code>--model</code> 认三种写法：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -748,7 +755,7 @@ context，翻译成 HTTP。至于这个 model 是怎么挑出来的、凭据从�
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// Important: use *all* models here, not just models with pre-configured auth.</span></span><span class="ln"><span class="tok-com">// This allows "--api-key" to be used for first-time setup.</span></span><span class="ln"><span class="tok-kw">const</span> models = [...modelRuntime.<span class="tok-fn">getModels</span>()];</span></code></pre></div>
 <p>取的是<strong>全部</strong>模型，不是&quot;有凭据的那些&quot;。原因在下一节。</p>
-<h3 id="sec-27-8-2-五次判断-一条降级梯子">8.2 五次判断，一条降级梯子</h3>
+<h3 id="sec-28-8-2-五次判断-一条降级梯子">8.2 五次判断，一条降级梯子</h3>
 <p>真正的算法在 <code>selectReference</code>（<code>:235-265</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -804,7 +811,7 @@ key 才被存进去。</p>
 <p>带了 <code>--api-key</code> 时，<code>usable</code> <strong>恒为 false</strong>。因为这次 key 是打给用户选的那个
 provider 的，已有凭据不该替用户做决定——三个 provider 都登录过时，静默选一个
 和用户想指定的那个很可能不是同一个。</p>
-<h3 id="sec-28-8-3-provider-只是提示-不是命名空间">8.3 <code>provider/</code> 只是提示，不是命名空间</h3>
+<h3 id="sec-29-8-3-provider-只是提示-不是命名空间">8.3 <code>provider/</code> 只是提示，不是命名空间</h3>
 <p><code>anthropic/claude-opus-4-8</code> 里的斜杠很容易被当成&quot;路径&quot;。但网关的模型 id
 本身就带斜杠：<code>zai/glm-5</code>、<code>moonshotai/kimi-k2.6</code>、<code>xiaomi/mimo-v2.6-pro</code>。</p>
 <p>所以那个前缀只是一条<strong>提示</strong>（<code>:228-234</code>，节选）：</p>
@@ -817,7 +824,7 @@ provider 的，已有凭据不该替用户做决定——三个 provider 都登�
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (!prefix || (best &amp;&amp; best.provider.length &gt;= provider.length)) <span class="tok-kw">continue</span>;</span></code></pre></div>
 <p>长的优先，短的才轮到。这和 8.2 是同一个思路：<strong>先试更具体的解释，再退到更宽的。</strong></p>
-<h3 id="sec-29-8-4-modelruntime-不是包装-是装配车间">8.4 <code>ModelRuntime</code> 不是包装，是装配车间</h3>
+<h3 id="sec-30-8-4-modelruntime-不是包装-是装配车间">8.4 <code>ModelRuntime</code> 不是包装，是装配车间</h3>
 <p><code>class ModelRuntime implements Models</code>（<code>model-runtime.ts:174</code>）。<code>Models</code> 是
 <code>ai</code> 包的接口（<code>ai/src/models.ts:258</code>），<code>ai</code> 自己也有一份实现（<code>ModelsImpl</code>，
 <code>:400</code>）。两个实现，一个接口。</p>
@@ -843,7 +850,7 @@ builtin、原生扩展、<code>models.json</code>、扩展注册、虚拟模型�
 没改配置的人不该承担这个风险。</p>
 <p>第三条是整层的性格：<strong>装配失败不崩，退化成内置 provider 并留一条诊断。</strong> 用户在
 UI 里看到的是&quot;这个 provider 有点问题&quot;，而不是白屏。</p>
-<h3 id="sec-30-8-5-三层叠加-一次空校验-三重分派">8.5 三层叠加、一次空校验、三重分派</h3>
+<h3 id="sec-31-8-5-三层叠加-一次空校验-三重分派">8.5 三层叠加、一次空校验、三重分派</h3>
 <p><code>composeModelProvider</code>（<code>provider-composer.ts:547</code>）先把模型列表叠出来
 （<code>:560-580</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -872,7 +879,7 @@ UI 里看到的是&quot;这个 provider 有点问题&quot;，而不是白屏。<
 就是第二节那个翻译器。</p>
 <p><code>stream</code> 和 <code>streamSimple</code> 在同一个函数里分流（<code>:647-648</code>），只差一个布尔。这就是
 第五节&quot;为什么要有两个入口&quot;的落地方式：<strong>两条路，一套派活。</strong></p>
-<h3 id="sec-31-8-6-凭据不在装配时定死">8.6 凭据不在装配时定死</h3>
+<h3 id="sec-32-8-6-凭据不在装配时定死">8.6 凭据不在装配时定死</h3>
 <p>每次调用前都过一遍 <code>prepareRequest</code>（<code>model-runtime.ts:659-705</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -894,14 +901,14 @@ UI 里看到的是&quot;这个 provider 有点问题&quot;，而不是白屏。<
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> maxTokens =</span><span class="ln">	options?.maxTokens &amp;&amp; limit &gt; <span class="tok-num">0</span></span><span class="ln">		? Math.<span class="tok-fn">min</span>(options.maxTokens, limit)</span><span class="ln">		: options?.maxTokens;</span></code></pre></div>
 <p>调用方是按虚拟模型算的预算，路由到真模型时必须重新夹一次。</p>
-<h3 id="sec-32-8-7-从命令行到翻译器">8.7 从命令行到翻译器</h3>
+<h3 id="sec-33-8-7-从命令行到翻译器">8.7 从命令行到翻译器</h3>
 <p>一条链，五个层：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">--model "openrouter/zai/glm-5:high"</span><span class="ln">   |</span><span class="ln">   +- main.ts:476               resolveCliModel</span><span class="ln">   |    +- model-resolver.ts:149  resolveModelReference</span><span class="ln">   |         +- :235  selectReference       整串先试</span><span class="ln">   |         +- :127  splitProviderPrefix   "openrouter"</span><span class="ln">   |         +- :120  splitThinkingSuffix   "high"</span><span class="ln">   |</span><span class="ln">   +- model-runtime.ts:450      getModels()  全部模型</span><span class="ln">   |    +- :309  composeProvider</span><span class="ln">   |         +- provider-composer.ts:547  composeModelProvider</span><span class="ln">   |              +- applyExtension</span><span class="ln">   |              +- applyModelsJson</span><span class="ln">   |              +- modelOverrides</span><span class="ln">   |</span><span class="ln">   +- model-runtime.ts:731      streamSimple()</span><span class="ln">   |    +- :659  prepareRequest</span><span class="ln">   |         +- :446  getProvider</span><span class="ln">   |         +- :558  getAuth          &lt;- 凭据在这一步才取</span><span class="ln">   |         +- :157  mergeHeaders</span><span class="ln">   |</span><span class="ln">   +- provider-composer.ts:648   provider.streamSimple</span><span class="ln">        +- :588  streamWith   三重分派</span><span class="ln">             +- (1) extension.streamSimple</span><span class="ln">             +- (2) base.streamSimple</span><span class="ln">             +- (3) api.streamSimple      &lt;- 第二节的翻译器</span></code></pre></div>
 <p>对照第二节那张三层图，现在多了两层：<strong>解析</strong>在最上面，<strong>装配</strong>在中间。<code>ai</code> 包的
 三层是&quot;翻译内部的分工&quot;，这五层是&quot;一次调用从命令行到 HTTP 的全过程&quot;。</p>
-<h3 id="sec-33-8-8-为什么这一层不放进-ai">8.8 为什么这一层不放进 <code>ai</code></h3>
+<h3 id="sec-34-8-8-为什么这一层不放进-ai">8.8 为什么这一层不放进 <code>ai</code></h3>
 <p>一句话：<strong><code>ai</code> 是函数，这层是对象。</strong></p>
 <p><code>ai</code> 的 <code>stream()</code> 是纯函数式的：输入 model + context，输出事件流，中间不记任何
 东西。装配层要记的东西很多：你登录过哪几个 provider、<code>models.json</code> 什么时候改的、
@@ -915,7 +922,10 @@ OAuth token 还剩几分钟、扩展注册了哪些实现。这些是状态，�
 步取 <code>getAvailableSnapshot()</code>（<code>:596-597</code>）——两个函数用的是不同的池子，这不是
 笔误，是两个不同的问题。</p>
 <hr>
-<h2 id="sec-34-九-自己动手验证">九、自己动手验证</h2>
+<h2 id="sec-35-九-自己动手验证">九、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。每条判据都是这一版实跑的输出；发真请求的实验标 <code>[需 key]</code>。</p>
+</blockquote>
 <p>Windows 用户没有 <code>sed</code> / <code>grep</code> 也没关系：把命令里的行号段拿去编辑器里跳转，结论一样。</p>
 <p><strong>实验 1：数一数 API 到底有几个。</strong></p>
 <div class="code-block" data-lang="bash">
@@ -942,11 +952,17 @@ OAuth token 还剩几分钟、扩展注册了哪些实现。这些是状态，�
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">grep -c "thinkingLevelMap" providers/anthropic.models.ts</span><span class="ln">grep -n "thinkingLevelMap" providers/anthropic.models.ts | head -3</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">(Select-String -Path providers/anthropic.models.ts `</span><span class="ln">  -Pattern 'thinkingLevelMap').Count</span><span class="ln">Select-String -Path providers/anthropic.models.ts -Pattern 'thinkingLevelMap' |</span><span class="ln">  Select-Object -First 3</span></code></pre></div>
 <p>更省事的办法：在 <code>models.generated.ts</code> 里搜 <code>thinkingLevelMap</code>，能直接看到几百个模型的声明，注意区分 <code>null</code> 和 <code>&quot;high&quot;</code>。</p>
 <p><strong>实验 6：确认错误的分界线。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">grep -n "assertRequestAuth\|throw new Error" \</span><span class="ln">  api/anthropic-messages.ts | head -8</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Select-String -Path api/anthropic-messages.ts `</span><span class="ln">  -Pattern 'assertRequestAuth|throw new Error' | Select-Object -First 8</span></code></pre></div>
 <p><code>throw</code> 都在流返回之前（建客户端、读配置、<code>assertRequestAuth</code>），异步失败则走 <code>{ type: &quot;error&quot; }</code>。这就是契约第三条的实证。</p>
 <p><strong>实验 7：看默认缓存策略。</strong></p>
 <div class="code-block" data-lang="bash">
@@ -990,6 +1006,9 @@ provider 胜出的那一档。</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">events      = end:system/-/0 | end:user/-/1 |</span><span class="ln">              end:assistant/stop/1 | agent_end | agent_settled</span><span class="ln">roles       = system,user,assistant</span><span class="ln">usage.output= 46</span></code></pre></div>
+<blockquote>
+<p><strong><code>agent_settled</code> 是从哪冒出来的？</strong> 它不在 M03 那 10 种 <code>AgentEvent</code> 里（<code>packages/agent/src/types.ts:528-551</code>）：它是 <code>coding-agent</code> 在会话层追加的事件，定义在 <code>packages/coding-agent/src/core/agent-session.ts:216</code>，<code>aborted</code> 字段说明这次是被中断还是自然结束。<strong>看到不认识的尾事件，先分清它是内核吐的还是宿主追加的。</strong></p>
+</blockquote>
 <p>改完同一个脚本（<code>end:角色/stopReason/content块数</code>）：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1025,7 +1044,7 @@ turn once.</p>
 模型的输出上限就是 1，而系统从头到尾不报错——<strong>它把这当成上下文溢出，
 删掉证据，继续往下走。</strong></p>
 <hr>
-<h2 id="sec-35-十-工程暗坑">十、工程暗坑</h2>
+<h2 id="sec-36-十-工程暗坑">十、工程暗坑</h2>
 <p><strong>1. <code>partial</code> 存数组会全部变成最后一次的状态。</strong></p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1050,12 +1069,12 @@ turn once.</p>
 <p><code>Api = KnownApi | (string &amp; {})</code> 如果写成 <code>KnownApi | string</code>，那 <code>KnownApi</code> 就被 <code>string</code> 吃掉了，类型补全全失效。<code>string &amp; {}</code> 的写法保留了字面量补全，同时允许任意字符串。</p>
 <p><strong>9. 离线构建里，目录数据是快照。</strong></p>
 <p><code>nix/model-catalog.json</code> 钉着一份 model catalog 的 revision。Nix 构建没有网络，
-所以内置的模型数据来自那个固定版本；运行时仍然用 pi.dev 的新数据覆盖。
+所以内置模型数据来自那个固定版本；运行时仍用 pi.dev 的新数据覆盖。
 <strong>快照负责&quot;同样的源码构建出同样的字节&quot;，覆盖负责&quot;用户看到今天的模型表&quot;</strong>
-——两个都要，缺一个就变成&quot;复现不了&quot;或&quot;新模型永远用不上&quot;。平时 <code>npm run build</code>
-会先刷新模型数据，<code>npm run build:offline</code> 不刷。</p>
+——缺一个就变成&quot;复现不了&quot;或&quot;新模型用不上&quot;。<code>npm run build</code> 会先刷新，
+<code>npm run build:offline</code> 不刷。</p>
 <hr>
-<h2 id="sec-36-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
+<h2 id="sec-37-十一-三个可以带走的方法">十一、三个可以带走的方法</h2>
 <p><strong>方法一：用&quot;折叠点&quot;找设计的重心。</strong></p>
 <p><code>Context → TranscriptContext</code> 的折叠只用一个二十四行的文件完成，但整个包的设计都围绕它：provider 只看 messages、工具集从 messages 算、压缩必须保住首条 system 消息、<code>timestamp: 0</code> 为了让字节可复现。</p>
 <p>一个架构里真正重要的往往不是最大的文件，是<strong>数据类型转换发生的那几行</strong>。找到它，上下游就都通了。</p>
@@ -1066,14 +1085,75 @@ turn once.</p>
 <p><code>thinkingLevelMap</code> 用 <code>undefined</code> / <code>null</code> / <code>&quot;high&quot;</code> 表示&quot;默认支持 / 明确不支持 / 映射到某档&quot;。如果用布尔值，你就表达不了&quot;没表态&quot;和&quot;明确反对&quot;的区别。</p>
 <p>这条在配置系统里通用：<strong>默认值、显式覆盖、显式禁用是三种状态，不是两种。</strong></p>
 <hr>
-<h2 id="sec-37-读完自检">读完自检</h2>
+<h2 id="sec-38-本章小结">本章小结</h2>
+<ol>
+<li>三层里真正解耦的只有一条线：<code>Context</code> → <code>TranscriptContext</code>。</li>
+<li>provider 只看得到 messages，工具集也从 messages 里算出来。</li>
+<li><code>stream</code> 做通用折叠，<code>streamSimple</code> 管各家方言。</li>
+<li>思考等级七级；缓存三值，默认 <code>&quot;short&quot;</code>，不是关。</li>
+<li>契约只允许&quot;返回流之前&quot;抛，之后必须编码成事件。</li>
+</ol>
+<h2 id="sec-39-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>折叠点</td>
+<td><code>Context</code> 转成 <code>TranscriptContext</code> 的那几行</td>
+<td>§二</td>
+</tr>
+<tr>
+<td>十二种事件</td>
+<td>七家 provider 归一后的流事件集合</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>四条契约</td>
+<td>&quot;能不能抛 / 什么时候算完&quot;这类边界</td>
+<td>§四</td>
+</tr>
+<tr>
+<td>三态</td>
+<td><code>undefined</code> / <code>null</code> / 值 = 未表态 / 不支持 / 指定</td>
+<td>§六</td>
+</tr>
+<tr>
+<td>装配层</td>
+<td><code>--model</code> 字符串变 <code>Model</code> 的五级梯子</td>
+<td>§八</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-40-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§二 说 <code>timestamp: 0</code> 是为了让字节可复现。
+如果改成真实时间戳，哪一类功能会先坏？→ 回 §七 看缓存打点，
+再回 §九 实验里对比两次请求的原始报文。</p>
+<p><strong>练习 2（改）</strong>：把 <code>utils/transcript.ts</code> 折叠里的 <code>timestamp: 0</code>
+改成沿用原消息的时间戳。预期：同一段对话两次运行，发给 provider 的
+字节不再逐字相同，可重放性丢失；回滚：改回 <code>0</code> 即可。</p>
+<h2 id="sec-41-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> 三层是层层递进的能力；<strong>实际是</strong> 真正解耦的只有一条线；
+<strong>证据</strong> §二 二十四行的 <code>transcript.ts</code>。</li>
+<li><strong>你会以为</strong> 缓存默认关更省；<strong>实际是</strong> 默认 <code>&quot;short&quot;</code>；<strong>证据</strong> §7.1。</li>
+<li><strong>你会以为</strong> &quot;看起来正确&quot;的错误处理是保险；<strong>实际是</strong> 它把&quot;能不能抛&quot;
+的边界往后挪了；<strong>证据</strong> §五、§十一 方法二。</li>
+</ol>
+<hr>
+<h2 id="sec-42-读完自检">读完自检</h2>
 <p>开头列了五个问题。答上四条就算过关（第三条排在下面最后一行）。</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>自检</th>
 <th>一句话答案</th>
-<th>在哪</th>
+<th>不会就去</th>
 </tr>
 </thead>
 <tbody>
@@ -1104,12 +1184,12 @@ turn once.</p>
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-38-下一步">下一步</h2>
+<h2 id="sec-43-下一步">下一步</h2>
 <p>模型这层封好了：不管底下是谁，上面只看到 12 种事件。</p>
 <p>但模型返回的是 <code>toolCall</code>——一个名字加一段 JSON。谁去执行？模型可能传错类型、可能要求删库、可能一次调八个。这些都在循环之外，但都在内核包里。</p>
 <p>下一章打开工具系统。</p>
 <hr>
-<h2 id="sec-39-本章源码索引">本章源码索引</h2>
+<h2 id="sec-44-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1187,7 +1267,7 @@ turn once.</p>
       <a class="next" href="m05-tools.html"><span class="lbl">下一篇</span>工具系统 —— 八个工具，一道文件锁</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四个维度同时不一致" class="">一、四个维度同时不一致</a><a href="#sec-2-1-1-十个-api-不是一个数字" class="lv3">1.1 十个 api，不是一个数字</a><a href="#sec-3-二-分三层-但真正解耦的只有一条线" class="">二、分三层，但真正解耦的只有一条线</a><a href="#sec-4-2-1-入口里藏了一个折叠动作" class="lv3">2.1 入口里藏了一个折叠动作</a><a href="#sec-5-2-2-这条折叠有代价" class="lv3">2.2 这条折叠有代价</a><a href="#sec-6-2-3-派活有两条路-还有一条岔路" class="lv3">2.3 派活有两条路，还有一条岔路</a><a href="#sec-7-2-4-这个入口本身是临时的" class="lv3">2.4 这个入口本身是临时的</a><a href="#sec-8-三-第二层-12-种事件" class="">三、第二层：12 种事件</a><a href="#sec-9-3-1-done-的-reason-是四选一-不是三选一" class="lv3">3.1 done 的 reason 是四选一，不是三选一</a><a href="#sec-10-3-2-partial-不是快照" class="lv3">3.2 partial 不是快照</a><a href="#sec-11-3-3-contentindex-和-quot-活引用-quot-合起来会咬人" class="lv3">3.3 contentIndex 和&amp;quot;活引用&amp;quot;合起来会咬人</a><a href="#sec-12-3-4-流对象自己也有终局" class="lv3">3.4 流对象自己也有终局</a><a href="#sec-13-四-第三层-四条契约" class="">四、第三层：四条契约</a><a href="#sec-14-五-为什么要有-stream-和-streamsimple-两个" class="">五、为什么要有 stream 和 streamSimple 两个</a><a href="#sec-15-5-1-buildbaseoptions-才是真正的适配器" class="lv3">5.1 buildBaseOptions 才是真正的适配器</a><a href="#sec-16-5-2-maxtokens-会被夹两次" class="lv3">5.2 maxTokens 会被夹两次</a><a href="#sec-17-5-3-同一个契约-两种合规写法" class="lv3">5.3 同一个契约，两种合规写法</a><a href="#sec-18-六-思考等级是七级-不是五级" class="">六、思考等级是七级，不是五级</a><a href="#sec-19-6-1-thinkinglevelmap-的值可以是-null" class="lv3">6.1 thinkingLevelMap 的值可以是 null</a><a href="#sec-20-6-2-clamp-的两个方向" class="lv3">6.2 clamp 的两个方向</a><a href="#sec-21-6-3-从等级到-token-预算" class="lv3">6.3 从等级到 token 预算</a><a href="#sec-22-七-缓存-三种语义-四种实现" class="">七、缓存：三种语义，四种实现</a><a href="#sec-23-7-1-默认是-quot-short-quot-不是-quot-none-quo" class="lv3">7.1 默认是 &amp;quot;short&amp;quot;，不是 &amp;quot;none&amp;quot;</a><a href="#sec-24-7-2-这解释了-m03-的一个疑问" class="lv3">7.2 这解释了 M03 的一个疑问</a><a href="#sec-25-八-模型是哪来的-装配层" class="">八、模型是哪来的：装配层</a><a href="#sec-26-8-1-那串字符不是-id-是一条查询" class="lv3">8.1 那串字符不是 id，是一条查询</a><a href="#sec-27-8-2-五次判断-一条降级梯子" class="lv3">8.2 五次判断，一条降级梯子</a><a href="#sec-28-8-3-provider-只是提示-不是命名空间" class="lv3">8.3 provider/ 只是提示，不是命名空间</a><a href="#sec-29-8-4-modelruntime-不是包装-是装配车间" class="lv3">8.4 ModelRuntime 不是包装，是装配车间</a><a href="#sec-30-8-5-三层叠加-一次空校验-三重分派" class="lv3">8.5 三层叠加、一次空校验、三重分派</a><a href="#sec-31-8-6-凭据不在装配时定死" class="lv3">8.6 凭据不在装配时定死</a><a href="#sec-32-8-7-从命令行到翻译器" class="lv3">8.7 从命令行到翻译器</a><a href="#sec-33-8-8-为什么这一层不放进-ai" class="lv3">8.8 为什么这一层不放进 ai</a><a href="#sec-34-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-35-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-36-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-37-读完自检" class="">读完自检</a><a href="#sec-38-下一步" class="">下一步</a><a href="#sec-39-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-读这章之前-你需要先知道一件事" class="">零、读这章之前，你需要先知道一件事</a><a href="#sec-2-一-四个维度同时不一致" class="">一、四个维度同时不一致</a><a href="#sec-3-1-1-十个-api-不是一个数字" class="lv3">1.1 十个 api，不是一个数字</a><a href="#sec-4-二-分三层-但真正解耦的只有一条线" class="">二、分三层，但真正解耦的只有一条线</a><a href="#sec-5-2-1-入口里藏了一个折叠动作" class="lv3">2.1 入口里藏了一个折叠动作</a><a href="#sec-6-2-2-这条折叠有代价" class="lv3">2.2 这条折叠有代价</a><a href="#sec-7-2-3-派活有两条路-还有一条岔路" class="lv3">2.3 派活有两条路，还有一条岔路</a><a href="#sec-8-2-4-这个入口本身是临时的" class="lv3">2.4 这个入口本身是临时的</a><a href="#sec-9-三-第二层-12-种事件" class="">三、第二层：12 种事件</a><a href="#sec-10-3-1-done-的-reason-是四选一-不是三选一" class="lv3">3.1 done 的 reason 是四选一，不是三选一</a><a href="#sec-11-3-2-partial-不是快照" class="lv3">3.2 partial 不是快照</a><a href="#sec-12-3-3-contentindex-和-quot-活引用-quot-合起来会咬人" class="lv3">3.3 contentIndex 和&amp;quot;活引用&amp;quot;合起来会咬人</a><a href="#sec-13-3-4-流对象自己也有终局" class="lv3">3.4 流对象自己也有终局</a><a href="#sec-14-四-第三层-四条契约" class="">四、第三层：四条契约</a><a href="#sec-15-五-为什么要有-stream-和-streamsimple-两个" class="">五、为什么要有 stream 和 streamSimple 两个</a><a href="#sec-16-5-1-buildbaseoptions-才是真正的适配器" class="lv3">5.1 buildBaseOptions 才是真正的适配器</a><a href="#sec-17-5-2-maxtokens-会被夹两次" class="lv3">5.2 maxTokens 会被夹两次</a><a href="#sec-18-5-3-同一个契约-两种合规写法" class="lv3">5.3 同一个契约，两种合规写法</a><a href="#sec-19-六-思考等级是七级-不是五级" class="">六、思考等级是七级，不是五级</a><a href="#sec-20-6-1-thinkinglevelmap-的值可以是-null" class="lv3">6.1 thinkingLevelMap 的值可以是 null</a><a href="#sec-21-6-2-clamp-的两个方向" class="lv3">6.2 clamp 的两个方向</a><a href="#sec-22-6-3-从等级到-token-预算" class="lv3">6.3 从等级到 token 预算</a><a href="#sec-23-七-缓存-三种语义-四种实现" class="">七、缓存：三种语义，四种实现</a><a href="#sec-24-7-1-默认是-quot-short-quot-不是-quot-none-quo" class="lv3">7.1 默认是 &amp;quot;short&amp;quot;，不是 &amp;quot;none&amp;quot;</a><a href="#sec-25-7-2-这解释了-m03-的一个疑问" class="lv3">7.2 这解释了 M03 的一个疑问</a><a href="#sec-26-八-模型是哪来的-装配层" class="">八、模型是哪来的：装配层</a><a href="#sec-27-8-1-那串字符不是-id-是一条查询" class="lv3">8.1 那串字符不是 id，是一条查询</a><a href="#sec-28-8-2-五次判断-一条降级梯子" class="lv3">8.2 五次判断，一条降级梯子</a><a href="#sec-29-8-3-provider-只是提示-不是命名空间" class="lv3">8.3 provider/ 只是提示，不是命名空间</a><a href="#sec-30-8-4-modelruntime-不是包装-是装配车间" class="lv3">8.4 ModelRuntime 不是包装，是装配车间</a><a href="#sec-31-8-5-三层叠加-一次空校验-三重分派" class="lv3">8.5 三层叠加、一次空校验、三重分派</a><a href="#sec-32-8-6-凭据不在装配时定死" class="lv3">8.6 凭据不在装配时定死</a><a href="#sec-33-8-7-从命令行到翻译器" class="lv3">8.7 从命令行到翻译器</a><a href="#sec-34-8-8-为什么这一层不放进-ai" class="lv3">8.8 为什么这一层不放进 ai</a><a href="#sec-35-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-36-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-37-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-38-本章小结" class="">本章小结</a><a href="#sec-39-概念回顾" class="">概念回顾</a><a href="#sec-40-练习" class="">练习</a><a href="#sec-41-常见误区" class="">常见误区</a><a href="#sec-42-读完自检" class="">读完自检</a><a href="#sec-43-下一步" class="">下一步</a><a href="#sec-44-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

@@ -58,6 +58,8 @@
 <p>领域术语不在这里——<code>差分</code>、<code>两阶段提交</code>、<code>幂等</code>这些是业务概念，
 各自在正文首次出现时给了定义，查它们请回对应章节。</p>
 </blockquote>
+<p><strong>本篇怎么用</strong>：当字典用，不从头读。遇到不认识的写法先查 §四 符号速查表，
+再回 §二 / §三；这一篇也不配练习，能认出写法就算过关。</p>
 <hr>
 <h2 id="sec-1-一-第一件事-类型标注是注释">一、第一件事：类型标注是注释</h2>
 <div class="code-block" data-lang="ts">
@@ -90,9 +92,9 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// packages/coding-agent/src/core/messages.ts:148-196（节选）</span></span><span class="ln"><span class="tok-kw">switch</span> (m.role) {</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"bashExecution"</span>:</span><span class="ln">		<span class="tok-kw">if</span> (m.excludeFromContext) <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">		<span class="tok-kw">return</span> { role: <span class="tok-str">"user"</span>, content: [], timestamp: m.timestamp };</span><span class="ln">	<span class="tok-kw">case</span> <span class="tok-str">"compactionSummary"</span>:</span><span class="ln">		<span class="tok-kw">return</span> { role: <span class="tok-str">"user"</span>, content: [], timestamp: m.timestamp };</span><span class="ln">	<span class="tok-com">// …另外几种自定义消息同理</span></span><span class="ln">	<span class="tok-kw">default</span>:</span><span class="ln">		<span class="tok-com">// biome-ignore lint/correctness/noSwitchDeclarations: fine</span></span><span class="ln">		<span class="tok-kw">const</span> _exhaustiveCheck: <span class="tok-kw">never</span> = m;</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">}</span></code></pre></div>
 <p>最后那行是全书最重要的三行类型代码之一。原理：八种都写过 <code>case</code> 之后，
-<code>m</code> 的类型被收窄成 <code>never</code>（不可能是任何东西），赋值才通过。<strong>漏掉一种，
-<code>m</code> 就不是 <code>never</code>，这行直接编译报错</strong>——它把「加了消息类型忘了改转换器」
-变成了编译期错误，而不是线上的静默丢消息。</p>
+<code>m</code> 被收窄成 <code>never</code>（不可能是任何东西），赋值才通过。<strong>漏掉一种，
+<code>m</code> 就不是 <code>never</code>，这行直接编译报错</strong>——「加了消息类型忘了改转换器」
+从此是编译期错误，不是线上静默丢消息。</p>
 <p>M06 §3.3 完整讲过这段（<code>m06:325-338</code>）。</p>
 <p>Python 没有等价物。<code>match</code> 语句可以穷尽，但漏了分支只在运行时炸。</p>
 <h3 id="sec-5-2-3-泛型-lt-t-gt-待填的类型参数">2.3 泛型 <code>&lt;T&gt;</code>：待填的类型参数</h3>
@@ -118,9 +120,9 @@
 <p>它为什么必需，源码自己在 <code>models.ts:270</code> 写了：动态模型列表的类型是宽的
 <code>Model&lt;Api&gt;</code>，要用 <code>hasApi()</code> 收窄。Python 侧是 <code>TypeGuard</code>，用法几乎一样。</p>
 <p>同一个写法在 M15 又出现一次，而且用得更高：<code>Validator.check</code> 的类型是
-<code>(value: unknown) =&gt; value is T</code>（<code>schema/src/validator.ts:202</code>）——schema
-编译出来的那个闭包，本身兼任类型谓词，所以 <code>if (v.check(x))</code> 之后 <code>x</code> 直接
-就是 <code>T</code>。这也是 M15 §2 那句&quot;编译产物与类型谓词合并成一件事&quot;的全部意思。</p>
+<code>(value: unknown) =&gt; value is T</code>（<code>schema/src/validator.ts:202</code>）——编译出来
+的闭包兼任类型谓词，<code>if (v.check(x))</code> 之后 <code>x</code> 直接就是 <code>T</code>。这就是 M15 §2
+那句&quot;编译产物与类型谓词合并成一件事&quot;。</p>
 <h3 id="sec-7-2-5-条件类型-类型层面的-if">2.5 条件类型：类型层面的 if</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -225,8 +227,8 @@ M04 里那句 <code>for await (const event of stream)</code> 走的就是这十�
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// packages/durable/src/codemode/codemode.ts:431</span></span><span class="ln">start: <span class="tok-fn">copyJson</span>(run.start <span class="tok-kw">as</span> <span class="tok-kw">unknown</span> <span class="tok-kw">as</span> JsonValue) <span class="tok-kw">as</span> <span class="tok-kw">unknown</span> <span class="tok-kw">as</span> Start,</span></code></pre></div>
 <p>单次 <code>as</code> 只能在同一家族里换说法：子类型转父类型、联合转成员。<code>Start</code> 和
-<code>JsonValue</code> 互不包含，直接 <code>as JsonValue</code> 编译器会拒，理由是「两个类型没有
-充分重叠」。走 <code>unknown</code> 中转，等于明说「这两者没关系，我知道自己在干什么」。</p>
+<code>JsonValue</code> 互不包含，直接转会以「两个类型没有充分重叠」被拒。走 <code>unknown</code>
+中转，等于明说「这两者没关系，我知道自己在干什么」。</p>
 <p>这里不是骗编译器：<code>copyJson()</code> 真的做了一次 JSON 深拷贝（下一行 <code>:432</code> 的
 journal 同理），断言断的是「往返一次之后，形状还是原来那个」。这类位置
 值得信任。</p>

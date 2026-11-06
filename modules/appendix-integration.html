@@ -49,6 +49,8 @@
 说明那一章还差一点；回去补，比继续往前读有效。</p>
 <p>前提：<code>pi &quot;找出所有 TODO&quot;</code>，模型 <code>anthropic/claude-sonnet-4-5</code>，
 工作目录里有 <code>AGENTS.md</code>，装了 <code>read</code> / <code>grep</code> / <code>edit</code> 三个工具。</p>
+<p><strong>本篇怎么用</strong>：当验收清单用——读完正文后拿 §一 那 25 行逐行自问
+&quot;这步为什么必须在这儿换手&quot;，卡住的就去对应章重读；不配练习。</p>
 <hr>
 <h2 id="sec-1-一-一条链路-二十五个落点">一、一条链路，二十五个落点</h2>
 <div class="table-wrap"><table>
@@ -320,9 +322,8 @@ M04 §十一 把它叫做用折叠点找设计重心。</p>
 <h2 id="sec-4-四-三道边界">四、三道边界</h2>
 <p>全书反复在划三条线，十五条链路最后都收敛到它们身上。</p>
 <p><strong>信任边界。</strong> 谁是敌人，决定校验写多重。<code>pi-schema</code> 把每个关键字都当敌人，
-因为 schema 来自 MCP server；<code>pi-telemetry</code> 的 schema 一行校验都不做，
-因为输入是同一个仓库里写死的常量（M15 §十五 方法二）。<strong>防御等级跟来源走，
-不跟类型走。</strong></p>
+因为 schema 来自 MCP server；<code>pi-telemetry</code> 一行校验都不做，因为输入是
+同仓库里写死的常量（M15 §十五 方法二）。<strong>防御等级跟来源走，不跟类型走。</strong></p>
 <p><strong>能力边界。</strong> codemode 的沙箱不是&quot;禁掉危险 API&quot;，是<strong>只放进去一个 <code>tools</code></strong>
 （M13 §6.1）。黑名单永远补不完，白名单只需要一条。同一思路在工具层是五步管道
 （M05 §三），在扩展层是三种错误策略（M07 §五）。</p>
@@ -332,23 +333,22 @@ M04 §十一 把它叫做用折叠点找设计重心。</p>
 <hr>
 <h2 id="sec-5-五-如果只带走五句话">五、如果只带走五句话</h2>
 <ol>
-<li><strong>内核只做一件事</strong>：把一个请求变成一次 HTTP，再把结果变成一条消息。
-其余全在外围（M01）。</li>
-<li><strong>每跨一次边界，只允许收窄一次</strong>，且收窄处必须是一个函数（M04 / M06 / M09）。</li>
+<li><strong>内核只做一件事</strong>：请求变一次 HTTP，结果变一条消息；其余全在外围（M01）。</li>
+<li><strong>每跨一次边界，只允许收窄一次</strong>，收窄处必须是一个函数（M04 / M06 / M09）。</li>
 <li><strong>改历史就追加</strong>，删除用墓碑表达（M09 / M10 / M11 / M12）。</li>
 <li><strong>失败也是数据</strong>：工具失败进 <code>toolResult</code>，模型失败进 <code>stopReason</code>，
-外壳崩溃合成一条 assistant 消息（M03 §十）。调用方只有一条路径要写。</li>
-<li><strong>安全来自&quot;只有一条能力&quot;</strong>，不来自过滤了多少危险 API（M13 §6.1）。</li>
+外壳崩溃合成一条 assistant 消息（M03 §十）。调用方只有一条路径。</li>
+<li><strong>安全来自&quot;只有一条能力&quot;</strong>，不来自过滤危险 API 的数量（M13 §6.1）。</li>
 </ol>
 <p>五句话里没有一句是&quot;某个类怎么实现的&quot;。这就是这本书想留下的东西：
 <strong>实现会被重写，形状不会。</strong></p>
 <hr>
 <h2 id="sec-6-六-这一页没讲的">六、这一页没讲的</h2>
 <ul>
-<li><strong>多用户与权限</strong>：Pi 刻意不做权限系统（M01 §五），这一页也就没有&quot;谁能调什么&quot;。</li>
-<li><strong>多 agent 编排</strong>：<code>orchestrator</code> 在 v1.4 里不存在，它的活被扩展钩子接走了（M07 §八）。</li>
-<li><strong>部署形态</strong>：进程内 SDK 加一层 HTTP + SSE 在附录 C，这一页只到&quot;事件出了内核&quot;。</li>
-<li><strong>性能数字</strong>：除了 TUI 的字节数，全书没有做 benchmark；本书关心&quot;为什么这么设计&quot;，
+<li><strong>多用户与权限</strong>：Pi 刻意不做权限系统（M01 §五），这里没有&quot;谁能调什么&quot;。</li>
+<li><strong>多 agent 编排</strong>：<code>orchestrator</code> 在 v1.4 不存在，它的活被扩展钩子接走了（M07 §八）。</li>
+<li><strong>部署形态</strong>：进程内 SDK 加 HTTP + SSE 在附录 C，这里只到&quot;事件出了内核&quot;。</li>
+<li><strong>性能数字</strong>：除 TUI 的字节数，全书没做 benchmark；本书关心&quot;为什么这么设计&quot;，
 不关心&quot;快了多少倍&quot;。</li>
 </ul>
 <hr>

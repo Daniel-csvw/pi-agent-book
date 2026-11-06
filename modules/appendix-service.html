@@ -130,7 +130,36 @@ settings 里的默认值、各 provider 的默认模型。都找不到时把原�
 <p><strong>未实跑</strong>：把 <code>auth.json</code> 挪走会怎样。按 <code>:2174-2191</code> 读，
 <code>model</code> 会是 <code>undefined</code>，<code>prompt()</code> 抛 <code>No model selected</code>；
 若模型在但 key 没了，抛 <code>No API key found for provider …</code>（<code>:2190</code>）。</p>
-<p>所以这一页的所有示例，先决条件都是<strong>你已经跑通 M01 §8.2</strong>。</p>
+<p>所以这一页的所有示例，先决条件分两档——<strong>走哪一档取决于你手上有没有 key</strong>：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>档</th>
+<th>前提</th>
+<th>能验证什么</th>
+<th>验证不了什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>有 key（默认路线）</td>
+<td>已跑通 M01 §8.2，<code>~/.pi/agent/auth.json</code> 在</td>
+<td>全链：模型调用、SSE 转发、工具运行</td>
+<td>—</td>
+</tr>
+<tr>
+<td>没 key（降级档）</td>
+<td>只需 <code>node</code>；把 <code>streamFn</code> 换成固定假回复</td>
+<td>HTTP 层：路由、SSE 帧格式、断开、错误事件</td>
+<td>模型真实输出与 token 数</td>
+</tr>
+</tbody>
+</table></div>
+<p>降级档的写法抄 M03 §十二：给 <code>createAgentSession()</code> 传一个自己写的
+<code>streamFn</code>，它 <code>yield</code> 几个固定事件（<code>message_start</code> / 若干
+<code>text_delta</code> / <code>message_end</code>）就返回。<strong>判据从&quot;模型回了什么&quot;变成
+&quot;浏览器收到了几帧、顺序对不对&quot;</strong>——这一页要验的正是后者。
+没 key 时别停在第三步：第三到六步只依赖 HTTP 层。</p>
 <hr>
 <h2 id="sec-3-三-十行嵌入">三、十行嵌入</h2>
 <p>最短能跑的形状：</p>
@@ -419,9 +448,8 @@ session 里。实测（同一 session，两次 prompt）：</p>
 第二个拿到 <code>{&quot;error&quot;:&quot;busy&quot;} &lt;- HTTP 429</code>。</p>
 <p>要支持多用户，得「每人一个 session」：<code>SessionManager</code> 换成按用户
 落地的实例（<code>session-manager.ts:1765</code> 的 <code>create</code>），每人调一次
-<code>createAgentSession</code>。<strong>本书不展开</strong>——那涉及会话隔离和按用户路由，
-是另一套工程。注意每个 session 都有一份资源加载开销（第三节实测 3.3 秒），
-所以真实项目还要配一个会话池。</p>
+<code>createAgentSession</code>。<strong>本书不展开</strong>——那涉及会话隔离和按用户路由。
+每个 session 都有一份资源加载开销（第三节实测 3.3 秒），真实项目还要配会话池。</p>
 <h3 id="sec-17-坑-3-背压">坑 3：背压</h3>
 <p><code>res.write()</code> 返回 <code>false</code> 表示缓冲区满了。SSE 一段几十字节，正常网络
 下不会满；但客户端「连着不读」（手机切后台）时，缓冲区会一直涨。</p>
@@ -481,13 +509,73 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
 <p>B 走完 catch 就执行 <code>finally</code> 里的 <code>busy = false</code>，而 A 还在跑。第三个
 请求因此看到 <code>busy === false</code> 被放行。<strong>状态机坏了，不是进程崩溃</strong>：
 生产上表现为「偶发两条回答串在一起」，日志里什么都看不到。裸布尔的
-问题不是没锁，而是<strong>别人的收尾替你把锁开了</strong>——要挡并发就用计数器，
-或者干脆以 <code>prompt()</code> 抛错为准（那是 agent 自己的契约，见第七节坑 2）。</p>
+问题不是没锁，而是<strong>别人的收尾替你把锁开了</strong>——要挡并发用计数器，
+或以 <code>prompt()</code> 抛错为准（见第七节坑 2）。</p>
 <ul>
 <li><strong>回滚</strong>　把五行判断加回去。<code>busy</code> 只在请求真正结束时清零。</li>
 </ul>
 <hr>
-<h2 id="sec-20-九-这一页没讲的">九、这一页没讲的</h2>
+<h2 id="sec-20-本章小结">本章小结</h2>
+<ol>
+<li>四种跑法（交互 / print / RPC / SDK）下面都是同一个 session。</li>
+<li>没 key 也能走一半：读代码 + 假 <code>streamFn</code>。</li>
+<li>一个 session 同时只跑一轮，第二个请求立刻抛。</li>
+<li>SSE 的 200 不代表成功：错误也走帧。</li>
+<li>畸形 JSON 不兜会打挂整个进程。</li>
+</ol>
+<h2 id="sec-21-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>四种跑法</td>
+<td>交互 / print / RPC / SDK，共用一套机制</td>
+<td>§一</td>
+</tr>
+<tr>
+<td>降级档</td>
+<td>没 key 时用假 <code>streamFn</code> 走完链路</td>
+<td>§二</td>
+</tr>
+<tr>
+<td><code>busy</code></td>
+<td>一个 session 同时只能跑一轮</td>
+<td>§六、§七 坑 2</td>
+</tr>
+<tr>
+<td>背压</td>
+<td><code>res.write</code> 返回 false 时没人 <code>await</code></td>
+<td>§七 坑 3</td>
+</tr>
+<tr>
+<td>200 错误帧</td>
+<td>响应头先发，错误只能进流</td>
+<td>§八</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-22-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§八 里 B 走完 catch 就把 <code>busy</code> 清零，而 A 还在跑。
+为什么第三个请求会被放行？→ 回 §八 的门口日志三行。</p>
+<p><strong>练习 2（改）</strong>：照 §八 删掉 <code>if (busy)</code> 那五行闸门。
+预期：B、C 都拿到 200 但首帧是 error；连带 A 还在跑时闸门已开。
+回滚：把五行判断加回去，<code>busy</code> 只在请求真正结束时清零。</p>
+<h2 id="sec-23-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> 200 就是成功；<strong>实际是</strong> 错误也走 200 + error 帧；<strong>证据</strong> §八。</li>
+<li><strong>你会以为</strong> <code>busy</code> 只是个优化标志；<strong>实际是</strong> 没有它就是两条回答串在一起；
+<strong>证据</strong> §七 坑 2、§八 的门口日志。</li>
+<li><strong>你会以为</strong> 一个进程能直接服务多用户；<strong>实际是</strong> 要每人一个 session；
+<strong>证据</strong> §七 坑 2。</li>
+</ol>
+<hr>
+<h2 id="sec-24-九-这一页没讲的">九、这一页没讲的</h2>
 <ul>
 <li><strong>多用户会话隔离</strong>：每人一个 <code>SessionManager</code> 加一个 session，见坑 2。</li>
 <li><strong>鉴权与限流</strong>：服务层的事，和 Pi 无关。</li>
@@ -497,7 +585,7 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
 要双向高频（多人协作画板那种）才需要 WebSocket。</li>
 </ul>
 <hr>
-<h2 id="sec-21-源码索引">源码索引</h2>
+<h2 id="sec-25-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -560,7 +648,7 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
       <a class="next" href="appendix-integration.html"><span class="lbl">下一篇</span>附录 D —— 合龙：一次请求，二十五个落点</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四种跑法-先选一种" class="">一、四种跑法，先选一种</a><a href="#sec-2-二-前置条件-先有凭据" class="">二、前置条件：先有凭据</a><a href="#sec-3-三-十行嵌入" class="">三、十行嵌入</a><a href="#sec-4-四-第二轮-会话怎么续" class="">四、第二轮：会话怎么续</a><a href="#sec-5-五-subscribe-能拿到什么" class="">五、subscribe 能拿到什么</a><a href="#sec-6-1-message_start-不只属于用户" class="lv3">1. message_start 不只属于用户</a><a href="#sec-7-2-tool_execution_end-带-durationms" class="lv3">2. tool_execution_end 带 durationMs</a><a href="#sec-8-3-增量藏在-assistantmessageevent-里" class="lv3">3. 增量藏在 assistantMessageEvent 里</a><a href="#sec-9-4-一轮到底发多少事件" class="lv3">4. 一轮到底发多少事件</a><a href="#sec-10-六-四十行服务" class="">六、四十行服务</a><a href="#sec-11-请求一次" class="lv3">请求一次</a><a href="#sec-12-前端那一侧" class="lv3">前端那一侧</a><a href="#sec-13-接口文档" class="lv3">接口文档</a><a href="#sec-14-七-上线前的四个坑" class="">七、上线前的四个坑</a><a href="#sec-15-坑-1-凭据和-cwd" class="lv3">坑 1：凭据和 cwd</a><a href="#sec-16-坑-2-并发" class="lv3">坑 2：并发</a><a href="#sec-17-坑-3-背压" class="lv3">坑 3：背压</a><a href="#sec-18-坑-4-一个畸形请求能打挂整个进程" class="lv3">坑 4：一个畸形请求能打挂整个进程</a><a href="#sec-19-八-改一处试试" class="">八、改一处试试</a><a href="#sec-20-九-这一页没讲的" class="">九、这一页没讲的</a><a href="#sec-21-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四种跑法-先选一种" class="">一、四种跑法，先选一种</a><a href="#sec-2-二-前置条件-先有凭据" class="">二、前置条件：先有凭据</a><a href="#sec-3-三-十行嵌入" class="">三、十行嵌入</a><a href="#sec-4-四-第二轮-会话怎么续" class="">四、第二轮：会话怎么续</a><a href="#sec-5-五-subscribe-能拿到什么" class="">五、subscribe 能拿到什么</a><a href="#sec-6-1-message_start-不只属于用户" class="lv3">1. message_start 不只属于用户</a><a href="#sec-7-2-tool_execution_end-带-durationms" class="lv3">2. tool_execution_end 带 durationMs</a><a href="#sec-8-3-增量藏在-assistantmessageevent-里" class="lv3">3. 增量藏在 assistantMessageEvent 里</a><a href="#sec-9-4-一轮到底发多少事件" class="lv3">4. 一轮到底发多少事件</a><a href="#sec-10-六-四十行服务" class="">六、四十行服务</a><a href="#sec-11-请求一次" class="lv3">请求一次</a><a href="#sec-12-前端那一侧" class="lv3">前端那一侧</a><a href="#sec-13-接口文档" class="lv3">接口文档</a><a href="#sec-14-七-上线前的四个坑" class="">七、上线前的四个坑</a><a href="#sec-15-坑-1-凭据和-cwd" class="lv3">坑 1：凭据和 cwd</a><a href="#sec-16-坑-2-并发" class="lv3">坑 2：并发</a><a href="#sec-17-坑-3-背压" class="lv3">坑 3：背压</a><a href="#sec-18-坑-4-一个畸形请求能打挂整个进程" class="lv3">坑 4：一个畸形请求能打挂整个进程</a><a href="#sec-19-八-改一处试试" class="">八、改一处试试</a><a href="#sec-20-本章小结" class="">本章小结</a><a href="#sec-21-概念回顾" class="">概念回顾</a><a href="#sec-22-练习" class="">练习</a><a href="#sec-23-常见误区" class="">常见误区</a><a href="#sec-24-九-这一页没讲的" class="">九、这一页没讲的</a><a href="#sec-25-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

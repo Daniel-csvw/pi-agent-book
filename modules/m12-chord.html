@@ -52,8 +52,19 @@
 <p>只有当&quot;对象&quot;和&quot;调用它的代码&quot;分开住，换代码才不需要换对象；
 只有当&quot;状态&quot;和&quot;状态的所有者&quot;分开住，换代码才不需要停服务。</p>
 <p>50,101 行，216 个文件。这是仓库里最大的包，也是 <code>durable</code> 唯一非可选的依赖。</p>
+<p>接着 M11 往下说：那边用 <code>generation</code> 交接，让旧循环把控制权交给新循环；
+<code>chord</code> 的 <code>reload</code> 是同一件事的另一种实现——<strong>换代码，不换状态</strong>。</p>
 <hr>
-<h2 id="sec-1-一-五个词">一、五个词</h2>
+<h2 id="sec-1-零-读这章之前-你需要先知道四件事">零、读这章之前，你需要先知道四件事</h2>
+<p><strong>租约（lease）</strong>：不是&quot;永久占有&quot;，而是先签一段时间的使用权，到期自动失效。
+<strong>两阶段提交</strong>：先&quot;准备&quot;（谁都能反悔），再&quot;提交&quot;（不可反悔）。
+<strong>幂等</strong>：同一个请求发两次，结果和发一次一样。
+<strong>祖父亲条款</strong>：老的不动，新的按新规矩。</p>
+<p><strong>没有它们会怎样</strong>：把热重载当成&quot;重启进程&quot;，于是看不懂为什么正在跑的请求没被杀掉——
+它们靠的是&quot;新旧两个版本同时活一会儿&quot;，不是靠杀进程。</p>
+<p><strong>本书哪里用到</strong>：§一 五个词（本章自己的术语），§七 提交协议。</p>
+<hr>
+<h2 id="sec-2-一-五个词">一、五个词</h2>
 <p>先把术语钉死，后面全部靠它们。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -97,7 +108,7 @@
 locally and across processes, and survive reloads.</p>
 </blockquote>
 <p><strong>&quot;survive reloads&quot;</strong>——引用能活过一次热重载。这句话是整章要解释的东西。</p>
-<h3 id="sec-2-1-1-它和-actor-差在哪">1.1 它和 Actor 差在哪</h3>
+<h3 id="sec-3-1-1-它和-actor-差在哪">1.1 它和 Actor 差在哪</h3>
 <p>长得像 Actor：有地址、有状态、有消息。差别在两处，都很关键：</p>
 <ul>
 <li><strong>Actor 的方法调用是消息</strong>，发出去就不保证回。<code>chord</code> 的方法调用是 <code>await</code>，有返回值、
@@ -143,7 +154,7 @@ locally and across processes, and survive reloads.</p>
 </tbody>
 </table></div>
 <p>第二行和第三行是它真正的差异：<strong>状态是公开可观察的，并且不跟着代码版本走。</strong></p>
-<h3 id="sec-3-1-2-durable-站在哪一层">1.2 <code>durable</code> 站在哪一层</h3>
+<h3 id="sec-4-1-2-durable-站在哪一层">1.2 <code>durable</code> 站在哪一层</h3>
 <p>M11 说过 <code>durable</code> 的 <code>storage/store/</code> 是两个 SQL 后端共享的一层。那一层不是它自己写的：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -156,7 +167,7 @@ locally and across processes, and survive reloads.</p>
 <p><strong><code>chord</code> 不是&quot;又一个库&quot;，是 <code>durable</code> 的地基。</strong> M11 讲的那套提交语义，
 最后是这一层的 SQL 在保证。</p>
 <hr>
-<h2 id="sec-4-二-包的地图">二、包的地图</h2>
+<h2 id="sec-5-二-包的地图">二、包的地图</h2>
 <p><code>chord/src/</code> 216 个文件 / 50,101 行，按目录切：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -214,7 +225,7 @@ locally and across processes, and survive reloads.</p>
 </table></div>
 <p>注意最后两行的对比：<code>sqlite/</code> 只有 513 行，<code>telemetry-sqlite/</code> 536 行。
 一个包里的&quot;存储抽象&quot;可以比&quot;存储的实现&quot;还小——因为真正的实现挂在 peer 依赖上。</p>
-<h3 id="sec-5-2-1-v1-根层的七个大文件">2.1 v1 根层的七个大文件</h3>
+<h3 id="sec-6-2-1-v1-根层的七个大文件">2.1 v1 根层的七个大文件</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -263,7 +274,7 @@ locally and across processes, and survive reloads.</p>
 </table></div>
 <p><code>object.ts</code> 一个人占了根层的 18%。它不只是&quot;对象&quot;，是<strong>引用的生命周期账本</strong>——
 后面 §三 会看到，一个 <code>ObjectImpl</code> 上有六种引用持有者。</p>
-<h3 id="sec-6-2-2-next-是什么">2.2 <code>next/</code> 是什么</h3>
+<h3 id="sec-7-2-2-next-是什么">2.2 <code>next/</code> 是什么</h3>
 <p><code>src/next/index.ts</code> 第一行就写了：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -334,8 +345,8 @@ locally and across processes, and survive reloads.</p>
 <p><strong>本章讲 v1</strong>——因为&quot;改代码不用重启&quot;是 v1 的能力，v2 还没接上热重载。
 v2 只在 §九 和 §13.2 出现。</p>
 <hr>
-<h2 id="sec-7-三-object-地址-状态-代码">三、object：地址 + 状态 + 代码</h2>
-<h3 id="sec-8-3-1-一个对象是怎么被定义的">3.1 一个对象是怎么被定义的</h3>
+<h2 id="sec-8-三-object-地址-状态-代码">三、object：地址 + 状态 + 代码</h2>
+<h3 id="sec-9-3-1-一个对象是怎么被定义的">3.1 一个对象是怎么被定义的</h3>
 <p>契约先写，实现在后。<code>contract.ts</code> 的 <code>remote</code> 描述&quot;这个类型长什么样、住在哪台主机&quot;：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -376,7 +387,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 <p><code>hostFamily(&quot;session:&quot;, &quot;session&quot;)</code> 的意思是：输入里的 <code>session</code> 字段是 <code>&quot;abc&quot;</code>，
 这个对象就住在 <code>session:abc</code> 这台主机上。<strong>前缀 + 输入字段 = 主机名</strong>，纯数据推导，
 所以每台主机都能独立算出&quot;这个对象该不该归我&quot;（<code>resolveHost</code>，<code>contract.ts:84</code>）。</p>
-<h3 id="sec-9-3-2-self-工厂能声明的五样东西">3.2 self：工厂能声明的五样东西</h3>
+<h3 id="sec-10-3-2-self-工厂能声明的五样东西">3.2 self：工厂能声明的五样东西</h3>
 <p>工厂的第二个参数是 <code>self</code>，它是唯一能&quot;声明&quot;的入口。<code>Self</code> 接口（<code>object.ts:155-197</code>）
 有五个方法，每个都用&quot;重载时要怎么处理&quot;来定义：</p>
 <div class="table-wrap"><table>
@@ -425,7 +436,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 <p>换成一句话：<strong>跨代的是数据与外部句柄，不跨代的是行为。</strong></p>
 <p><code>resource</code> 那一行的例外很关键——<code>exclusive: true</code> 的资源（比如一个写锁）不能两代共用，
 必须等闸门。这就是 §6.2 里第二种进闸门的理由。</p>
-<h3 id="sec-10-3-3-引用不是对象">3.3 引用不是对象</h3>
+<h3 id="sec-11-3-3-引用不是对象">3.3 引用不是对象</h3>
 <p>这是全章第一个反直觉的点。调用方手里的那个东西是个 <code>Proxy</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -441,7 +452,7 @@ v2 只在 §九 和 §13.2 出现。</p>
 那就等于重启。</p>
 <p>引用的解引用还有一层：<code>bind</code>（<code>contract.ts:321</code>）在&quot;消费者契约&quot;和&quot;提供者实现&quot;之间
 插适配器。所以引用不是直接拿到实现，而是拿到&quot;按我的契约版本翻译过的视图&quot;（<code>object.ts:880</code>）。</p>
-<h3 id="sec-11-3-4-principal-同一个地址-两个对象">3.4 principal：同一个地址，两个对象</h3>
+<h3 id="sec-12-3-4-principal-同一个地址-两个对象">3.4 principal：同一个地址，两个对象</h3>
 <p>README 说：</p>
 <blockquote>
 <p>Every object knows its <strong>principal</strong>: an owner and a guest get different objects,
@@ -454,12 +465,14 @@ with different methods.</p>
 <pre><code><span class="ln"><span class="tok-com">// contract.ts:417-424（节选）</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ImplementationOf&lt;C, P = <span class="tok-kw">unknown</span>&gt; =</span><span class="ln">	C <span class="tok-kw">extends</span> RemoteContract&lt;<span class="tok-kw">infer</span> D&gt; ? ... : <span class="tok-kw">never</span>;</span></code></pre></div>
 <p><code>infer D</code> 是条件类型里&quot;就地取一个类型变量&quot;的写法：句子读作&quot;如果 <code>C</code> 长得像
 <code>RemoteContract&lt;D&gt;</code>，就把那个 <code>D</code> 记下来&quot;。读源码时见到 <code>infer</code>，后面跟的一定是
-一个待推导的名字。它和 <code>as</code> 的区别（一个反推、一个硬断言）在附录 B §2.5。</p>
+一个待推导的名字。</p>
+<p>与 <code>as</code> 的差别：<code>infer</code> 是<strong>从结构反推</strong>，推不出来就落到 <code>never</code>，编译器替你算；
+<code>as</code> 是<strong>你向编译器断言</strong>，真错了也没人拦，运行时才炸。附录 B §2.5 有对比。</p>
 <p><code>P</code> 就是应用自己定义的 principal 类型。<code>factory</code> 的签名里它是个参数（<code>object.ts:78</code>），
 于是&quot;给谁创建&quot;是一个<strong>构造期</strong>的输入，不是每次调用都重新判断的运行时检查。</p>
 <p>好处很直接：owner 看到的方法集可以比 guest 多，而且<strong>多出来的方法在 guest 那侧根本不存在</strong>——
 不是调了被拒绝，是代理上就没有这个成员。</p>
-<h3 id="sec-12-3-5-生命周期-谁还拿着引用">3.5 生命周期：谁还拿着引用</h3>
+<h3 id="sec-13-3-5-生命周期-谁还拿着引用">3.5 生命周期：谁还拿着引用</h3>
 <p><code>Lifetime</code> 只有两个值（<code>object.ts:75</code>）：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -529,7 +542,7 @@ with different methods.</p>
 &quot;No references and no invocations: dispose (after <code>linger</code> for a live object).&quot;
 两个条件同时成立才回收——<strong>没有引用，而且没有正在跑的调用</strong>。
 少一个都不行，因为&quot;引用放掉了&quot;和&quot;活干完了&quot;是两件事。</p>
-<h3 id="sec-13-3-6-根-租约的来源">3.6 根：租约的来源</h3>
+<h3 id="sec-14-3-6-根-租约的来源">3.6 根：租约的来源</h3>
 <p>上面那张表里的 <code>&quot;call&quot;</code> / <code>&quot;host&quot;</code> / <code>&quot;external&quot;</code>，在代码里全都统一成一个概念：<strong>租约</strong>。
 <code>object.ts:1045</code> 有一行不起眼但承重的字段：</p>
 <div class="code-block" data-lang="ts">
@@ -586,9 +599,9 @@ with different methods.</p>
 </tbody>
 </table></div>
 <hr>
-<h2 id="sec-14-四-state-可观察的-json">四、state：可观察的 JSON</h2>
+<h2 id="sec-15-四-state-可观察的-json">四、state：可观察的 JSON</h2>
 <p>状态不是&quot;字段&quot;，是&quot;订阅源&quot;。区别在于：读字段不会告诉你它变了，订阅会。</p>
-<h3 id="sec-15-4-1-一个-cell-是怎么声明的">4.1 一个 cell 是怎么声明的</h3>
+<h3 id="sec-16-4-1-一个-cell-是怎么声明的">4.1 一个 cell 是怎么声明的</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// README 的 Quick start（节选）</span></span><span class="ln"><span class="tok-kw">const</span> count = <span class="tok-kw">self</span>.<span class="tok-fn">state</span>(<span class="tok-str">"count"</span>, <span class="tok-fn">num</span>(), <span class="tok-num">0</span>);</span></code></pre></div>
@@ -600,7 +613,7 @@ with different methods.</p>
 <p><strong><code>version</code> 是&quot;这个值的语义版本&quot;</strong>，不是包版本、不是契约版本。默认 1。</p>
 <p>§六 会看到它为什么存在：热重载时，只有 <code>version</code> 提高了的 cell 才需要迁移和闸门。
 一个改了方法体、没改状态语义的 reload，根本不需要迁移。</p>
-<h3 id="sec-16-4-2-快照-增量">4.2 快照 + 增量</h3>
+<h3 id="sec-17-4-2-快照-增量">4.2 快照 + 增量</h3>
 <p>远端看到的状态是两段式：先一个 <code>snapshot</code>，然后是一串 <code>ops</code>。</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -635,7 +648,7 @@ with different methods.</p>
 <p>为什么要区分 <code>snap</code> 和 <code>reset</code>？因为两者都带完整值，但语义不同：
 <code>snap</code> 是&quot;这就是当前值&quot;，<code>reset</code> 是&quot;之前的增量作废了&quot;。收到 <code>reset</code> 的消费者必须
 丢掉本地缓存，不能尝试合并。</p>
-<h3 id="sec-17-4-3-replicatedstate-有三种形态">4.3 <code>replicatedState</code> 有三种形态</h3>
+<h3 id="sec-18-4-3-replicatedstate-有三种形态">4.3 <code>replicatedState</code> 有三种形态</h3>
 <p><code>state.ts</code> 导出三样东西，名字很像，用途完全不同（<code>state.ts:404-413</code> 的三个重载）：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -702,9 +715,9 @@ with different methods.</p>
 和 §3.4 里&quot;guest 的代理上就没有 owner 的方法&quot;是同一个手法——
 把权限做在类型里，而不是做在运行时检查里。</p>
 <hr>
-<h2 id="sec-18-五-contract-运行时值-不是类型">五、contract：运行时值，不是类型</h2>
+<h2 id="sec-19-五-contract-运行时值-不是类型">五、contract：运行时值，不是类型</h2>
 <p>这是 <code>chord</code> 和绝大多数 RPC 框架最大的分歧点。</p>
-<h3 id="sec-19-5-1-契约有-json-形态">5.1 契约有 JSON 形态</h3>
+<h3 id="sec-20-5-1-契约有-json-形态">5.1 契约有 JSON 形态</h3>
 <p><code>contract.ts</code> 里有一个 <code>DescriptionSchema</code>（<code>:139-151</code>），契约能被序列化成 <code>Description</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -757,7 +770,7 @@ with different methods.</p>
 它不参与 <code>coverage</code> 那套版本协商，因为它压根不跨链路。</p>
 <p><strong>三个构造对应三种边界的远近</strong>：跨机器、同进程跨对象、包一层已存在的东西。
 写契约之前先回答&quot;它会跨链路吗&quot;，选错构造后错的不是类型，是整个生命周期语义。</p>
-<h3 id="sec-20-5-2-同一个版本号不能装两种东西">5.2 同一个版本号不能装两种东西</h3>
+<h3 id="sec-21-5-2-同一个版本号不能装两种东西">5.2 同一个版本号不能装两种东西</h3>
 <p><code>reload.ts:321</code> 有一条校验，注释只有一句：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -772,7 +785,7 @@ with different methods.</p>
 <p><strong>改了 schema 必须升 <code>version</code></strong>，改了就报 <code>invalid</code>。</p>
 <p>两条规则合起来是一个原则：<strong>版本号是声明，不是装饰。</strong> 声明变了就必须动它，
 否则系统会替你拒绝。</p>
-<h3 id="sec-21-5-3-accepts-按版本号索引的适配器">5.3 <code>accepts</code>：按版本号索引的适配器</h3>
+<h3 id="sec-22-5-3-accepts-按版本号索引的适配器">5.3 <code>accepts</code>：按版本号索引的适配器</h3>
 <p>版本不兼容怎么办？不是&quot;必须同时升级&quot;，而是提供方可以写适配器：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -808,9 +821,9 @@ with different methods.</p>
 </table></div>
 <p>三张表，没有第四种。</p>
 <hr>
-<h2 id="sec-22-六-hot-reload-一次-reload-到底做了什么">六、hot reload：一次 reload 到底做了什么</h2>
+<h2 id="sec-23-六-hot-reload-一次-reload-到底做了什么">六、hot reload：一次 reload 到底做了什么</h2>
 <p>这是全章的核心。先看总入口。</p>
-<h3 id="sec-23-6-1-prepare-的九步">6.1 <code>prepare()</code> 的九步</h3>
+<h3 id="sec-24-6-1-prepare-的九步">6.1 <code>prepare()</code> 的九步</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// reload.ts:205-224</span></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-fn">prepare</span>(): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">waitForRetirement</span>();</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">load</span>();</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">checkProviders</span>();</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">prepareAll</span>();</span><span class="ln">		<span class="tok-com">// From here new objects of changed types are rejected</span></span><span class="ln">		<span class="tok-com">// (upgrade_conflict, retryable) until commit or abort,</span></span><span class="ln">		<span class="tok-com">// so the candidate set is final once the activations</span></span><span class="ln">		<span class="tok-com">// already in flight have been prepared.</span></span><span class="ln">		<span class="tok-kw">this</span>.host.gating = <span class="tok-kw">this</span>.changed;</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">withDeadline</span>(</span><span class="ln">			<span class="tok-kw">this</span>.<span class="tok-fn">prepareAll</span>(), <span class="tok-str">"activations in flight did not finish"</span>,</span><span class="ln">		);</span><span class="ln">		<span class="tok-kw">this</span>.<span class="tok-fn">checkRefs</span>();</span><span class="ln">		<span class="tok-kw">this</span>.tables = <span class="tok-kw">this</span>.host.<span class="tok-fn">buildTables</span>(<span class="tok-kw">this</span>.<span class="tok-fn">entries</span>());</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">gate</span>();</span><span class="ln">		<span class="tok-kw">this</span>.#<span class="tok-fn">alive</span>();</span><span class="ln">		<span class="tok-kw">this</span>.#<span class="tok-fn">stage</span>();</span><span class="ln">	} <span class="tok-kw">catch</span> (error) {</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">rollback</span>();</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-fn">reloadError</span>(error);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
@@ -876,7 +889,7 @@ with different methods.</p>
 因为候选集一旦还在长，<code>prepareAll</code> 就永远追不上它。</p>
 <p>注释里那句 &quot;so the candidate set is final&quot; 是一个设计决定：
 <strong>宁可变重载期间拒绝新建，也不要一个永远在变的集合。</strong></p>
-<h3 id="sec-24-6-2-只有两种变更需要闸门">6.2 只有两种变更需要闸门</h3>
+<h3 id="sec-25-6-2-只有两种变更需要闸门">6.2 只有两种变更需要闸门</h3>
 <p>这是整章最值得记住的一条。<code>prepareObject</code> 里，需要闸门的理由（<code>reasons</code>）只有一个来源：
 <strong>状态语义版本提升</strong> 和 <strong>独占资源替换</strong>。</p>
 <div class="code-block" data-lang="ts">
@@ -929,7 +942,7 @@ with different methods.</p>
 <p>进闸门的对象要等到 <code>gate()</code> 之后才做这两件事——因为迁移还没跑，新 cell 还读不出值。</p>
 <p>所以&quot;闸门&quot;这个名字有两层含义：它既是一道队列，也是一个<strong>阶段边界</strong>。
 闸门之前的对象只做到一半，闸门之后的才是完整的新版本。</p>
-<h3 id="sec-25-6-3-闸门-祖父条款">6.3 闸门：祖父条款</h3>
+<h3 id="sec-26-6-3-闸门-祖父条款">6.3 闸门：祖父条款</h3>
 <p>进闸门的那一小拨对象，要等什么？</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -968,7 +981,7 @@ with different methods.</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">/** Records that the root of `ctx` touched this object (a reload gate</span></span><span class="ln"><span class="tok-com"> * grandfathers it). */</span></span></code></pre></div>
 <p><strong>新来的根不算祖父。</strong> 只有已经碰过这个对象的根才被放行，新根得等闸门开。</p>
-<h3 id="sec-26-6-4-commit-一次同步安装">6.4 <code>commit()</code>：一次同步安装</h3>
+<h3 id="sec-27-6-4-commit-一次同步安装">6.4 <code>commit()</code>：一次同步安装</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// reload.ts:561-582</span></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * Publishes the new code version in one synchronous step. Everything</span></span><span class="ln"><span class="tok-com"> * fallible ran in prepare (factories, opens, migration and derivation</span></span><span class="ln"><span class="tok-com"> * checks against the prospective schemas, listener subscriptions), so</span></span><span class="ln"><span class="tok-com"> * this only installs.</span></span><span class="ln"><span class="tok-com"> * ...</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-fn">commit</span>(beforeStart?: () =&gt; <span class="tok-kw">void</span>): ReloadReport {</span><span class="ln">	<span class="tok-kw">try</span> {</span><span class="ln">		<span class="tok-kw">return</span> <span class="tok-fn">holdPublications</span>(() =&gt; {</span><span class="ln">			<span class="tok-kw">const</span> report = <span class="tok-kw">this</span>.#<span class="tok-fn">publish</span>();</span><span class="ln">			beforeStart?.();</span><span class="ln">			<span class="tok-kw">for</span> (<span class="tok-kw">const</span> start <span class="tok-kw">of</span> <span class="tok-kw">this</span>.#starts.<span class="tok-fn">splice</span>(<span class="tok-num">0</span>)) <span class="tok-fn">start</span>();</span><span class="ln">			<span class="tok-kw">return</span> report;</span><span class="ln">		});</span><span class="ln">	} <span class="tok-kw">catch</span> (error) {</span><span class="ln">		<span class="tok-kw">this</span>.host.<span class="tok-fn">fail</span>(error);</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-fn">reloadError</span>(error);</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
@@ -983,7 +996,7 @@ commit 只剩下把新版本挂上去，所以它可以是同步的。</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> previous = host.current;</span><span class="ln"><span class="tok-kw">const</span> next: CodeVersionState = host.pending!;</span><span class="ln">host.pending = <span class="tok-kw">undefined</span>;</span><span class="ln">host.codeVersions.<span class="tok-kw">set</span>(next.id, next);</span><span class="ln">host.previous = previous;</span><span class="ln">host.current = next;</span></code></pre></div>
 <p><strong>换代码就是换一个指针。</strong> 对象、引用、状态全没动，只有一个 <code>host.current</code> 指向了新版本。</p>
-<h3 id="sec-27-6-5-三件事的顺序-为什么不能乱">6.5 三件事的顺序，为什么不能乱</h3>
+<h3 id="sec-28-6-5-三件事的顺序-为什么不能乱">6.5 三件事的顺序，为什么不能乱</h3>
 <p><code>commit</code> 里那三行看着像收尾，其实是一个顺序约束：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -992,7 +1005,7 @@ commit 只剩下把新版本挂上去，所以它可以是同步的。</p>
 没有这一步，&quot;this code version starts&quot;的东西可能先到子主机。</p>
 <p>换成大白话：<strong>先让所有人知道新版本存在，再让新版本开始干活。</strong>
 否则子主机可能收到一条&quot;新版本发起&quot;的消息，而它那边还不知道有个新版本。</p>
-<h3 id="sec-28-6-6-三种失败-三种结局">6.6 三种失败，三种结局</h3>
+<h3 id="sec-29-6-6-三种失败-三种结局">6.6 三种失败，三种结局</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1031,7 +1044,7 @@ commit 只剩下把新版本挂上去，所以它可以是同步的。</p>
 <pre><code><span class="ln">#<span class="tok-fn">alive</span>(): <span class="tok-kw">void</span> {</span><span class="ln">	<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.rolledBack)</span><span class="ln">		<span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">ChordError</span>(<span class="tok-str">"aborted"</span>, <span class="tok-str">"reload aborted while preparing"</span>, {</span><span class="ln">			reason: <span class="tok-str">"aborted"</span>,</span><span class="ln">		});</span><span class="ln">}</span></code></pre></div>
 <p>它在 prepare 里<strong>每一个 <code>await</code> 之后</strong>都调用一次。因为 abort 是异步到来的，
 只能在每个可能让出執行权的位置检查。</p>
-<h3 id="sec-29-6-7-旧代码什么时候退休">6.7 旧代码什么时候退休</h3>
+<h3 id="sec-30-6-7-旧代码什么时候退休">6.7 旧代码什么时候退休</h3>
 <p>主机同时持有两个代码版本（<code>reload.ts:259-263</code>）：</p>
 <blockquote>
 <p>Retires the previous code version before loading the next one (<strong>a host keeps two</strong>).
@@ -1050,7 +1063,7 @@ their next call is <code>superseded</code>.</p>
 <p><code>superseded</code> 这个错误码本身就是给&quot;热重载了，你的调用被跳过了，重试就好&quot;准备的。
 它和 <code>upgrade_required</code>（浏览器引用）是同一类：都是&quot;你没坏，只是世界变了&quot;。</p>
 <hr>
-<h2 id="sec-30-七-集群-五个帧的两阶段提交">七、集群：五个帧的两阶段提交</h2>
+<h2 id="sec-31-七-集群-五个帧的两阶段提交">七、集群：五个帧的两阶段提交</h2>
 <p>单机热重载靠闸门。多主机靠什么？靠<strong>投票</strong>。</p>
 <p><code>wire.ts:166-182</code> 里有五个专用帧，方向看前缀就清楚：</p>
 <div class="code-block" data-lang="ts">
@@ -1105,12 +1118,12 @@ their next call is <code>superseded</code>.</p>
 <p>服务器先装，窗口就变成了&quot;服务器 v5、子机 v4&quot;——这个方向是安全的：
 新版本声明自己能覆盖旧契约（§5），所以 v5 的服务器可以接受 v4 子机的调用。</p>
 <hr>
-<h2 id="sec-31-八-link-二十个帧-五个方向">八、link：二十个帧，五个方向</h2>
+<h2 id="sec-32-八-link-二十三个帧-五个方向">八、link：二十三个帧，五个方向</h2>
 <p><code>wire.ts</code> 开头有一段注释，是整个协议的目录：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// JSON frames between two hosts (or a host and a client). Ids are chosen by</span></span><span class="ln"><span class="tok-com">// the side that creates the hold, call or subscription; every frame type has</span></span><span class="ln"><span class="tok-com">// one direction, so ids never collide:</span></span><span class="ln"><span class="tok-com">//   consumer -&gt; provider: hold, release, call, cancel, sub, unsub, resync</span></span><span class="ln"><span class="tok-com">//   provider -&gt; consumer: shape, gone, result, state</span></span><span class="ln"><span class="tok-com">//   both: hello, ping, pong, bye, root_end, ack</span></span><span class="ln"><span class="tok-com">//   parent -&gt; child: invalidate, prepare, commit, abort, retire</span></span><span class="ln"><span class="tok-com">//   child -&gt; parent: vote</span></span></code></pre></div>
-<p>一句话概括：<strong>每个帧只有一个方向，所以 id 不会撞。</strong></p>
+<p>一句话概括：<strong>每个帧只有一个方向，所以 id 不会撞。</strong>（ 7 + 4 + 6 + 5 + 1 = <strong>23 个帧</strong>）</p>
 <p>这是协议设计里最省事的一个决定。双向帧要让两侧各自维护 id 空间，
 单向帧就不用——谁创建的谁发包。</p>
 <div class="table-wrap"><table>
@@ -1149,12 +1162,12 @@ their next call is <code>superseded</code>.</p>
 </tr>
 </tbody>
 </table></div>
-<h3 id="sec-32-8-1-hold-是-quot-我要一个对象-quot">8.1 <code>hold</code> 是&quot;我要一个对象&quot;</h3>
+<h3 id="sec-33-8-1-hold-是-quot-我要一个对象-quot">8.1 <code>hold</code> 是&quot;我要一个对象&quot;</h3>
 <p>七个消费方帧里，<code>hold</code> 是最重的一个：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// wire.ts:91-114（节选）</span></span><span class="ln"><span class="tok-fn">Open</span>({</span><span class="ln">	t: <span class="tok-fn">lit</span>(<span class="tok-str">"hold"</span>),</span><span class="ln">	id: Id,</span><span class="ln">	at: Name,</span><span class="ln">	<span class="tok-com">/** The consumer's contract token; the provider checks that it covers it. */</span></span><span class="ln">	token: DescriptionSchema,</span><span class="ln">	input: <span class="tok-kw">unknown</span>(),</span><span class="ln">	<span class="tok-com">/** A forwarded principal. Honored only on frames from the parent link. */</span></span><span class="ln">	principal: <span class="tok-fn">opt</span>(<span class="tok-kw">unknown</span>()),</span><span class="ln">	<span class="tok-com">/** The client connection the hold comes from ... */</span></span><span class="ln">	origin: <span class="tok-fn">opt</span>(Name),</span><span class="ln">	<span class="tok-com">/** False: no state for this hold until `sub`. */</span></span><span class="ln">	state: <span class="tok-fn">opt</span>(<span class="tok-fn">lit</span>(<span class="tok-kw">false</span>)),</span><span class="ln">	<span class="tok-com">/** The consumer already has values (a re-hold after a link loss). */</span></span><span class="ln">	again: <span class="tok-fn">opt</span>(<span class="tok-fn">lit</span>(<span class="tok-kw">true</span>)),</span><span class="ln">}),</span></code></pre></div>
-<p>六个可选字段，各管一个真实场景：</p>
+<p>五个字段，各管一个真实场景（<code>token</code> 和 <code>input</code> 必填，其余四个可选）：</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1187,7 +1200,7 @@ their next call is <code>superseded</code>.</p>
 </table></div>
 <p><code>principal</code> 和 <code>origin</code> 那句 &quot;Honored only on frames from the parent link&quot; 是一道安全边界：
 <strong>只有上级主机能替别人说话。</strong> 同级主机转发一个伪造的 <code>principal</code> 会被忽略。</p>
-<h3 id="sec-33-8-2-shape-先给目录-再给内容">8.2 <code>shape</code>：先给目录，再给内容</h3>
+<h3 id="sec-34-8-2-shape-先给目录-再给内容">8.2 <code>shape</code>：先给目录，再给内容</h3>
 <p>状态不是一次性发过来的，而是分成&quot;单元&quot;：先一个 <code>shape</code>，然后每个状态成员一个 <code>snap</code>。</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1223,7 +1236,7 @@ their next call is <code>superseded</code>.</p>
 否则客户端会有一瞬间知道&quot;有个成员叫 <code>count</code>&quot;，但它的值还没来——
 那一瞬间任何读 <code>count</code> 的代码都会拿到 <code>undefined</code>。</p>
 <p>这条规则把&quot;订阅&quot;变成了一个原子动作：要么你什么都没有，要么你有一致的目录加快照。</p>
-<h3 id="sec-34-8-3-三种链路-一种帧">8.3 三种链路，一种帧</h3>
+<h3 id="sec-35-8-3-三种链路-一种帧">8.3 三种链路，一种帧</h3>
 <p><code>link.ts</code> 里三个实现，接口完全一样：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1255,7 +1268,7 @@ their next call is <code>superseded</code>.</p>
 重传逻辑全在基类里，子类只负责&quot;怎么把一段字符串发出去&quot;。</p>
 <p>所以&quot;同进程两个主机&quot;和&quot;跨机器两个主机&quot;走的是<strong>同一套代码</strong>，
 区别只在传输层。测试能跑全链路，原因就在这里。</p>
-<h3 id="sec-35-8-4-64-kb-之后压缩">8.4 64 KB 之后压缩</h3>
+<h3 id="sec-36-8-4-64-kb-之后压缩">8.4 64 KB 之后压缩</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// link.ts:108-113</span></span><span class="ln"><span class="tok-com">// whose JSON exceeds `PACK_THRESHOLD` characters is sent deflated. A host</span></span><span class="ln"><span class="tok-com">// that only relays the frame forwards ...</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> PACK_THRESHOLD = <span class="tok-num">64</span> * <span class="tok-num">1024</span>;</span></code></pre></div>
@@ -1264,7 +1277,7 @@ forwards&quot; 说明了设计意图：<strong>中转主机不重新压缩</stro
 <p>这是个容易被忽略的细节：状态快照很容易超过 64 KB，而每个中继节点重新压一遍
 会是纯浪费。</p>
 <hr>
-<h2 id="sec-36-九-delta-不可变是所有权约定">九、delta：不可变是所有权约定</h2>
+<h2 id="sec-37-九-delta-不可变是所有权约定">九、delta：不可变是所有权约定</h2>
 <p><code>delta/</code> 3,976 行，是 <code>chord</code> 里最独立的一块（有自己独立的导出路径 <code>./delta</code>）。
 它的 README 第二段是全包最诚实的一句话：</p>
 <blockquote>
@@ -1274,7 +1287,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <p>翻译过来：<strong>不可变是约定，不是检查。</strong> 你毁了约，它不会报错，只会静默地坏掉。</p>
 <p>这是一个明确取舍：要零拷贝的性能，就得把正确性交给调用方。
 反过来，每一次修改都做深拷贝或者冻结，<code>chord</code> 就不可能在每秒钟几千次状态变更下工作。</p>
-<h3 id="sec-37-9-1-谁有写权">9.1 谁有写权</h3>
+<h3 id="sec-38-9-1-谁有写权">9.1 谁有写权</h3>
 <p>README 里给了一张表（这里只摘五条最常用的）：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1308,7 +1321,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 </table></div>
 <p>第二行是使用中最容易出错的：<code>change.state</code> 只在 change 期间可变，
 <code>prepare()</code> 之后任何一次访问都会抛。这不是防御性检查，是<strong>句柄被作废了</strong>。</p>
-<h3 id="sec-38-9-2-一次变更的四个动词">9.2 一次变更的四个动词</h3>
+<h3 id="sec-39-9-2-一次变更的四个动词">9.2 一次变更的四个动词</h3>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-com">// delta/README.md 的示例（节选）</span></span><span class="ln"><span class="tok-kw">const</span> tracker = <span class="tok-fn">track</span>(initial);   <span class="tok-com">// 所有权转移</span></span><span class="ln"><span class="tok-kw">const</span> change = tracker.<span class="tok-fn">beginChange</span>();</span><span class="ln">change.state.output += <span class="tok-str">"done\n"</span>;  <span class="tok-com">// 只有这里能改</span></span><span class="ln"><span class="tok-kw">const</span> prepared = change.<span class="tok-fn">prepare</span>(); <span class="tok-com">// 句柄作废，产生不可变修订</span></span><span class="ln"><span class="tok-fn">assert</span>(prepared.base);            <span class="tok-com">// base + ops = value</span></span><span class="ln">tracker.<span class="tok-fn">adopt</span>(prepared);          <span class="tok-com">// tracker.value === prepared.value</span></span></code></pre></div>
@@ -1321,7 +1334,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 </ul>
 <p><code>applyImmutable(base, ops)</code> 就是远端那一步。它是纯函数：同样的输入永远同样的输出，
 不碰 <code>base</code>，不碰 <code>ops</code>，返回一个新值。</p>
-<h3 id="sec-39-9-3-这套东西和热重载的关系">9.3 这套东西和热重载的关系</h3>
+<h3 id="sec-40-9-3-这套东西和热重载的关系">9.3 这套东西和热重载的关系</h3>
 <p><code>chord</code> 的 cell 值就是这种不可变修订。三个环节因此变得廉价：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1347,7 +1360,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 </table></div>
 <p><strong>一个不可变修订，同时是三个功能的输入。</strong> 这是 <code>delta</code> 那 3,976 行真正的价值：
 它不是&quot;一个 diff 库&quot;，它是 <code>chord</code> 状态层的公共前提。</p>
-<h3 id="sec-40-9-4-积压的批可以一次性重放">9.4 积压的批可以一次性重放</h3>
+<h3 id="sec-41-9-4-积压的批可以一次性重放">9.4 积压的批可以一次性重放</h3>
 <p><code>applyImmutable</code> 一次一批。链路断开重连时可能积压了几十批，一批一批地应用会产生
 几十个中间修订——每一个都不需要，也都不该被看到。</p>
 <p><code>applyImmutableBatches</code> 处理这个（<code>delta/README.md:53-60</code>）：</p>
@@ -1359,7 +1372,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <p>这和 §6.4 的 <code>holdPublications</code> 是同一个手法：把一串变化攒进一个作用域，最后一次性公布。
 一个用于重放，一个用于发布；都在利用&quot;不可变&quot;这个前提。</p>
 <hr>
-<h2 id="sec-41-十-完整链路">十、完整链路</h2>
+<h2 id="sec-42-十-完整链路">十、完整链路</h2>
 <p>把前面几节拼起来，一次本地热重载的时序：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1368,7 +1381,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <strong>为什么新版本不能一起去掉旧版本？</strong> 因为还有很多根在旧代码上跑。
 两个版本同时活着，是靠 <code>host.previous</code> 和 <code>host.current</code> 两个字段做到的。</p>
 <hr>
-<h2 id="sec-42-十一-工程暗坑">十一、工程暗坑</h2>
+<h2 id="sec-43-十一-工程暗坑">十一、工程暗坑</h2>
 <p><strong>1. 改了状态 schema 不升 <code>version</code>，直接报错。</strong>
 <code>reload.ts:396-397</code> 是 <code>to === from</code> 但 schema 变了就 <code>invalid</code>。不是警告，是拒绝。
 理由很实在：老消费者会按旧 schema 解析新数据，而这类 bug 几乎无法复现。</p>
@@ -1402,7 +1415,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 契约的 <code>version</code>（<code>remote</code> 的 <code>def.version</code>）、cell 的 <code>version</code>（<code>StateOptions</code>）、
 协议的 <code>PROTOCOL_VERSION = 4</code>（<code>wire.ts:40</code>），改错一个，报的错完全看不懂：
 前者报 <code>contract_mismatch</code>，中者报 <code>invalid/state</code>，后者直接断链路。</p>
-<h3 id="sec-43-11-1-十二个错误码-只有两个能重试">11.1 十二个错误码，只有两个能重试</h3>
+<h3 id="sec-44-11-1-十二个错误码-只有两个能重试">11.1 十二个错误码，只有两个能重试</h3>
 <p><code>errors.ts</code> 只有 77 行，但它是调用方面对失败时的全部词汇。12 个错误码里，
 只有两个是可重试的（<code>errors.ts:24</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -1481,37 +1494,40 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <strong>重载失败不会被包成一个笼统的 <code>reload_failed</code></strong>，你会直接看到 <code>contract_mismatch</code>
 或 <code>invalid/state</code>——排查时省掉一层嵌套。</p>
 <hr>
-<h2 id="sec-44-十二-自己动手验证">十二、自己动手验证</h2>
+<h2 id="sec-45-十二-自己动手验证">十二、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。每条判据都是这一版实跑的输出。</p>
+</blockquote>
 <p><code>chord</code> 的测试不需要额外环境，<code>cd packages/chord</code> 直接跑。六个实验，前五个都只是读。</p>
-<h3 id="sec-45-实验-1-跑一遍热重载的核心用例">实验 1：跑一遍热重载的核心用例</h3>
+<h3 id="sec-46-实验-1-跑一遍热重载的核心用例">实验 1：跑一遍热重载的核心用例</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cd packages/chord</span><span class="ln">npx vitest --run test/reload.test.ts</span></code></pre></div>
 <p>判据：全绿。这个文件里每条用例都是一个&quot;变更类型 + 预期结局&quot;的表格。</p>
-<h3 id="sec-46-实验-2-看对象层面的重载">实验 2：看对象层面的重载</h3>
+<h3 id="sec-47-实验-2-看对象层面的重载">实验 2：看对象层面的重载</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">npx vitest --run test/host-objects-reload.test.ts</span></code></pre></div>
 <p>判据：能看到&quot;引用活过重载&quot;的断言——同一个 <code>ref</code>，重载前后调用的实现不同。
 这一条就是第一章 &quot;survive reloads&quot; 的可执行版本。</p>
-<h3 id="sec-47-实验-3-看集群的两阶段提交">实验 3：看集群的两阶段提交</h3>
+<h3 id="sec-48-实验-3-看集群的两阶段提交">实验 3：看集群的两阶段提交</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">npx vitest --run test/cluster.test.ts</span></code></pre></div>
 <p>判据：用例里会出现&quot;子机 vote 失败 -&gt; 整次重载 abort&quot;。
 把它和 §七 那五个帧对着看。</p>
-<h3 id="sec-48-实验-4-自己触发一次闸门">实验 4：自己触发一次闸门</h3>
+<h3 id="sec-49-实验-4-自己触发一次闸门">实验 4：自己触发一次闸门</h3>
 <p>找 <code>test/reload.test.ts</code> 里任意一个带 state 的实现，把 <code>self.state(...)</code> 的选项
 从默认改成 <code>{ version: 2 }</code>，再跑。</p>
 <p>判据：<code>ReloadReport.gated</code> 里多了那个对象的地址。
 把 <code>version</code> 改成 1（比原来的小），则 <code>reload()</code> 直接抛 <code>invalid</code>。</p>
-<h3 id="sec-49-实验-5-从教程跑一遍全链路">实验 5：从教程跑一遍全链路</h3>
+<h3 id="sec-50-实验-5-从教程跑一遍全链路">实验 5：从教程跑一遍全链路</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">npx vitest --run test/tutorial.test.ts</span></code></pre></div>
 <p>判据：共 55 个测试文件里，这一个对应 README 的 Quick start（共享待办清单）。
 它跑通了，说明契约、主机、引用、状态、链路五个环节都对。</p>
-<h3 id="sec-50-实验-6-把闸门卡死-看两种超时差在哪">实验 6：把闸门卡死，看两种超时差在哪</h3>
+<h3 id="sec-51-实验-6-把闸门卡死-看两种超时差在哪">实验 6：把闸门卡死，看两种超时差在哪</h3>
 <p>在 <code>test/reload.test.ts</code> 里找一条带闸门的用例，把 <code>gateDeadline</code> 改成 <code>1</code> 再跑；
 再用同样的方式把 <code>retireDeadline</code> 改成 <code>1</code>。</p>
 <p>判据：两件事完全不一样——</p>
@@ -1523,14 +1539,75 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <p>最后一个实验不为验证代码，为验证你自己的理解：
 <strong>看完这章再读一遍 README 的 Quick start，应该能说出每一行背后发生了几次帧交换。</strong></p>
 <hr>
-<h2 id="sec-51-读完自检">读完自检</h2>
+<h2 id="sec-52-本章小结">本章小结</h2>
+<ol>
+<li>chord 的对象 = 地址 + 状态 + 代码，三样分开存。</li>
+<li>热重载靠引用存地址不存函数，换实现不用重新分发。</li>
+<li><code>prepare</code> 与 <code>commit</code> 分开，安装就没有中间态。</li>
+<li>只有两种变更过闸门：状态语义版本提升、独占资源替换。</li>
+<li>集群重载是两阶段提交：一个子机投反对，整次 abort。</li>
+</ol>
+<h2 id="sec-53-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>object</td>
+<td>地址 + 状态 + 代码，三样拆开</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>state</td>
+<td>可观察的 JSON，版本号带语义</td>
+<td>§四</td>
+</tr>
+<tr>
+<td>contract</td>
+<td>运行时值，不是类型声明</td>
+<td>§五</td>
+</tr>
+<tr>
+<td>hot reload</td>
+<td>换代不换引用</td>
+<td>§六</td>
+</tr>
+<tr>
+<td>两阶段提交</td>
+<td><code>prepare</code> 之后才 <code>commit</code></td>
+<td>§七</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-54-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§十二 实验 6 里两种超时结果完全不同。
+为什么一个回滚、一个继续成功？→ 回 §6.6 的表与 §6.7。</p>
+<p><strong>练习 2（改）</strong>：照 §十二 实验 4 把 <code>self.state(...)</code> 的 <code>version</code>
+改成 <code>2</code> 再跑。预期：<code>ReloadReport.gated</code> 里多出那个地址；
+改成 <code>1</code> 则 <code>reload()</code> 抛 <code>invalid</code>；回滚：改回默认。</p>
+<h2 id="sec-55-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> 热重载要重新分发引用；<strong>实际是</strong> 引用存地址，不用重发；
+<strong>证据</strong> §三、§六。</li>
+<li><strong>你会以为</strong> 状态只是个 JSON 块；<strong>实际是</strong> 版本号带语义，提升就得过闸门；
+<strong>证据</strong> §6.2。</li>
+<li><strong>你会以为</strong> 集群重载是各子机各自换；<strong>实际是</strong> 两阶段提交，一个失败全 abort；
+<strong>证据</strong> §七。</li>
+</ol>
+<hr>
+<h2 id="sec-56-读完自检">读完自检</h2>
 <p>三条，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>自检</th>
 <th>一句话答案</th>
-<th>在哪</th>
+<th>不会就去</th>
 </tr>
 </thead>
 <tbody>
@@ -1551,8 +1628,8 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-52-十三-收束">十三、收束</h2>
-<h3 id="sec-53-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
+<h2 id="sec-57-十三-收束">十三、收束</h2>
+<h3 id="sec-58-13-1-三个可迁移的方法">13.1 三个可迁移的方法</h3>
 <p><strong>一、要热重载，先让&quot;引用&quot;和&quot;实现&quot;解耦。</strong>
 引用存地址不存函数，所以换实现不需要重新分发引用。
 任何想支持热更新的系统都绕不开这一条：函数指针一旦被拷出去，就只能重启。</p>
@@ -1563,7 +1640,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <p><strong>三、闸门要窄，不要宽。</strong>
 只有&quot;状态语义版本提升&quot;和&quot;独占资源替换&quot;两种变更需要排队，其余全部无缝。
 一个把所有变更都当不兼容的系统，每次发布都是一次停服。</p>
-<h3 id="sec-54-13-2-这章的边界">13.2 这章的边界</h3>
+<h3 id="sec-59-13-2-这章的边界">13.2 这章的边界</h3>
 <p>没讲的部分：</p>
 <ul>
 <li><code>next/</code>（28,733 行）：v2 的文档与存储层。本章只在 §1.2 讲了它和 <code>durable</code> 的接缝，
@@ -1574,11 +1651,12 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 </ul>
 <p>一个必须说清楚的数字修正：<code>chord</code> 是 <strong>216 文件 / 50,101 行</strong>，不是流传的 45,619。
 后者只算了 <code>src/</code> 的一部分。</p>
-<h3 id="sec-55-13-3-下一站">13.3 下一站</h3>
+<h3 id="sec-60-13-3-下一站">13.3 下一站</h3>
 <p>M13 讲 <code>mcp</code> 与 <code>codemode</code>：模型自己写的代码，怎么在一个受控环境里跑。
 那里会出现 <code>chord</code> 的第三种用法——不是宿主应用，也不是存储层，而是<strong>沙箱的边界</strong>。</p>
+<p><strong>下一章：M13 <code>mcp</code> + <code>codemode</code>——模型写的代码怎么在受控环境里跑。</strong></p>
 <hr>
-<h2 id="sec-56-本章源码索引">本章源码索引</h2>
+<h2 id="sec-61-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1646,7 +1724,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
 <tr>
 <td><code>chord/src/wire.ts</code></td>
 <td>200</td>
-<td>20 个帧的 schema，协议版本 4</td>
+<td>23 个帧的 schema，协议版本 4</td>
 </tr>
 <tr>
 <td><code>chord/src/delta/</code></td>
@@ -1681,7 +1759,7 @@ so an illegal mutation is not detected. It silently corrupts state.</p>
       <a class="next" href="m13-mcp-codemode.html"><span class="lbl">下一篇</span>扩展入口 —— MCP 连出去，codemode 收进来</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-五个词" class="">一、五个词</a><a href="#sec-2-1-1-它和-actor-差在哪" class="lv3">1.1 它和 Actor 差在哪</a><a href="#sec-3-1-2-durable-站在哪一层" class="lv3">1.2 durable 站在哪一层</a><a href="#sec-4-二-包的地图" class="">二、包的地图</a><a href="#sec-5-2-1-v1-根层的七个大文件" class="lv3">2.1 v1 根层的七个大文件</a><a href="#sec-6-2-2-next-是什么" class="lv3">2.2 next/ 是什么</a><a href="#sec-7-三-object-地址-状态-代码" class="">三、object：地址 + 状态 + 代码</a><a href="#sec-8-3-1-一个对象是怎么被定义的" class="lv3">3.1 一个对象是怎么被定义的</a><a href="#sec-9-3-2-self-工厂能声明的五样东西" class="lv3">3.2 self：工厂能声明的五样东西</a><a href="#sec-10-3-3-引用不是对象" class="lv3">3.3 引用不是对象</a><a href="#sec-11-3-4-principal-同一个地址-两个对象" class="lv3">3.4 principal：同一个地址，两个对象</a><a href="#sec-12-3-5-生命周期-谁还拿着引用" class="lv3">3.5 生命周期：谁还拿着引用</a><a href="#sec-13-3-6-根-租约的来源" class="lv3">3.6 根：租约的来源</a><a href="#sec-14-四-state-可观察的-json" class="">四、state：可观察的 JSON</a><a href="#sec-15-4-1-一个-cell-是怎么声明的" class="lv3">4.1 一个 cell 是怎么声明的</a><a href="#sec-16-4-2-快照-增量" class="lv3">4.2 快照 + 增量</a><a href="#sec-17-4-3-replicatedstate-有三种形态" class="lv3">4.3 replicatedState 有三种形态</a><a href="#sec-18-五-contract-运行时值-不是类型" class="">五、contract：运行时值，不是类型</a><a href="#sec-19-5-1-契约有-json-形态" class="lv3">5.1 契约有 JSON 形态</a><a href="#sec-20-5-2-同一个版本号不能装两种东西" class="lv3">5.2 同一个版本号不能装两种东西</a><a href="#sec-21-5-3-accepts-按版本号索引的适配器" class="lv3">5.3 accepts：按版本号索引的适配器</a><a href="#sec-22-六-hot-reload-一次-reload-到底做了什么" class="">六、hot reload：一次 reload 到底做了什么</a><a href="#sec-23-6-1-prepare-的九步" class="lv3">6.1 prepare() 的九步</a><a href="#sec-24-6-2-只有两种变更需要闸门" class="lv3">6.2 只有两种变更需要闸门</a><a href="#sec-25-6-3-闸门-祖父条款" class="lv3">6.3 闸门：祖父条款</a><a href="#sec-26-6-4-commit-一次同步安装" class="lv3">6.4 commit()：一次同步安装</a><a href="#sec-27-6-5-三件事的顺序-为什么不能乱" class="lv3">6.5 三件事的顺序，为什么不能乱</a><a href="#sec-28-6-6-三种失败-三种结局" class="lv3">6.6 三种失败，三种结局</a><a href="#sec-29-6-7-旧代码什么时候退休" class="lv3">6.7 旧代码什么时候退休</a><a href="#sec-30-七-集群-五个帧的两阶段提交" class="">七、集群：五个帧的两阶段提交</a><a href="#sec-31-八-link-二十个帧-五个方向" class="">八、link：二十个帧，五个方向</a><a href="#sec-32-8-1-hold-是-quot-我要一个对象-quot" class="lv3">8.1 hold 是&amp;quot;我要一个对象&amp;quot;</a><a href="#sec-33-8-2-shape-先给目录-再给内容" class="lv3">8.2 shape：先给目录，再给内容</a><a href="#sec-34-8-3-三种链路-一种帧" class="lv3">8.3 三种链路，一种帧</a><a href="#sec-35-8-4-64-kb-之后压缩" class="lv3">8.4 64 KB 之后压缩</a><a href="#sec-36-九-delta-不可变是所有权约定" class="">九、delta：不可变是所有权约定</a><a href="#sec-37-9-1-谁有写权" class="lv3">9.1 谁有写权</a><a href="#sec-38-9-2-一次变更的四个动词" class="lv3">9.2 一次变更的四个动词</a><a href="#sec-39-9-3-这套东西和热重载的关系" class="lv3">9.3 这套东西和热重载的关系</a><a href="#sec-40-9-4-积压的批可以一次性重放" class="lv3">9.4 积压的批可以一次性重放</a><a href="#sec-41-十-完整链路" class="">十、完整链路</a><a href="#sec-42-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-43-11-1-十二个错误码-只有两个能重试" class="lv3">11.1 十二个错误码，只有两个能重试</a><a href="#sec-44-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-45-实验-1-跑一遍热重载的核心用例" class="lv3">实验 1：跑一遍热重载的核心用例</a><a href="#sec-46-实验-2-看对象层面的重载" class="lv3">实验 2：看对象层面的重载</a><a href="#sec-47-实验-3-看集群的两阶段提交" class="lv3">实验 3：看集群的两阶段提交</a><a href="#sec-48-实验-4-自己触发一次闸门" class="lv3">实验 4：自己触发一次闸门</a><a href="#sec-49-实验-5-从教程跑一遍全链路" class="lv3">实验 5：从教程跑一遍全链路</a><a href="#sec-50-实验-6-把闸门卡死-看两种超时差在哪" class="lv3">实验 6：把闸门卡死，看两种超时差在哪</a><a href="#sec-51-读完自检" class="">读完自检</a><a href="#sec-52-十三-收束" class="">十三、收束</a><a href="#sec-53-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-54-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-55-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-56-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-读这章之前-你需要先知道四件事" class="">零、读这章之前，你需要先知道四件事</a><a href="#sec-2-一-五个词" class="">一、五个词</a><a href="#sec-3-1-1-它和-actor-差在哪" class="lv3">1.1 它和 Actor 差在哪</a><a href="#sec-4-1-2-durable-站在哪一层" class="lv3">1.2 durable 站在哪一层</a><a href="#sec-5-二-包的地图" class="">二、包的地图</a><a href="#sec-6-2-1-v1-根层的七个大文件" class="lv3">2.1 v1 根层的七个大文件</a><a href="#sec-7-2-2-next-是什么" class="lv3">2.2 next/ 是什么</a><a href="#sec-8-三-object-地址-状态-代码" class="">三、object：地址 + 状态 + 代码</a><a href="#sec-9-3-1-一个对象是怎么被定义的" class="lv3">3.1 一个对象是怎么被定义的</a><a href="#sec-10-3-2-self-工厂能声明的五样东西" class="lv3">3.2 self：工厂能声明的五样东西</a><a href="#sec-11-3-3-引用不是对象" class="lv3">3.3 引用不是对象</a><a href="#sec-12-3-4-principal-同一个地址-两个对象" class="lv3">3.4 principal：同一个地址，两个对象</a><a href="#sec-13-3-5-生命周期-谁还拿着引用" class="lv3">3.5 生命周期：谁还拿着引用</a><a href="#sec-14-3-6-根-租约的来源" class="lv3">3.6 根：租约的来源</a><a href="#sec-15-四-state-可观察的-json" class="">四、state：可观察的 JSON</a><a href="#sec-16-4-1-一个-cell-是怎么声明的" class="lv3">4.1 一个 cell 是怎么声明的</a><a href="#sec-17-4-2-快照-增量" class="lv3">4.2 快照 + 增量</a><a href="#sec-18-4-3-replicatedstate-有三种形态" class="lv3">4.3 replicatedState 有三种形态</a><a href="#sec-19-五-contract-运行时值-不是类型" class="">五、contract：运行时值，不是类型</a><a href="#sec-20-5-1-契约有-json-形态" class="lv3">5.1 契约有 JSON 形态</a><a href="#sec-21-5-2-同一个版本号不能装两种东西" class="lv3">5.2 同一个版本号不能装两种东西</a><a href="#sec-22-5-3-accepts-按版本号索引的适配器" class="lv3">5.3 accepts：按版本号索引的适配器</a><a href="#sec-23-六-hot-reload-一次-reload-到底做了什么" class="">六、hot reload：一次 reload 到底做了什么</a><a href="#sec-24-6-1-prepare-的九步" class="lv3">6.1 prepare() 的九步</a><a href="#sec-25-6-2-只有两种变更需要闸门" class="lv3">6.2 只有两种变更需要闸门</a><a href="#sec-26-6-3-闸门-祖父条款" class="lv3">6.3 闸门：祖父条款</a><a href="#sec-27-6-4-commit-一次同步安装" class="lv3">6.4 commit()：一次同步安装</a><a href="#sec-28-6-5-三件事的顺序-为什么不能乱" class="lv3">6.5 三件事的顺序，为什么不能乱</a><a href="#sec-29-6-6-三种失败-三种结局" class="lv3">6.6 三种失败，三种结局</a><a href="#sec-30-6-7-旧代码什么时候退休" class="lv3">6.7 旧代码什么时候退休</a><a href="#sec-31-七-集群-五个帧的两阶段提交" class="">七、集群：五个帧的两阶段提交</a><a href="#sec-32-八-link-二十三个帧-五个方向" class="">八、link：二十三个帧，五个方向</a><a href="#sec-33-8-1-hold-是-quot-我要一个对象-quot" class="lv3">8.1 hold 是&amp;quot;我要一个对象&amp;quot;</a><a href="#sec-34-8-2-shape-先给目录-再给内容" class="lv3">8.2 shape：先给目录，再给内容</a><a href="#sec-35-8-3-三种链路-一种帧" class="lv3">8.3 三种链路，一种帧</a><a href="#sec-36-8-4-64-kb-之后压缩" class="lv3">8.4 64 KB 之后压缩</a><a href="#sec-37-九-delta-不可变是所有权约定" class="">九、delta：不可变是所有权约定</a><a href="#sec-38-9-1-谁有写权" class="lv3">9.1 谁有写权</a><a href="#sec-39-9-2-一次变更的四个动词" class="lv3">9.2 一次变更的四个动词</a><a href="#sec-40-9-3-这套东西和热重载的关系" class="lv3">9.3 这套东西和热重载的关系</a><a href="#sec-41-9-4-积压的批可以一次性重放" class="lv3">9.4 积压的批可以一次性重放</a><a href="#sec-42-十-完整链路" class="">十、完整链路</a><a href="#sec-43-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-44-11-1-十二个错误码-只有两个能重试" class="lv3">11.1 十二个错误码，只有两个能重试</a><a href="#sec-45-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-46-实验-1-跑一遍热重载的核心用例" class="lv3">实验 1：跑一遍热重载的核心用例</a><a href="#sec-47-实验-2-看对象层面的重载" class="lv3">实验 2：看对象层面的重载</a><a href="#sec-48-实验-3-看集群的两阶段提交" class="lv3">实验 3：看集群的两阶段提交</a><a href="#sec-49-实验-4-自己触发一次闸门" class="lv3">实验 4：自己触发一次闸门</a><a href="#sec-50-实验-5-从教程跑一遍全链路" class="lv3">实验 5：从教程跑一遍全链路</a><a href="#sec-51-实验-6-把闸门卡死-看两种超时差在哪" class="lv3">实验 6：把闸门卡死，看两种超时差在哪</a><a href="#sec-52-本章小结" class="">本章小结</a><a href="#sec-53-概念回顾" class="">概念回顾</a><a href="#sec-54-练习" class="">练习</a><a href="#sec-55-常见误区" class="">常见误区</a><a href="#sec-56-读完自检" class="">读完自检</a><a href="#sec-57-十三-收束" class="">十三、收束</a><a href="#sec-58-13-1-三个可迁移的方法" class="lv3">13.1 三个可迁移的方法</a><a href="#sec-59-13-2-这章的边界" class="lv3">13.2 这章的边界</a><a href="#sec-60-13-3-下一站" class="lv3">13.3 下一站</a><a href="#sec-61-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

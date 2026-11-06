@@ -51,7 +51,14 @@
 <p>两套代码同时存在于 v1.4 的快照里，前者被 CLI 使用，后者是可持久化运行时。
 它们的差别不是代码风格，是对同一个问题的两种回答。</p>
 <hr>
-<h2 id="sec-1-一-一个数组的两个问题">一、一个数组的两个问题</h2>
+<h2 id="sec-1-零-读这章之前-你需要先知道一件事">零、读这章之前，你需要先知道一件事</h2>
+<p><strong>两代会话</strong>：这个仓库里&quot;会话&quot;被实现了两次——一是 <code>coding-agent</code> 的 JSONL 树
+（能回退、能分支），二是 <code>durable</code> 的持久运行时（能崩溃续跑）。两者互不依赖。</p>
+<p><strong>没有它会怎样</strong>：在 <code>durable</code> 里找 <code>/tree</code>，或者在 <code>coding-agent</code> 里找&quot;任务恢复&quot;——
+两边都找不到，然后怀疑自己看漏了文件。它们真的不在一起。</p>
+<p><strong>本书哪里用到</strong>：§二 那张决策表；第二代的细节在 M11。</p>
+<hr>
+<h2 id="sec-2-一-一个数组的两个问题">一、一个数组的两个问题</h2>
 <p>前九章我们反复跟 <code>context.messages</code> 打交道：一个数组，按顺序放着这一轮要发给模型的消息。</p>
 <p>进程退出，数组就没了。下次启动，它从哪来？</p>
 <p>这引出本章的主问题：<strong>会话数据怎么存</strong>。拆开是两个正交的子问题：</p>
@@ -100,7 +107,7 @@
 </tr>
 </tbody>
 </table></div>
-<h3 id="sec-2-1-1-三个必须">1.1 三个必须</h3>
+<h3 id="sec-3-1-1-三个必须">1.1 三个必须</h3>
 <p>判断一个会话存储设计好不好，用三个问题量：</p>
 <ol>
 <li><strong>回退不能丢数据</strong>。你嫌 Agent 答得不好，想退回上一轮重问。
@@ -111,7 +118,7 @@
 上层代码不该跟着改。</li>
 </ol>
 <p>第一代满足第 1 条，第 2、3 条只满足一半。第二代是冲着后两条去的——这就是本章的叙事线。</p>
-<h3 id="sec-3-1-2-本章读法">1.2 本章读法</h3>
+<h3 id="sec-4-1-2-本章读法">1.2 本章读法</h3>
 <ul>
 <li>二到六节：<code>session-manager.ts</code>（2,029 行）——树、JSONL、恢复、分叉。</li>
 <li>第七节：这棵树在什么场景下撑不住，全章转折点。</li>
@@ -124,9 +131,43 @@
 里面可能同时有 entry、文档状态、任务检查点、待处理的输入队列。</p>
 </blockquote>
 <hr>
-<h2 id="sec-4-二-第一代-一棵只追加的树">二、第一代：一棵只追加的树</h2>
+<h2 id="sec-5-二-第一代-一棵只追加的树">二、第一代：一棵只追加的树</h2>
+<p>两代会话都还活着，先给一张选型表——不然后面两章你会以为是新旧版本：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你要的是</th>
+<th>第一代（<code>coding-agent</code> 的 JSONL 树）</th>
+<th>第二代（<code>durable</code> 的持久运行时）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>查历史、回退、分支（<code>/tree</code>）</td>
+<td>是</td>
+<td>否</td>
+</tr>
+<tr>
+<td>崩溃后从断点续跑</td>
+<td>否</td>
+<td>是</td>
+</tr>
+<tr>
+<td>一次追加一行、人能直接读</td>
+<td>是</td>
+<td>是（marker + sidecar）</td>
+</tr>
+<tr>
+<td>换成外部存储／多进程共享</td>
+<td>否</td>
+<td>是</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>本书用两章写它们，就是因为它们是两套东西，不是新旧版本。</strong>
+本章写第一代（§二到§七），M11 写第二代。</p>
 <p>先看结构。会话树的每个节点叫 entry。</p>
-<h3 id="sec-5-2-1-四个共同字段">2.1 四个共同字段</h3>
+<h3 id="sec-6-2-1-四个共同字段">2.1 四个共同字段</h3>
 <p><code>session-manager.ts:57-62</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -134,7 +175,7 @@
 <p>所有 entry 都长这样。<code>type</code> 是判别式，<code>id</code> 是自己，<code>parentId</code> 是父亲。</p>
 <p><code>parentId</code> 指向父亲、而不是持有一份 children 数组——这个选择是整棵树成立的前提，
 后面 2.3 单独讲。</p>
-<h3 id="sec-6-2-2-十一种-entry">2.2 十一种 entry</h3>
+<h3 id="sec-7-2-2-十一种-entry">2.2 十一种 entry</h3>
 <p><code>session-manager.ts:183-194</code> 把十一种 entry 联合成一个类型。按职责分三组：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -211,7 +252,7 @@
 <code>buildSessionContext()</code> 转成一条 user 消息。</li>
 </ul>
 <p>注释里写得很直白：一个给代码看，一个给模型看。</p>
-<h3 id="sec-7-2-3-认父不认子">2.3 认父不认子</h3>
+<h3 id="sec-8-2-3-认父不认子">2.3 认父不认子</h3>
 <p>为什么 <code>parentId</code> 存父亲，不存 <code>children: string[]</code>？</p>
 <p>因为要 append-only。</p>
 <p>如果每个节点持有 children 数组，那么&quot;给某个节点加一个孩子&quot;就是<strong>修改</strong>这个节点——
@@ -255,7 +296,7 @@
 <blockquote>
 <p>append-only → 只能改末尾 → 新节点自带指针 → 指针只能指父亲 → 遍历只能逆着来。</p>
 </blockquote>
-<h3 id="sec-8-2-4-树上长一次">2.4 树上长一次</h3>
+<h3 id="sec-9-2-4-树上长一次">2.4 树上长一次</h3>
 <p>抽象讲&quot;树&quot;没人看得懂。用一个六节点的小会话：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -271,8 +312,8 @@
 于是文件里的物理顺序是 <code>e1 e2 e3 e4 e5 e6 e7</code>，
 逻辑上的树有两条分支。<strong>文件顺序 ≠ 树顺序</strong>，这是理解会话文件的关键。</p>
 <hr>
-<h2 id="sec-9-三-jsonl-树怎么写进文件">三、JSONL：树怎么写进文件</h2>
-<h3 id="sec-10-3-1-文件在哪">3.1 文件在哪</h3>
+<h2 id="sec-10-三-jsonl-树怎么写进文件">三、JSONL：树怎么写进文件</h2>
+<h3 id="sec-11-3-1-文件在哪">3.1 文件在哪</h3>
 <p><code>session-manager.ts:589-594</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -289,7 +330,7 @@
 <p><code>2026-03-11T08:12:04.115Z</code> 变成 <code>2026-03-11T08-12-04-115Z</code>，拼上会话 id。</p>
 <p>会话 id 来自 <code>uuidv7()</code>（<code>:264-266</code>）。选 v7 而不是 v4 是因为 v7 前 48 位是毫秒时间戳，
 <strong>按字符串排序就等于按时间排序</strong>——后面 <code>listSessionsFromDir()</code> 靠这个省掉一次读取。</p>
-<h3 id="sec-11-3-2-文件里长什么样">3.2 文件里长什么样</h3>
+<h3 id="sec-12-3-2-文件里长什么样">3.2 文件里长什么样</h3>
 <p>第一行一定是 header（<code>session-manager.ts:43-50</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -308,7 +349,7 @@
 <li>消息自己的 <code>timestamp</code> 是数字（毫秒），entry 的 <code>timestamp</code> 是 ISO 字符串。
 两套时间是因为消息类型来自模型层，entry 类型来自存储层。</li>
 </ul>
-<h3 id="sec-12-3-3-懒落盘">3.3 懒落盘</h3>
+<h3 id="sec-13-3-3-懒落盘">3.3 懒落盘</h3>
 <p>打开 pi、切个模型、什么都不问就退出——会不会留下一个空会话文件？</p>
 <p>不会。<code>session-manager.ts:1160-1170</code>：</p>
 <div class="code-block" data-lang="ts">
@@ -324,7 +365,7 @@
 系统提示词）一次性写出去</strong>。<code>&quot;wx&quot;</code> 表示&quot;不存在才创建&quot;，并发生成同名文件会直接抛错，
 而不是悄悄覆盖别人的会话。之后每次追加只有一行 <code>appendFileSync</code>——写入 O(1)，
 跟文件多大无关，这是第一代的性能优势。</p>
-<h3 id="sec-13-3-4-追加失败要回滚三件">3.4 追加失败要回滚三件</h3>
+<h3 id="sec-14-3-4-追加失败要回滚三件">3.4 追加失败要回滚三件</h3>
 <p>写入可能失败：磁盘满、权限、路径被删。失败之后内存和文件就不一致了。</p>
 <p><code>session-manager.ts:1191-1206</code>：</p>
 <div class="code-block" data-lang="ts">
@@ -333,7 +374,7 @@
 <p>三件都要退：数组、索引表、叶子指针。理由就是注释那句——<strong>没写进去的 entry 不能
 成为后来者的父亲</strong>。只弹数组不清 <code>byId</code>，下一条 entry 的 <code>parentId</code> 就指向文件里不
 存在的节点，重载时那条链直接断掉，用户看到&quot;后半段对话凭空消失&quot;。</p>
-<h3 id="sec-14-3-5-什么时候全量重写">3.5 什么时候全量重写</h3>
+<h3 id="sec-15-3-5-什么时候全量重写">3.5 什么时候全量重写</h3>
 <p>追加是常态，三个时刻必须重写整个文件：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -365,10 +406,10 @@
 对一次会话没什么。对几十万条 entry 的老会话就是 O(n) 停顿——
 而且发生在你最不希望停顿的时刻（打开会话）。这个成本点第七节要用。</p>
 <hr>
-<h2 id="sec-15-四-恢复-从文件读回一棵树">四、恢复：从文件读回一棵树</h2>
+<h2 id="sec-16-四-恢复-从文件读回一棵树">四、恢复：从文件读回一棵树</h2>
 <p>写是一行一行加的，读却不能一行一行读——因为树要靠 <code>parentId</code> 重建。
 读的整个过程分四步：解码、解析、迁移、建索引。</p>
-<h3 id="sec-16-4-1-逐块解码-处理被切断的多字节字符">4.1 逐块解码，处理被切断的多字节字符</h3>
+<h3 id="sec-17-4-1-逐块解码-处理被切断的多字节字符">4.1 逐块解码，处理被切断的多字节字符</h3>
 <p><code>session-manager.ts:627-670</code>，核心是这段循环：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -381,7 +422,7 @@
 </ul>
 <p><code>StringDecoder</code> 就是为这件事存在的：它把不完整的字节序列留在内部，等下一块到了再拼。</p>
 <p><code>pending</code> 保存&quot;还没遇到换行的尾巴&quot;，跨块保留。这个变量在循环结束后还有第二个用途。</p>
-<h3 id="sec-17-4-2-文件末尾没有换行时">4.2 文件末尾没有换行时</h3>
+<h3 id="sec-18-4-2-文件末尾没有换行时">4.2 文件末尾没有换行时</h3>
 <p>正常写入每行都以 <code>\n</code> 收尾。但如果上次进程在 <code>write</code> 的系统调用中间被 kill，
 文件末尾可能是一行没有换行的半截 JSON。</p>
 <p><code>:661-669</code>：</p>
@@ -398,7 +439,7 @@
 </ol>
 <p>代价是那半截 entry 丢了。丢的可能是半个工具结果，也可能是一整条用户消息。
 第一代的取舍是：<strong>宁可丢一条，不能污染后面全部</strong>。</p>
-<h3 id="sec-18-4-3-坏行静默跳过">4.3 坏行静默跳过</h3>
+<h3 id="sec-19-4-3-坏行静默跳过">4.3 坏行静默跳过</h3>
 <p><code>parseSessionEntryLine</code>（<code>:616-624</code>）和 <code>parseSessionEntries</code>（<code>:355-370</code>）都是同一个模式：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -408,7 +449,7 @@
 如果坏掉的是某条 entry 的父亲，那整条子树都从上下文里消失，
 用户看到的是&quot;我明明说过这句话&quot;，而日志里一个错都没有。</p>
 <p><strong>静默容错必须配一个外部可观测指标</strong>——第一代没有，这是它的债。</p>
-<h3 id="sec-19-4-4-三版迁移">4.4 三版迁移</h3>
+<h3 id="sec-20-4-4-三版迁移">4.4 三版迁移</h3>
 <p>读到旧版本文件，<code>_loadEntries</code>（<code>:1085-1101</code>）会先迁移：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -444,7 +485,7 @@
 <p>compaction 那一支更值得看：v1 用<strong>数组下标</strong>记录&quot;从哪开始保留&quot;，v2 改成<strong>entry id</strong>。
 下标是相对文件的位置，一旦分叉或被重写就指错地方；id 是身份，跨分叉、跨重写都成立。
 <strong>持久化数据里不要存位置，要存身份</strong>——第七节会看到第二代把这条推到极致。</p>
-<h3 id="sec-20-4-5-建索引-leafid-是-quot-最后一条-quot">4.5 建索引：leafId 是&quot;最后一条&quot;</h3>
+<h3 id="sec-21-4-5-建索引-leafid-是-quot-最后一条-quot">4.5 建索引：leafId 是&quot;最后一条&quot;</h3>
 <p>迁移之后 <code>_buildIndex()</code>（<code>:1103-1122</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -454,7 +495,7 @@
 上次退出前回退过也一样——<strong>回退状态不落盘</strong>，<code>branch()</code> 只改内存里的 <code>leafId</code>
 （<code>:1589-1594</code>），不产生任何 entry。所以重启后，你总是回到&quot;最后一次实际对话的位置&quot;，
 而不是&quot;最后停留的位置&quot;。对 CLI 来说这合理：用户想接着聊，不想接着停在某条旧消息上。</p>
-<h3 id="sec-21-4-6-8-位短-id-撞了怎么办">4.6 8 位短 id 撞了怎么办</h3>
+<h3 id="sec-22-4-6-8-位短-id-撞了怎么办">4.6 8 位短 id 撞了怎么办</h3>
 <p><code>generateId</code>（<code>:277-284</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -464,10 +505,10 @@
 作为已用集合，新 id 只在当前文件范围内避重。跨文件唯一性没人保证，也没人需要——
 <code>parentSession</code> 只是个字符串路径，不参与任何 id 解析。</p>
 <hr>
-<h2 id="sec-22-五-从树到上下文">五、从树到上下文</h2>
+<h2 id="sec-23-五-从树到上下文">五、从树到上下文</h2>
 <p>索引建好了，树在内存里了。接下来要回答：<strong>哪条路径上的哪些 entry，变成发给模型的消息</strong>。</p>
 <p>这一步有三个函数，层层递进：<code>buildSessionPath</code> → <code>buildContextEntries</code> → <code>buildSessionProjection</code>。</p>
-<h3 id="sec-23-5-1-第一步-从叶子回溯">5.1 第一步：从叶子回溯</h3>
+<h3 id="sec-24-5-1-第一步-从叶子回溯">5.1 第一步：从叶子回溯</h3>
 <p><code>session-manager.ts:390-416</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -477,7 +518,7 @@
 新根&quot;）；没传时 <code>leaf ??= entries[entries.length - 1]</code>（<code>:403</code>，跟 <code>_buildIndex</code> 口径一致）。</p>
 <p><code>parentId</code> 指向不存在的 id 时 <code>index.get()</code> 返回 undefined，循环自然结束。
 <strong>断链不抛错，只是路径到此为止</strong>——4.3 静默跳过的下游后果。</p>
-<h3 id="sec-24-5-2-第二步-压缩之后的保留规则">5.2 第二步：压缩之后的保留规则</h3>
+<h3 id="sec-25-5-2-第二步-压缩之后的保留规则">5.2 第二步：压缩之后的保留规则</h3>
 <p>拿到完整路径还不够。M09 讲过，压缩会把旧历史折叠成一条摘要，
 所以路径上可能有 compaction entry，它之前的 entry 要按规则丢弃。</p>
 <p><code>buildContextEntries</code>（<code>:476-512</code>）：</p>
@@ -499,7 +540,7 @@
 </ul>
 <p>这就是为什么 M09 说压缩是&quot;墓碑&quot;：被压缩的 entry 还在文件里，
 只是不再出现在这条路径的保留段里。</p>
-<h3 id="sec-25-5-3-第三步-投影与上下文编辑">5.3 第三步：投影与上下文编辑</h3>
+<h3 id="sec-26-5-3-第三步-投影与上下文编辑">5.3 第三步：投影与上下文编辑</h3>
 <p>最后一层是 <code>buildSessionProjection</code>（<code>:543-573</code>）。它做两件额外的事。</p>
 <p><strong>事一：提取设置。</strong> <code>getSessionContextSettings</code>（<code>:418-433</code>）沿路径扫三类 entry，
 后者覆盖前者：</p>
@@ -517,7 +558,7 @@
 <p>这解决一个真实痛点：Agent 读了 3 万行日志，你不想让它占据后续每一轮的上下文，
 又不想删记录。追加一条 <code>context_edit</code> 指向那条 toolResult、<code>replacement: null</code> 就行。
 <strong>文件 append-only，上下文可以裁</strong>——这是第一代里最接近第二代思想的一处。</p>
-<h3 id="sec-26-5-4-旧-compaction-只算一次">5.4 旧 compaction 只算一次</h3>
+<h3 id="sec-27-5-4-旧-compaction-只算一次">5.4 旧 compaction 只算一次</h3>
 <p><code>buildSessionProjection</code> 里有个容易看漏的分支（<code>:555-566</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -528,10 +569,10 @@
 <p>带上是对的，它在树上确实在那儿。但摘要不能再算一遍，否则模型看到两份重叠的摘要。
 这一行 <code>index &gt; 0</code> 堵的是&quot;压缩两次之后 token 反而变多&quot;。</p>
 <hr>
-<h2 id="sec-27-六-分叉">六、分叉</h2>
+<h2 id="sec-28-六-分叉">六、分叉</h2>
 <p>前面 2.4 已经看到分叉在数据层的样子：新节点的 <code>parentId</code> 指向旧节点。
 这里看 API 层怎么把它做出来。</p>
-<h3 id="sec-28-6-1-branch-只挪一个指针">6.1 branch：只挪一个指针</h3>
+<h3 id="sec-29-6-1-branch-只挪一个指针">6.1 branch：只挪一个指针</h3>
 <p><code>session-manager.ts:1589-1594</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -540,7 +581,7 @@
 <p>下一次 <code>appendMessage()</code> 时，新 entry 的 <code>parentId</code> 就是这个 <code>leafId</code>，分叉自然发生。</p>
 <p>这是&quot;认父不认子&quot;换来的最大好处：分叉成本 O(1)，跟历史多长无关。
 在 MySQL 里做同样的事通常要一张自引用表加一次 UPDATE，还要担心两个客户端同时改同一个分支。</p>
-<h3 id="sec-29-6-2-branchwithsummary-回退时留遗言">6.2 branchWithSummary：回退时留遗言</h3>
+<h3 id="sec-30-6-2-branchwithsummary-回退时留遗言">6.2 branchWithSummary：回退时留遗言</h3>
 <p>直接 <code>branch()</code> 有个问题：被放弃的那段对话，模型再也看不见了。
 如果那段里有&quot;我们排除了方案 A，因为它跟 X 冲突&quot;这种结论，重问一遍要从头再来。</p>
 <p><code>branchWithSummary</code>（<code>:1610-1635</code>）解决这个：</p>
@@ -553,7 +594,7 @@
 <p>M09 第九节讲了这套摘要怎么生成。存储侧只看两个字段：<code>fromId</code> 指向被放弃路径的末端，
 <code>parentId</code> 指向新路径的起点。一条 entry 同时挂在两个位置上，
 这是树结构里唯一一处&quot;双向引用&quot;。</p>
-<h3 id="sec-30-6-3-createbranchedsession-把一条路径抠出来另存">6.3 createBranchedSession：把一条路径抠出来另存</h3>
+<h3 id="sec-31-6-3-createbranchedsession-把一条路径抠出来另存">6.3 createBranchedSession：把一条路径抠出来另存</h3>
 <p>树在文件里，但文件不能拆。如果你想把某条分支单独交给别人、或者单独归档，
 只能另存一个新文件。<code>createBranchedSession</code>（<code>:1642-1758</code>）就是干这个的。</p>
 <p>它比&quot;复制路径上的 entry&quot;麻烦，因为有三处引用会失效。看核心循环：</p>
@@ -596,7 +637,7 @@
 <pre><code><span class="ln"><span class="tok-kw">const</span> header: SessionHeader = {</span><span class="ln">	<span class="tok-kw">type</span>: <span class="tok-str">"session"</span>,</span><span class="ln">	version: CURRENT_SESSION_VERSION,</span><span class="ln">	id: newSessionId,</span><span class="ln">	timestamp,</span><span class="ln">	cwd: <span class="tok-kw">this</span>.cwd,</span><span class="ln">	parentSession: <span class="tok-kw">this</span>.persist ? previousSessionFile : <span class="tok-kw">undefined</span>,</span><span class="ln">};</span></code></pre></div>
 <p><code>parentSession</code> 指回原文件。这是整棵树里唯一的跨文件边，
 而且是<strong>单向的、纯字符串的</strong>——不影响任何解析逻辑，只用于回溯展示。</p>
-<h3 id="sec-31-6-4-分叉的两种成本">6.4 分叉的两种成本</h3>
+<h3 id="sec-32-6-4-分叉的两种成本">6.4 分叉的两种成本</h3>
 <p>把 6.1 和 6.3 放在一起看，第一代其实提供了两种&quot;分叉&quot;：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -638,11 +679,11 @@
 但它有个前提——所有分支必须待在同一个文件里，由同一个进程写。</p>
 <p>这个前提，就是第一代撑不住的地方。</p>
 <hr>
-<h2 id="sec-32-七-树撑不住的四件事">七、树撑不住的四件事</h2>
+<h2 id="sec-33-七-树撑不住的四件事">七、树撑不住的四件事</h2>
 <p>到这儿，第一代的设计已经完整：append-only 的树、一行一条的 JSONL、
 O(1) 的追加和分叉。对 CLI 来说这套东西跑了很多年，没什么大毛病。</p>
 <p>那 <code>packages/durable</code> 为什么还要重做一遍？四个具体的压力点。</p>
-<h3 id="sec-33-7-1-一次追加要原子的不止一条-entry">7.1 一次追加要原子的不止一条 entry</h3>
+<h3 id="sec-34-7-1-一次追加要原子的不止一条-entry">7.1 一次追加要原子的不止一条 entry</h3>
 <p>第一代的追加单位是&quot;一行 JSON&quot;。这个假设在 Agent 场景里越来越不成立。</p>
 <p>考虑一次工具调用要落盘的东西：</p>
 <ul>
@@ -664,7 +705,7 @@ README 的 Errors 第一条写得很干脆：</p>
 要么全部存储，要么一条都不。</p>
 </blockquote>
 <p>这不是把三行写合成一行写，是把&quot;一致性&quot;从补丁层提到了 API 层。</p>
-<h3 id="sec-34-7-2-树没有-quot-未完成-quot-这个状态">7.2 树没有&quot;未完成&quot;这个状态</h3>
+<h3 id="sec-35-7-2-树没有-quot-未完成-quot-这个状态">7.2 树没有&quot;未完成&quot;这个状态</h3>
 <p>更麻烦的是语义缺口。</p>
 <p>Agent 调工具时，先写一条 assistant 消息（带 <code>toolCall</code>），
 工具跑完再写一条 <code>toolResult</code>。两步之间进程被杀，文件里就留下一个
@@ -686,7 +727,7 @@ assistant 消息整条跳过，理由是&quot;回放半截内容会让 API 报�
 <p>顺带解决了崩溃循环：<code>settings.restartLimit</code> 默认 5，
 一个任务连续把进程搞死 5 次，就不再重试，直接判定终态并上报。
 第一代没有这个计数器——因为树里没有&quot;这次尝试&quot;这个概念。</p>
-<h3 id="sec-35-7-3-一个文件一个写者">7.3 一个文件一个写者</h3>
+<h3 id="sec-36-7-3-一个文件一个写者">7.3 一个文件一个写者</h3>
 <p>第一代的介质绑定得很死。</p>
 <p><code>SessionManager</code> 直接用 <code>node:fs</code> 的 <code>openSync</code> / <code>appendFileSync</code> / <code>readSync</code>，
 没有介质接口，换介质就得重写这个类。这不是疏忽——CLI 就跑在本地磁盘上，
@@ -729,7 +770,7 @@ assistant 消息整条跳过，理由是&quot;回放半截内容会让 API 报�
 </table></div>
 <p>最后一行值得注意：第二代也没有做跨进程锁。它做的是<strong>把限制写成契约</strong>，
 而不是让它在某天以数据损坏的形式暴露。</p>
-<h3 id="sec-36-7-4-分叉的单位是文件-不是-entry">7.4 分叉的单位是文件，不是 entry</h3>
+<h3 id="sec-37-7-4-分叉的单位是文件-不是-entry">7.4 分叉的单位是文件，不是 entry</h3>
 <p>6.1 说 <code>branch()</code> 是 O(1)，这是真的。但那个 O(1) 只对<strong>同一个进程、同一个文件</strong>成立。</p>
 <p>一旦你想做这几件事，树就露馅了：</p>
 <ul>
@@ -742,7 +783,7 @@ assistant 消息整条跳过，理由是&quot;回放半截内容会让 API 报�
 树是文件的内部结构，不是 API 的概念。</p>
 <p>第二代的回答很直接：分叉就是<strong>新建一个会话，让它继承父会话到某条 entry 的历史</strong>。
 没有&quot;树内分叉&quot;这回事，只有会话与会话之间的父子关系。</p>
-<h3 id="sec-37-7-5-结论">7.5 结论</h3>
+<h3 id="sec-38-7-5-结论">7.5 结论</h3>
 <p>四条压力，指向同一个结论：</p>
 <blockquote>
 <p><strong>会话不再只是一个文件格式，它是一个需要被多个后端实现、需要事务、
@@ -756,7 +797,7 @@ assistant 消息整条跳过，理由是&quot;回放半截内容会让 API 报�
 <p>这三层就是 M11 要展开的内容。本章后三节只讲<strong>最下面那半截</strong>：
 entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</p>
 <hr>
-<h2 id="sec-38-八-第二代-账本取代树">八、第二代：账本取代树</h2>
+<h2 id="sec-39-八-第二代-账本取代树">八、第二代：账本取代树</h2>
 <p>打开 <code>packages/durable/src/types.ts:458-473</code>，先看 entry 长什么样：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -796,7 +837,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>最后一行很关键：<code>model</code>（给模型看的）和 <code>data</code>（给程序看的）是<strong>两列</strong>。
 第一代里，一条 entry 要么是 message（给模型），要么是 custom（给程序），
 二选一。第二代允许同一条 entry 两者都带。</p>
-<h3 id="sec-39-8-1-六种内置-kind">8.1 六种内置 kind</h3>
+<h3 id="sec-40-8-1-六种内置-kind">8.1 六种内置 kind</h3>
 <p><code>entries.ts:15-34</code> 一共只定义了六个：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -849,7 +890,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p><code>pi.system</code> 的 content 为什么是空的？因为它不是一条真消息，是个<strong>边界标记</strong>：
 真正的系统提示词由运行时根据当前工具集重新拼，entry 只说&quot;从这一条开始变过了&quot;。
 这跟 M08 的&quot;每轮重算系统提示词&quot;是同一件事——提示词不进文件，只进标记。</p>
-<h3 id="sec-40-8-2-head-取代-parentid">8.2 head 取代 parentId</h3>
+<h3 id="sec-41-8-2-head-取代-parentid">8.2 head 取代 parentId</h3>
 <p>这是两代之间最大的一处置换。</p>
 <p>第一代：树。上下文 = 从叶子回溯到根的一条路径，压缩在路径上打个洞。
 第二代：线性。上下文 = 从<strong>最新的 head 标记</strong>开始，往后到末尾的一段区间。</p>
@@ -903,7 +944,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> LATEST_CAPACITY = <span class="tok-num">4096</span>;   <span class="tok-com">// 只存最新 entry ID 的会话数</span></span><span class="ln"><span class="tok-kw">const</span> MARKER_CAPACITY = <span class="tok-num">256</span>;    <span class="tok-com">// 连 head 标记整条一起存的会话数</span></span></code></pre></div>
 <p>两个数字差 16 倍：前者只存一个 ID，后者要存整条 entry（一条压缩摘要可能很长）。</p>
-<h3 id="sec-41-8-3-分叉变成-quot-新会话继承父会话-quot">8.3 分叉变成&quot;新会话继承父会话&quot;</h3>
+<h3 id="sec-42-8-3-分叉变成-quot-新会话继承父会话-quot">8.3 分叉变成&quot;新会话继承父会话&quot;</h3>
 <p><code>types.ts:427-439</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -953,7 +994,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>第一代做不到，因为它的 entry 类型里没有&quot;文档&quot;这个维度。
 这是第七节 7.1 说的&quot;追加的语义变多了&quot;的具体表现。</p>
 <hr>
-<h2 id="sec-42-九-第二代-jsonl-marker-与-sidecar">九、第二代 JSONL：marker 与 sidecar</h2>
+<h2 id="sec-43-九-第二代-jsonl-marker-与-sidecar">九、第二代 JSONL：marker 与 sidecar</h2>
 <p><code>durable</code> 也支持 JSONL，但格式完全不同。
 <code>storage/jsonl/storage.ts:30-31</code>：</p>
 <div class="code-block" data-lang="ts">
@@ -961,7 +1002,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <pre><code><span class="ln"><span class="tok-kw">const</span> FORMAT_VERSION = <span class="tok-num">1</span>;</span><span class="ln"><span class="tok-kw">const</span> MAIN_FILE = <span class="tok-str">"main.jsonl"</span>;</span></code></pre></div>
 <p>一个目录，两种文件：一个 <code>main.jsonl</code>，加一堆 sidecar（<code>doc-&lt;id&gt;.jsonl</code> / <code>task-&lt;id&gt;.jsonl</code>，
 命名规则在 <code>:102</code>）。</p>
-<h3 id="sec-43-9-1-main-jsonl-里只有-marker">9.1 main.jsonl 里只有 marker</h3>
+<h3 id="sec-44-9-1-main-jsonl-里只有-marker">9.1 main.jsonl 里只有 marker</h3>
 <p><code>storage.ts:44-49</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1015,7 +1056,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <pre><code><span class="ln"># main.jsonl</span><span class="ln">{"format":1,"type":"commit","seq":42,"writes":[</span><span class="ln">  {"type":"entry","value":{"id":7,"conversationId":1,</span><span class="ln">    "kind":"pi.user","model":[{"role":"user","content":"hi"}]}},</span><span class="ln">  {"type":"document.change","id":3,"ordinal":1}</span><span class="ln">]}</span><span class="ln"></span><span class="ln"># doc-3.jsonl</span><span class="ln">{"format":1,"type":"record","seq":42,"ordinal":1,</span><span class="ln"> "payload":{"type":"document","id":3,</span><span class="ln">   "content":{"kind":"base","version":4,"value":{"busy":false}}}}</span></code></pre></div>
 <p>marker 里的 <code>document.change</code> 只有 <code>id</code> 和 <code>ordinal</code>，真值去 sidecar 按
 <code>(seq, ordinal)</code> 找；<code>content.kind</code> 是 <code>base</code> 还是 <code>delta</code>，决定恢复时能否直接用（9.4）。</p>
-<h3 id="sec-44-9-2-sidecar-一行一个版本">9.2 sidecar 一行一个版本</h3>
+<h3 id="sec-45-9-2-sidecar-一行一个版本">9.2 sidecar 一行一个版本</h3>
 <p><code>storage.ts:55-61</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1025,7 +1066,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>文档要单独开文件，因为它是<strong>被反复重写</strong>的：<code>pi.live</code>（当前 run 状态）、
 <code>pi.inbox</code>（队列）每一轮都变。混进 entry 文件里，要么每次 O(n) 重写整条历史，
 要么原地修改、违背 append-only。拆开后 entry 只追加，文档只追加自己的版本。</p>
-<h3 id="sec-45-9-3-先写-sidecar-再写-marker">9.3 先写 sidecar，再写 marker</h3>
+<h3 id="sec-46-9-3-先写-sidecar-再写-marker">9.3 先写 sidecar，再写 marker</h3>
 <p><code>storage.ts:281-286</code> 的注释把不变量写得很死：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1065,7 +1106,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 </table></div>
 <p>第二行是核心：<strong>粒度的区别</strong>。第一代的一致性单位是&quot;一条 entry&quot;，
 第二代是&quot;一次提交&quot;。前者只能保证单条不碎，后者能保证一组互不碎。</p>
-<h3 id="sec-46-9-4-recover-启动时重建全部状态">9.4 recover()：启动时重建全部状态</h3>
+<h3 id="sec-47-9-4-recover-启动时重建全部状态">9.4 recover()：启动时重建全部状态</h3>
 <p><code>storage.ts:590</code> 开始，一共两百多行，跟第一代的 40 行加载不是一回事。
 按顺序做五件事：</p>
 <div class="code-block" data-lang="text">
@@ -1080,17 +1121,17 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 所以错误分了类（<code>errors.ts</code>）：<code>StorageRequestError</code> 只让那一次读失败，
 其余让整个 <code>Session</code> 进入失败态。</p>
 <hr>
-<h2 id="sec-47-十-提交作为一等公民">十、提交作为一等公民</h2>
+<h2 id="sec-48-十-提交作为一等公民">十、提交作为一等公民</h2>
 <p><code>durable</code> 里最重要的类不是 <code>Storage</code>，是 <code>SessionImpl</code>。
 <code>session/session.ts:191-217</code> 的类注释是全包写得最好的一段，值得逐句读：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"> * Session kernel: one mutation line, the loaded document tracker cache, and</span><span class="ln"> * committed publication.</span><span class="ln"> *</span><span class="ln"> * Group commit: the line runs one job at a time, a commit<span class="tok-str">'s callback and</span></span><span class="ln"> * settlement; a commit with writes then joins the writer<span class="tok-str">'s pending batch ...</span></span><span class="ln"> * The writer stores every commit admitted <span class="tok-kw">while</span> no call <span class="tok-kw">is</span> <span class="tok-kw">in</span> flight <span class="tok-kw">in</span> one</span><span class="ln"> * <span class="tok-str">`commit()`</span> call, off the line, and publishes them one by one, <span class="tok-kw">in</span> line order,</span><span class="ln"> * a macrotask apart ...</span></code></pre></div>
-<h3 id="sec-48-10-1-一条变更线">10.1 一条变更线</h3>
+<h3 id="sec-49-10-1-一条变更线">10.1 一条变更线</h3>
 <p>所有写操作排成一条线（mutation line），一次只跑一个 job——一次 commit 的回调加收尾。
 排队的原因：<code>Tx</code> 允许写之前先读（比如&quot;这个会话存不存在&quot;），两个事务并发读同一状态
 再各自写就会互相覆盖。串行化是最便宜的解法。</p>
-<h3 id="sec-49-10-2-组提交">10.2 组提交</h3>
+<h3 id="sec-50-10-2-组提交">10.2 组提交</h3>
 <p>串行有个直接代价：句句同步就慢了。他们的解法是<strong>把没有调用在飞的期间的提交合成一个</strong>：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1098,7 +1139,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <p>发布是<strong>一个一个来</strong>、中间隔一个 macrotask 的：每个 batch 发布后会唤醒它的 <code>await</code>，
 那些后续代码得先跑完再发下一个，否则会看见比自己晚的提交。</p>
 <p>一个工具循环里连发五次追加，存储层只写一次。</p>
-<h3 id="sec-50-10-3-延迟提交">10.3 延迟提交</h3>
+<h3 id="sec-51-10-3-延迟提交">10.3 延迟提交</h3>
 <p>另一类写入不急着落盘：&quot;这个文件我读过&quot;、&quot;已经提示过用户一次&quot;。
 这类状态丢了不影响正确性，但每次都写盘就是浪费时间。</p>
 <p><code>CommitPersistence</code> 就是干这个的：先在内存提交，变更按文档折叠，
@@ -1111,7 +1152,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 </ol>
 <p>四个时机的意思：<strong>只要有人要看，就必须先落盘</strong>，读者不会看到幽灵数据。
 代价写清楚——进程被 kill 时最后 ≤1 秒的进度会丢，这是取舍不是 bug。</p>
-<h3 id="sec-51-10-4-失败即终态">10.4 失败即终态</h3>
+<h3 id="sec-52-10-4-失败即终态">10.4 失败即终态</h3>
 <p><code>:212-217</code>：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -1152,7 +1193,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 </table></div>
 <p>左边的模型成立的前提是&quot;一次追加只动一处&quot;。一旦你允许一个提交改三处，
 部分成功就会留下不一致的组合，所以只能全死。</p>
-<h3 id="sec-52-10-5-几个数字">10.5 几个数字</h3>
+<h3 id="sec-53-10-5-几个数字">10.5 几个数字</h3>
 <p>这些常数把设计意图钉得很死：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1204,15 +1245,15 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 </table></div>
 <p>限流按个数不按字节：单次提交能装多少已被输出上限卡住，个数 × 单次上限就是可控上界。</p>
 <hr>
-<h2 id="sec-53-十一-完整链路">十一、完整链路</h2>
+<h2 id="sec-54-十一-完整链路">十一、完整链路</h2>
 <p>两条链路，各取&quot;你输入一句话&quot;到&quot;数据落定&quot;的全过程。</p>
-<h3 id="sec-54-11-1-写入">11.1 写入</h3>
+<h3 id="sec-55-11-1-写入">11.1 写入</h3>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">你敲回车</span><span class="ln">  |</span><span class="ln">  +--[第一代] appendMessage("我...")</span><span class="ln">  |      |</span><span class="ln">  |      +-&gt; 构造 entry { type, id, parentId: leafId, timestamp, message }</span><span class="ln">  |      +-&gt; _appendEntry：push 数组 / set byId / leafId = entry.id</span><span class="ln">  |      +-&gt; _persist：首次一次性写全部 entry，之后 appendFileSync 一行</span><span class="ln">  |      +-&gt; 失败则回滚三件（数组 / byId / leafId）</span><span class="ln">  |</span><span class="ln">  +--[第二代] conversation.submit({ type: "input", content: "我..." })</span><span class="ln">         |</span><span class="ln">         +-&gt; 一个 commit：写 submission + entry(pi.user) + 改 pi.inbox</span><span class="ln">         +-&gt; 进入变更线排队，拿到 job index</span><span class="ln">         +-&gt; writer 把无调用在飞的提交合成一个 batch 集合</span><span class="ln">         +-&gt; storage.commit(batches, receive)</span><span class="ln">                |</span><span class="ln">                +-&gt; 先写各文档的 sidecar 记录</span><span class="ln">                +-&gt; 再一次性 append main.jsonl 的 marker</span><span class="ln">                +-&gt; 先 receive 回执，再按 line order 逐个发布</span></code></pre></div>
 <p>两边的第一个分岔就在第一行：左边 <code>appendMessage</code> 直接就是&quot;写文件&quot;，
 右边 <code>submit</code> 只是&quot;登记一个意图&quot;，真正落盘在几层之下。</p>
-<h3 id="sec-55-11-2-重启恢复">11.2 重启恢复</h3>
+<h3 id="sec-56-11-2-重启恢复">11.2 重启恢复</h3>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">进程启动，打开会话</span><span class="ln">  |</span><span class="ln">  +--[第一代] loadEntriesFromFile(path)</span><span class="ln">  |      |</span><span class="ln">  |      +-&gt; 1 MiB 块读 + StringDecoder 拼多字节字符</span><span class="ln">  |      +-&gt; 按 \n 切行，JSON.parse 失败的行静默丢弃</span><span class="ln">  |      +-&gt; 末尾残行：丢弃 + 补一个换行</span><span class="ln">  |      +-&gt; 首行验 header，不是 session 就返回 []</span><span class="ln">  |      +-&gt; migrateToCurrentVersion：v1→v2→v3，需要时全文件重写</span><span class="ln">  |      +-&gt; _buildIndex：leafId 反复覆盖，终值 = 文件最后一条</span><span class="ln">  |      +-&gt; buildSessionContext：回溯 → 裁压缩 → 投影编辑</span><span class="ln">  |</span><span class="ln">  +--[第二代] Harness.open(storage) → recover()</span><span class="ln">         |</span><span class="ln">         +-&gt; 校验 main.jsonl 的 seq 严格递增（破则抛 Corruption）</span><span class="ln">         +-&gt; 删除遗留 *.reclaim</span><span class="ln">         +-&gt; 读所有 sidecar，校验 seq/ordinal 递增</span><span class="ln">         +-&gt; 找每个文档最新的 base 快照</span><span class="ln">         +-&gt; 重放 marker，重建内存状态与 conversation tails</span><span class="ln">         +-&gt; harness.resume()：继续上次没跑完的任务</span></code></pre></div>
@@ -1221,7 +1262,7 @@ entry 长什么样、JSONL 怎么写、一次提交怎么变成一次落盘。</
 <code>transform-messages.ts</code> 把那道口子补上（7.2）。第二代用 <code>resume()</code> 把没跑完的任务
 重新拉起来——任务有阶段和检查点，&quot;跑到哪了&quot;是个持久事实，不是猜的。</p>
 <hr>
-<h2 id="sec-56-十二-工程暗坑">十二、工程暗坑</h2>
+<h2 id="sec-57-十二-工程暗坑">十二、工程暗坑</h2>
 <p>下面每一条都是读代码时真卡住过的地方。</p>
 <p><strong>1. <code>leafId: null</code> 和 <code>leafId: undefined</code> 不是一个意思。</strong>
 <code>buildSessionPath</code> 里 <code>null</code> 直接返回空路径（<code>:397-399</code>），<code>undefined</code> 则回退到&quot;文件最后一条&quot;（<code>:403</code>）。
@@ -1260,35 +1301,50 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 没有跨进程锁（README 写得很明确）。两个进程开同一个 SQLite 库，
 出事的时候不会报错，只会在某天发现数据错乱。</p>
 <hr>
-<h2 id="sec-57-十三-自己动手验证">十三、自己动手验证</h2>
+<h2 id="sec-58-十三-自己动手验证">十三、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。每条判据都是这一版实跑的输出。</p>
+</blockquote>
 <p>五个实验，从简到难。前四个只靠一个会话文件，第五个要跑 <code>durable</code> 的示例。</p>
-<h3 id="sec-58-实验-1-看一个真实会话文件的结构">实验 1：看一个真实会话文件的结构</h3>
+<h3 id="sec-59-实验-1-看一个真实会话文件的结构">实验 1：看一个真实会话文件的结构</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cat &gt; /tmp/peek.mjs &lt;&lt;'EOF'</span><span class="ln">import fs from "node:fs";</span><span class="ln">const rows = fs.readFileSync(process.argv[2], "utf8")</span><span class="ln">  .split("\n").filter(Boolean).map((l) =&gt; JSON.parse(l));</span><span class="ln">const [head, ...entries] = rows;</span><span class="ln">console.log("header:", head.id, head.version, head.cwd);</span><span class="ln">for (const e of entries) {</span><span class="ln">  console.log(e.id, e.parentId ?? "(root)", e.type);</span><span class="ln">}</span><span class="ln">console.log("entries:", entries.length);</span><span class="ln">EOF</span><span class="ln">node /tmp/peek.mjs ~/.pi/agent/sessions/--home-you-proj--/*.jsonl</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"># PS 用 here-string 代替 heredoc：把 &lt;&lt;'EOF' 与 EOF 之间的 JS 逐字放进来</span><span class="ln">@'</span><span class="ln">…（与左例逐字相同的 JS）…</span><span class="ln">'@ | Set-Content peek.mjs -Encoding utf8</span><span class="ln">node peek.mjs "$env:USERPROFILE\.pi\agent\sessions\--home-you-proj--\*.jsonl"</span></code></pre></div>
 <p>判据：<code>parentId</code> 会指向前面的某个 id，不一定是上一行。
 找到第一处&quot;不连续&quot;，那就是你哪次回退留下的分叉点。</p>
-<h3 id="sec-59-实验-2-手搓一个分叉-看路径怎么选">实验 2：手搓一个分叉，看路径怎么选</h3>
+<h3 id="sec-60-实验-2-手搓一个分叉-看路径怎么选">实验 2：手搓一个分叉，看路径怎么选</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cat &gt; /tmp/branch.mjs &lt;&lt;'EOF'</span><span class="ln">import fs from "node:fs";</span><span class="ln">const file = "/tmp/branch.jsonl";</span><span class="ln">const head = { type: "session", version: 3, id: "s1",</span><span class="ln">  timestamp: new Date().toISOString(), cwd: "/tmp" };</span><span class="ln">const msg = (id, parentId, text) =&gt; ({ type: "message", id, parentId,</span><span class="ln">  timestamp: new Date().toISOString(),</span><span class="ln">  message: { role: "user", content: text } });</span><span class="ln">const rows = [head, msg("a1", null, "问题一"), msg("a2", "a1", "问题二"),</span><span class="ln">  msg("b1", "a1", "换个问法")];</span><span class="ln">fs.writeFileSync(file, rows.map((r) =&gt; JSON.stringify(r)).join("\n") + "\n");</span><span class="ln"></span><span class="ln">// 下面这段就是 buildSessionPath 的同款逻辑</span><span class="ln">const all = rows.slice(1);</span><span class="ln">const byId = new Map(all.map((e) =&gt; [e.id, e]));</span><span class="ln">const path = [];</span><span class="ln">let cur = byId.get("b1");</span><span class="ln">while (cur) { path.push(cur); cur = cur.parentId &amp;&amp; byId.get(cur.parentId); }</span><span class="ln">const ids = path.reverse().map((e) =&gt; e.id + ":" + e.message.content);</span><span class="ln">console.log(ids.join(" -&gt; "));</span><span class="ln">EOF</span><span class="ln">node /tmp/branch.mjs</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">@'</span><span class="ln">…（与左例逐字相同的 JS）…</span><span class="ln">'@ | Set-Content branch.mjs -Encoding utf8</span><span class="ln">node branch.mjs</span></code></pre></div>
 <p>预期输出：<code>a1:问题一 -&gt; b1:换个问法</code>。
 <code>a2</code> 在文件里排第 3 行，但它不在 <code>b1</code> 的路径上——<strong>文件顺序不等于树顺序</strong>。</p>
 <p>把最后一行的 <code>byId.get(&quot;b1&quot;)</code> 改成 <code>byId.get(&quot;a2&quot;)</code>，你就能看到另一条分支。
 同一份文件，两个入口，两条不同的上下文。</p>
-<h3 id="sec-60-实验-3-插一条坏行-看它静默消失">实验 3：插一条坏行，看它静默消失</h3>
+<h3 id="sec-61-实验-3-插一条坏行-看它静默消失">实验 3：插一条坏行，看它静默消失</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cat &gt; /tmp/tamper.mjs &lt;&lt;'EOF'</span><span class="ln">import fs from "node:fs";</span><span class="ln">const [mode, file] = process.argv.slice(2);</span><span class="ln">const text = fs.readFileSync(file, "utf8");</span><span class="ln">if (mode === "bad") {</span><span class="ln">  const lines = text.split("\n");</span><span class="ln">  lines.splice(2, 0, '{"type":"message",oops');</span><span class="ln">  fs.writeFileSync(file, lines.join("\n"));</span><span class="ln">} else {</span><span class="ln">  const buf = fs.readFileSync(file);</span><span class="ln">  fs.writeFileSync(file, buf.subarray(0, buf.length - 25));</span><span class="ln">}</span><span class="ln">EOF</span><span class="ln">node /tmp/tamper.mjs bad /tmp/branch.jsonl</span><span class="ln">node /tmp/peek.mjs /tmp/branch.jsonl</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">@'</span><span class="ln">…（与左例逐字相同的 JS）…</span><span class="ln">'@ | Set-Content tamper.mjs -Encoding utf8</span><span class="ln">node tamper.mjs bad branch.jsonl</span><span class="ln">node peek.mjs branch.jsonl</span></code></pre></div>
 <p>判据：<code>entries</code> 比刚才少一条，但<strong>没有任何报错</strong>。
 这就是 4.3 的代价：能打开，但你看不见它坏在哪。</p>
-<h3 id="sec-61-实验-4-截掉文件末尾-看修补动作">实验 4：截掉文件末尾，看修补动作</h3>
+<h3 id="sec-62-实验-4-截掉文件末尾-看修补动作">实验 4：截掉文件末尾，看修补动作</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">node /tmp/tamper.mjs cut /tmp/branch.jsonl</span><span class="ln">wc -c /tmp/branch.jsonl</span><span class="ln">node /tmp/peek.mjs /tmp/branch.jsonl 2&gt;&amp;1 | tail -3</span><span class="ln">wc -c /tmp/branch.jsonl</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node tamper.mjs cut branch.jsonl</span><span class="ln">(Get-Item branch.jsonl).Length</span><span class="ln">node peek.mjs branch.jsonl 2&gt;&amp;1 | Select-Object -Last 3</span><span class="ln">(Get-Item branch.jsonl).Length</span></code></pre></div>
 <p>判据：最后一条 entry 丢了，文件变大了一字节——那是 <code>loadEntriesFromFile</code>
 补上的 <code>\n</code>（<code>:668</code>）。它不修复数据，只保证下一行不会粘在残句后面。</p>
-<h3 id="sec-62-实验-5-跑-durable-的重启示例">实验 5：跑 durable 的重启示例</h3>
+<h3 id="sec-63-实验-5-跑-durable-的重启示例">实验 5：跑 durable 的重启示例</h3>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cd packages/durable</span><span class="ln">node --conditions=source --experimental-strip-types \</span><span class="ln">  test/examples/30-reload-and-restart.ts</span></code></pre></div>
@@ -1297,14 +1353,74 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <p>看完之后回头读 <code>session/session.ts</code> 的类注释，会突然变得很好读：
 里面每一句（组提交、延迟提交、失败即终态）都在回答&quot;崩溃之后怎么办&quot;。</p>
 <hr>
-<h2 id="sec-63-读完自检">读完自检</h2>
+<h2 id="sec-64-本章小结">本章小结</h2>
+<ol>
+<li>第一代是一棵只追加的树，节点是 entry，<code>parentId</code> 指向父。</li>
+<li>文件是 JSONL，一行一条；恢复就是重放。</li>
+<li>分叉只挪指针，不复制历史。</li>
+<li>树撑不住四件事：崩溃、并发、跨端、提交原子性。</li>
+<li>第二代换成账本：一次提交是原子单位，位置不是身份。</li>
+</ol>
+<h2 id="sec-65-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只追加树</td>
+<td>节点只加不改，靠 <code>parentId</code> 连父</td>
+<td>§二</td>
+</tr>
+<tr>
+<td>JSONL</td>
+<td>一行一条 entry，恢复 = 重放</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>分叉</td>
+<td>换 <code>parentId</code> 或另存文件</td>
+<td>§六</td>
+</tr>
+<tr>
+<td>账本</td>
+<td>一次提交为原子单位，带 marker</td>
+<td>§八</td>
+</tr>
+<tr>
+<td>位置不是身份</td>
+<td><code>firstKeptEntryId</code> 取代下标</td>
+<td>§五、§十四</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-66-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§四 说恢复时遇到坏行静默跳过。
+如果坏行正好是一棵子树的父节点，那棵子树会怎样？→ 回 §4.3。</p>
+<p><strong>练习 2（改）</strong>：在任一会话 JSONL 末尾手工追加半行 <code>{&quot;type&quot;:</code>，
+再让宿主 <code>load</code> 一次。预期：静默跳过这一行，树照常加载；
+回滚：删掉这半行，或直接删除会话文件重开。</p>
+<h2 id="sec-67-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> 压缩会把旧消息删掉；<strong>实际是</strong> 原 entry 还在，只是不进上下文；
+<strong>证据</strong> §五 与 M09 §一。</li>
+<li><strong>你会以为</strong> 第二代会话取代了第一代；<strong>实际是</strong> 两代并存，
+<code>coding-agent</code> 仍用自己的 <code>SessionManager</code>；<strong>证据</strong> §十四 的表。</li>
+<li><strong>你会以为</strong> 分叉要复制历史；<strong>实际是</strong> 只挪指针；<strong>证据</strong> §六。</li>
+</ol>
+<hr>
+<h2 id="sec-68-读完自检">读完自检</h2>
 <p>三条，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>自检</th>
 <th>一句话答案</th>
-<th>在哪</th>
+<th>不会就去</th>
 </tr>
 </thead>
 <tbody>
@@ -1325,8 +1441,8 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-64-十四-收束">十四、收束</h2>
-<h3 id="sec-65-14-1-三个可迁移的方法">14.1 三个可迁移的方法</h3>
+<h2 id="sec-69-十四-收束">十四、收束</h2>
+<h3 id="sec-70-14-1-三个可迁移的方法">14.1 三个可迁移的方法</h3>
 <p><strong>一、区分&quot;持久化什么&quot;和&quot;暴露什么&quot;。</strong>
 第一代的 <code>context_edit</code> 已经摸到这个思路：文件里保留全文，上下文里可以删。
 第二代的 <code>head</code>、<code>edits</code>、<code>model</code>/<code>data</code> 分列，是把它做成了结构。
@@ -1338,7 +1454,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <p><strong>三、位置不是身份。</strong>
 <code>firstKeptEntryIndex</code> → <code>firstKeptEntryId</code> 是个小改动，背后的原则很大：
 只要一个东西会被重写、分叉、重排，就不能用下标引用它。</p>
-<h3 id="sec-66-14-2-两代的分工">14.2 两代的分工</h3>
+<h3 id="sec-71-14-2-两代的分工">14.2 两代的分工</h3>
 <p>最后把本章对比表压成一张：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1395,13 +1511,14 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <code>SessionManager</code>；<code>packages/durable</code> 是并行的另一条线，被 <code>harness/</code> 之上的一整层使用。</p>
 <p>所以&quot;会话搬到独立运行时&quot;这句话，准确的说法是：
 <strong>会话有了第二个实现，那个实现把会话从&quot;文件格式&quot;升级成了&quot;运行时内核&quot;</strong>。</p>
-<h3 id="sec-67-14-3-下一站">14.3 下一站</h3>
+<h3 id="sec-72-14-3-下一站">14.3 下一站</h3>
 <p>M11 进 <code>durable</code> 的上面两层：<code>harness/</code> 里的任务调度、工具任务、生成任务。
 本章只讲了&quot;提交怎么落盘&quot;，还没讲&quot;谁在制造提交&quot;。</p>
 <p>那个答案叫 <strong>task</strong>：一个带阶段和检查点的状态机。
 它才是&quot;崩溃之后能接着跑&quot;的真正原因——存储只是把它的状态记下来。</p>
+<p><strong>下一章：M11 <code>durable</code>——把&quot;崩溃后接着跑&quot;拆成三层：状态机、调度器、generation 交接。</strong></p>
 <hr>
-<h2 id="sec-68-本章源码索引">本章源码索引</h2>
+<h2 id="sec-73-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1489,7 +1606,7 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
       <a class="next" href="m11-durable.html"><span class="lbl">下一篇</span>持久运行时 —— 把 Agent Loop 拆成状态机</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一个数组的两个问题" class="">一、一个数组的两个问题</a><a href="#sec-2-1-1-三个必须" class="lv3">1.1 三个必须</a><a href="#sec-3-1-2-本章读法" class="lv3">1.2 本章读法</a><a href="#sec-4-二-第一代-一棵只追加的树" class="">二、第一代：一棵只追加的树</a><a href="#sec-5-2-1-四个共同字段" class="lv3">2.1 四个共同字段</a><a href="#sec-6-2-2-十一种-entry" class="lv3">2.2 十一种 entry</a><a href="#sec-7-2-3-认父不认子" class="lv3">2.3 认父不认子</a><a href="#sec-8-2-4-树上长一次" class="lv3">2.4 树上长一次</a><a href="#sec-9-三-jsonl-树怎么写进文件" class="">三、JSONL：树怎么写进文件</a><a href="#sec-10-3-1-文件在哪" class="lv3">3.1 文件在哪</a><a href="#sec-11-3-2-文件里长什么样" class="lv3">3.2 文件里长什么样</a><a href="#sec-12-3-3-懒落盘" class="lv3">3.3 懒落盘</a><a href="#sec-13-3-4-追加失败要回滚三件" class="lv3">3.4 追加失败要回滚三件</a><a href="#sec-14-3-5-什么时候全量重写" class="lv3">3.5 什么时候全量重写</a><a href="#sec-15-四-恢复-从文件读回一棵树" class="">四、恢复：从文件读回一棵树</a><a href="#sec-16-4-1-逐块解码-处理被切断的多字节字符" class="lv3">4.1 逐块解码，处理被切断的多字节字符</a><a href="#sec-17-4-2-文件末尾没有换行时" class="lv3">4.2 文件末尾没有换行时</a><a href="#sec-18-4-3-坏行静默跳过" class="lv3">4.3 坏行静默跳过</a><a href="#sec-19-4-4-三版迁移" class="lv3">4.4 三版迁移</a><a href="#sec-20-4-5-建索引-leafid-是-quot-最后一条-quot" class="lv3">4.5 建索引：leafId 是&amp;quot;最后一条&amp;quot;</a><a href="#sec-21-4-6-8-位短-id-撞了怎么办" class="lv3">4.6 8 位短 id 撞了怎么办</a><a href="#sec-22-五-从树到上下文" class="">五、从树到上下文</a><a href="#sec-23-5-1-第一步-从叶子回溯" class="lv3">5.1 第一步：从叶子回溯</a><a href="#sec-24-5-2-第二步-压缩之后的保留规则" class="lv3">5.2 第二步：压缩之后的保留规则</a><a href="#sec-25-5-3-第三步-投影与上下文编辑" class="lv3">5.3 第三步：投影与上下文编辑</a><a href="#sec-26-5-4-旧-compaction-只算一次" class="lv3">5.4 旧 compaction 只算一次</a><a href="#sec-27-六-分叉" class="">六、分叉</a><a href="#sec-28-6-1-branch-只挪一个指针" class="lv3">6.1 branch：只挪一个指针</a><a href="#sec-29-6-2-branchwithsummary-回退时留遗言" class="lv3">6.2 branchWithSummary：回退时留遗言</a><a href="#sec-30-6-3-createbranchedsession-把一条路径抠出来另存" class="lv3">6.3 createBranchedSession：把一条路径抠出来另存</a><a href="#sec-31-6-4-分叉的两种成本" class="lv3">6.4 分叉的两种成本</a><a href="#sec-32-七-树撑不住的四件事" class="">七、树撑不住的四件事</a><a href="#sec-33-7-1-一次追加要原子的不止一条-entry" class="lv3">7.1 一次追加要原子的不止一条 entry</a><a href="#sec-34-7-2-树没有-quot-未完成-quot-这个状态" class="lv3">7.2 树没有&amp;quot;未完成&amp;quot;这个状态</a><a href="#sec-35-7-3-一个文件一个写者" class="lv3">7.3 一个文件一个写者</a><a href="#sec-36-7-4-分叉的单位是文件-不是-entry" class="lv3">7.4 分叉的单位是文件，不是 entry</a><a href="#sec-37-7-5-结论" class="lv3">7.5 结论</a><a href="#sec-38-八-第二代-账本取代树" class="">八、第二代：账本取代树</a><a href="#sec-39-8-1-六种内置-kind" class="lv3">8.1 六种内置 kind</a><a href="#sec-40-8-2-head-取代-parentid" class="lv3">8.2 head 取代 parentId</a><a href="#sec-41-8-3-分叉变成-quot-新会话继承父会话-quot" class="lv3">8.3 分叉变成&amp;quot;新会话继承父会话&amp;quot;</a><a href="#sec-42-九-第二代-jsonl-marker-与-sidecar" class="">九、第二代 JSONL：marker 与 sidecar</a><a href="#sec-43-9-1-main-jsonl-里只有-marker" class="lv3">9.1 main.jsonl 里只有 marker</a><a href="#sec-44-9-2-sidecar-一行一个版本" class="lv3">9.2 sidecar 一行一个版本</a><a href="#sec-45-9-3-先写-sidecar-再写-marker" class="lv3">9.3 先写 sidecar，再写 marker</a><a href="#sec-46-9-4-recover-启动时重建全部状态" class="lv3">9.4 recover()：启动时重建全部状态</a><a href="#sec-47-十-提交作为一等公民" class="">十、提交作为一等公民</a><a href="#sec-48-10-1-一条变更线" class="lv3">10.1 一条变更线</a><a href="#sec-49-10-2-组提交" class="lv3">10.2 组提交</a><a href="#sec-50-10-3-延迟提交" class="lv3">10.3 延迟提交</a><a href="#sec-51-10-4-失败即终态" class="lv3">10.4 失败即终态</a><a href="#sec-52-10-5-几个数字" class="lv3">10.5 几个数字</a><a href="#sec-53-十一-完整链路" class="">十一、完整链路</a><a href="#sec-54-11-1-写入" class="lv3">11.1 写入</a><a href="#sec-55-11-2-重启恢复" class="lv3">11.2 重启恢复</a><a href="#sec-56-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-57-十三-自己动手验证" class="">十三、自己动手验证</a><a href="#sec-58-实验-1-看一个真实会话文件的结构" class="lv3">实验 1：看一个真实会话文件的结构</a><a href="#sec-59-实验-2-手搓一个分叉-看路径怎么选" class="lv3">实验 2：手搓一个分叉，看路径怎么选</a><a href="#sec-60-实验-3-插一条坏行-看它静默消失" class="lv3">实验 3：插一条坏行，看它静默消失</a><a href="#sec-61-实验-4-截掉文件末尾-看修补动作" class="lv3">实验 4：截掉文件末尾，看修补动作</a><a href="#sec-62-实验-5-跑-durable-的重启示例" class="lv3">实验 5：跑 durable 的重启示例</a><a href="#sec-63-读完自检" class="">读完自检</a><a href="#sec-64-十四-收束" class="">十四、收束</a><a href="#sec-65-14-1-三个可迁移的方法" class="lv3">14.1 三个可迁移的方法</a><a href="#sec-66-14-2-两代的分工" class="lv3">14.2 两代的分工</a><a href="#sec-67-14-3-下一站" class="lv3">14.3 下一站</a><a href="#sec-68-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-读这章之前-你需要先知道一件事" class="">零、读这章之前，你需要先知道一件事</a><a href="#sec-2-一-一个数组的两个问题" class="">一、一个数组的两个问题</a><a href="#sec-3-1-1-三个必须" class="lv3">1.1 三个必须</a><a href="#sec-4-1-2-本章读法" class="lv3">1.2 本章读法</a><a href="#sec-5-二-第一代-一棵只追加的树" class="">二、第一代：一棵只追加的树</a><a href="#sec-6-2-1-四个共同字段" class="lv3">2.1 四个共同字段</a><a href="#sec-7-2-2-十一种-entry" class="lv3">2.2 十一种 entry</a><a href="#sec-8-2-3-认父不认子" class="lv3">2.3 认父不认子</a><a href="#sec-9-2-4-树上长一次" class="lv3">2.4 树上长一次</a><a href="#sec-10-三-jsonl-树怎么写进文件" class="">三、JSONL：树怎么写进文件</a><a href="#sec-11-3-1-文件在哪" class="lv3">3.1 文件在哪</a><a href="#sec-12-3-2-文件里长什么样" class="lv3">3.2 文件里长什么样</a><a href="#sec-13-3-3-懒落盘" class="lv3">3.3 懒落盘</a><a href="#sec-14-3-4-追加失败要回滚三件" class="lv3">3.4 追加失败要回滚三件</a><a href="#sec-15-3-5-什么时候全量重写" class="lv3">3.5 什么时候全量重写</a><a href="#sec-16-四-恢复-从文件读回一棵树" class="">四、恢复：从文件读回一棵树</a><a href="#sec-17-4-1-逐块解码-处理被切断的多字节字符" class="lv3">4.1 逐块解码，处理被切断的多字节字符</a><a href="#sec-18-4-2-文件末尾没有换行时" class="lv3">4.2 文件末尾没有换行时</a><a href="#sec-19-4-3-坏行静默跳过" class="lv3">4.3 坏行静默跳过</a><a href="#sec-20-4-4-三版迁移" class="lv3">4.4 三版迁移</a><a href="#sec-21-4-5-建索引-leafid-是-quot-最后一条-quot" class="lv3">4.5 建索引：leafId 是&amp;quot;最后一条&amp;quot;</a><a href="#sec-22-4-6-8-位短-id-撞了怎么办" class="lv3">4.6 8 位短 id 撞了怎么办</a><a href="#sec-23-五-从树到上下文" class="">五、从树到上下文</a><a href="#sec-24-5-1-第一步-从叶子回溯" class="lv3">5.1 第一步：从叶子回溯</a><a href="#sec-25-5-2-第二步-压缩之后的保留规则" class="lv3">5.2 第二步：压缩之后的保留规则</a><a href="#sec-26-5-3-第三步-投影与上下文编辑" class="lv3">5.3 第三步：投影与上下文编辑</a><a href="#sec-27-5-4-旧-compaction-只算一次" class="lv3">5.4 旧 compaction 只算一次</a><a href="#sec-28-六-分叉" class="">六、分叉</a><a href="#sec-29-6-1-branch-只挪一个指针" class="lv3">6.1 branch：只挪一个指针</a><a href="#sec-30-6-2-branchwithsummary-回退时留遗言" class="lv3">6.2 branchWithSummary：回退时留遗言</a><a href="#sec-31-6-3-createbranchedsession-把一条路径抠出来另存" class="lv3">6.3 createBranchedSession：把一条路径抠出来另存</a><a href="#sec-32-6-4-分叉的两种成本" class="lv3">6.4 分叉的两种成本</a><a href="#sec-33-七-树撑不住的四件事" class="">七、树撑不住的四件事</a><a href="#sec-34-7-1-一次追加要原子的不止一条-entry" class="lv3">7.1 一次追加要原子的不止一条 entry</a><a href="#sec-35-7-2-树没有-quot-未完成-quot-这个状态" class="lv3">7.2 树没有&amp;quot;未完成&amp;quot;这个状态</a><a href="#sec-36-7-3-一个文件一个写者" class="lv3">7.3 一个文件一个写者</a><a href="#sec-37-7-4-分叉的单位是文件-不是-entry" class="lv3">7.4 分叉的单位是文件，不是 entry</a><a href="#sec-38-7-5-结论" class="lv3">7.5 结论</a><a href="#sec-39-八-第二代-账本取代树" class="">八、第二代：账本取代树</a><a href="#sec-40-8-1-六种内置-kind" class="lv3">8.1 六种内置 kind</a><a href="#sec-41-8-2-head-取代-parentid" class="lv3">8.2 head 取代 parentId</a><a href="#sec-42-8-3-分叉变成-quot-新会话继承父会话-quot" class="lv3">8.3 分叉变成&amp;quot;新会话继承父会话&amp;quot;</a><a href="#sec-43-九-第二代-jsonl-marker-与-sidecar" class="">九、第二代 JSONL：marker 与 sidecar</a><a href="#sec-44-9-1-main-jsonl-里只有-marker" class="lv3">9.1 main.jsonl 里只有 marker</a><a href="#sec-45-9-2-sidecar-一行一个版本" class="lv3">9.2 sidecar 一行一个版本</a><a href="#sec-46-9-3-先写-sidecar-再写-marker" class="lv3">9.3 先写 sidecar，再写 marker</a><a href="#sec-47-9-4-recover-启动时重建全部状态" class="lv3">9.4 recover()：启动时重建全部状态</a><a href="#sec-48-十-提交作为一等公民" class="">十、提交作为一等公民</a><a href="#sec-49-10-1-一条变更线" class="lv3">10.1 一条变更线</a><a href="#sec-50-10-2-组提交" class="lv3">10.2 组提交</a><a href="#sec-51-10-3-延迟提交" class="lv3">10.3 延迟提交</a><a href="#sec-52-10-4-失败即终态" class="lv3">10.4 失败即终态</a><a href="#sec-53-10-5-几个数字" class="lv3">10.5 几个数字</a><a href="#sec-54-十一-完整链路" class="">十一、完整链路</a><a href="#sec-55-11-1-写入" class="lv3">11.1 写入</a><a href="#sec-56-11-2-重启恢复" class="lv3">11.2 重启恢复</a><a href="#sec-57-十二-工程暗坑" class="">十二、工程暗坑</a><a href="#sec-58-十三-自己动手验证" class="">十三、自己动手验证</a><a href="#sec-59-实验-1-看一个真实会话文件的结构" class="lv3">实验 1：看一个真实会话文件的结构</a><a href="#sec-60-实验-2-手搓一个分叉-看路径怎么选" class="lv3">实验 2：手搓一个分叉，看路径怎么选</a><a href="#sec-61-实验-3-插一条坏行-看它静默消失" class="lv3">实验 3：插一条坏行，看它静默消失</a><a href="#sec-62-实验-4-截掉文件末尾-看修补动作" class="lv3">实验 4：截掉文件末尾，看修补动作</a><a href="#sec-63-实验-5-跑-durable-的重启示例" class="lv3">实验 5：跑 durable 的重启示例</a><a href="#sec-64-本章小结" class="">本章小结</a><a href="#sec-65-概念回顾" class="">概念回顾</a><a href="#sec-66-练习" class="">练习</a><a href="#sec-67-常见误区" class="">常见误区</a><a href="#sec-68-读完自检" class="">读完自检</a><a href="#sec-69-十四-收束" class="">十四、收束</a><a href="#sec-70-14-1-三个可迁移的方法" class="lv3">14.1 三个可迁移的方法</a><a href="#sec-71-14-2-两代的分工" class="lv3">14.2 两代的分工</a><a href="#sec-72-14-3-下一站" class="lv3">14.3 下一站</a><a href="#sec-73-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

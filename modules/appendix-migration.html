@@ -49,7 +49,11 @@
 <li>读过别的分析文章，里面引的是老路径</li>
 <li>手上有一份自己写的扩展，升级后跑不起来</li>
 </ul>
+<p><strong>第一次读这本书，这一篇可以跳过。</strong> 它不进主线：正文按 v1.4.0 写清了路径，
+不需要先知道&quot;它以前是什么样&quot;。碰到跑不起来的旧扩展，再回来看这份清单。</p>
 <p>五分钟能读完的纠偏清单放在第一节，后面是逐条证据。</p>
+<p><strong>本篇怎么用</strong>：先读 §一 那八条清单，撞上具体报错再按 §二 / §三 查行号；
+这一篇没有练习——它的判据是&quot;旧扩展能重新跑起来&quot;。</p>
 <hr>
 <h2 id="sec-1-一-五分钟纠偏清单">一、五分钟纠偏清单</h2>
 <p>如果你记得的是左边，现在应该是右边。<strong>八条，按踩坑概率排序。</strong></p>
@@ -442,7 +446,7 @@
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">被 4 个包依赖：schema      (chord, ai, durable, agent)</span><span class="ln">被 3 个包依赖：telemetry   (chord, ai, durable)</span><span class="ln">被 2 个包依赖：chord       (durable, env)</span><span class="ln">被 2 个包依赖：ai          (durable, agent)</span></code></pre></div>
-<p>两个包自己只有 4,608 和 1,580 行，却是全图的分叉点。<strong>一个东西被多个包同时需要时，它就必须成为独立包</strong> —— 否则要么复制多份（会漂），要么让包之间直接依赖（违反分层）。</p>
+<p>两个包只有 4,608 和 1,580 行，却是全图的分叉点。<strong>被多个包同时需要的东西必须成为独立包</strong> —— 否则要么复制多份（会漂），要么互相直接依赖（违反分层）。</p>
 <p>这也是判断&quot;下一个应该抽什么出来&quot;的现成标准：看谁被反复依赖。</p>
 <hr>
 <h2 id="sec-17-六-没变的东西">六、没变的东西</h2>
@@ -519,6 +523,9 @@
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"># 在仓库根目录执行</span><span class="ln"></span><span class="ln"># 1. 包数量（应该 12，不是 5）</span><span class="ln">ls packages | wc -l</span><span class="ln"></span><span class="ln"># 2. orchestrator 不存在（应该 0）</span><span class="ln">ls packages | grep -c orchestrator</span><span class="ln"></span><span class="ln"># 3. 版本号（应该只有一行 1.4.0）</span><span class="ln">for p in packages/*/package.json; do</span><span class="ln">  node -p "require('./$p').version"</span><span class="ln">done | sort -u</span><span class="ln"></span><span class="ln"># 4. 旧的 harness 路径不存在（应该 0）</span><span class="ln">ls packages/agent/src/ | grep -c harness</span><span class="ln"></span><span class="ln"># 5. 新的 harness 在 durable（应该 24）</span><span class="ln">ls packages/durable/src/harness/*.ts | wc -l</span><span class="ln"></span><span class="ln"># 6. index.ts 只有 5 行（应该 5）</span><span class="ln">wc -l &lt; packages/agent/src/index.ts</span><span class="ln"></span><span class="ln"># 7. 八个工具（应该 8）</span><span class="ln">ls packages/coding-agent/src/core/tools/*.ts | \</span><span class="ln">  grep -cE '/(bash|powershell|read|write|edit|find|grep|ls)\.ts'</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"># PowerShell 5.1，同样七条</span><span class="ln">(Get-ChildItem packages -Directory).Count                                  # 12</span><span class="ln">(Get-ChildItem packages -Directory |</span><span class="ln">  Where-Object Name -match 'orchestrator').Count                           # 0</span><span class="ln">Get-ChildItem packages/*/package.json |</span><span class="ln">  ForEach-Object { (Get-Content $_ -Raw | ConvertFrom-Json).version } |</span><span class="ln">  Sort-Object -Unique                                                     # 1.4.0</span><span class="ln">(Get-ChildItem packages/agent/src -Filter *harness*).Count                 # 0</span><span class="ln">(Get-ChildItem packages/durable/src/harness/*.ts).Count                    # 24</span><span class="ln">(Get-Content packages/agent/src/index.ts).Count                            # 5</span><span class="ln">$t = '^(bash|powershell|read|write|edit|find|grep|ls)\.ts$'</span><span class="ln">(Get-ChildItem packages/coding-agent/src/core/tools/*.ts |</span><span class="ln">  Where-Object Name -match $t).Count                                       # 8</span></code></pre></div>
 <p>七条全部对上的话，你手上的快照就是本书用的这一份。</p>
 <p><strong>如果第 4 条和第 5 条同时满足，说明你理解对了一件事</strong>：<code>harness</code> 没消失，它搬了家，而且变小了。</p>
 <hr>
@@ -529,7 +536,7 @@
 <p><strong>方法二：看到&quot;行数变少&quot;就当重写处理。</strong></p>
 <p><code>read.ts</code> 275 → 224，<code>edit.ts</code> 330 → 218。行数减少意味着逻辑被压缩、内联或搬走，旧行号 100% 失效。行数变多反而安全些（新代码在后面追加），变少要格外小心。</p>
 <p><strong>方法三：用&quot;目录搬家&quot;读架构。</strong></p>
-<p><code>agent/src/harness/</code> 一个目录变成四个新位置，这个搬法本身就是一份架构说明书。<strong>东西搬去哪，说明谁需要它。</strong> 压缩搬去 <code>coding-agent</code> 是因为只有 CLI 要上下文管理；存储搬去 <code>durable</code> 是因为任何运行时都要落盘。</p>
+<p><code>agent/src/harness/</code> 一个目录变成四个新位置，搬法本身就是架构说明书。<strong>东西搬去哪，说明谁需要它。</strong> 压缩搬去 <code>coding-agent</code>，因为只有 CLI 要上下文管理；存储搬去 <code>durable</code>，因为任何运行时都要落盘。</p>
 <p>想知道一个模块的定位，别看它的文档，看它从哪搬到了哪。</p>
 <p><strong>方法四（额外）：用 grep 的&quot;0 命中&quot;当体检。</strong></p>
 <p>升级完别人的代码库，不要只看 <code>git diff</code>。 先跑五条 <code>grep -c</code>，命中数为 0 的那几条就是你要改的地方：</p>

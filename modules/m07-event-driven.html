@@ -50,7 +50,15 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 翻译</strong>。理解这层翻译，你就理解了 Pi 的可扩展性边界在哪——
 那边界不在设计文档里，就在 <code>agent-session.ts:1319</code> 那个函数里。</p>
 <hr>
-<h2 id="sec-1-一-一次工具调用-十颗钉子">一、一次工具调用，十颗钉子</h2>
+<h2 id="sec-1-零-读这章之前-你需要先知道一件事">零、读这章之前，你需要先知道一件事</h2>
+<p><strong>事件驱动</strong>：内核每做一步就广播一次（emit），谁感兴趣谁就订阅（on）；
+订阅者默认只观察，不改变主流程。一条完整消息不是&quot;一下子&quot;出现的，
+而是 <code>message_start</code> → 若干 <code>update</code> → <code>message_end</code>。</p>
+<p><strong>没有它会怎样</strong>：以为 <code>await agent.prompt()</code> 返回时事情才开始——实际返回时已经广播了几十个事件，
+TUI 的每一行都是靠它们画出来的。</p>
+<p><strong>本书哪里用到</strong>：§二 那张事件表；SSE 转发的完整应用在附录 C。</p>
+<hr>
+<h2 id="sec-2-一-一次工具调用-十颗钉子">一、一次工具调用，十颗钉子</h2>
 <p>先把 <code>AgentEvent</code> 摆全（<code>packages/agent/src/types.ts:521-551</code>）。这个联合类型只有
 十个成员，分四层：</p>
 <div class="table-wrap"><table>
@@ -122,7 +130,7 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">agent_start</span><span class="ln">├── turn_start</span><span class="ln">│   ├── message_start          （user 消息）</span><span class="ln">│   ├── message_end</span><span class="ln">│   ├── message_start          （assistant 消息）</span><span class="ln">│   ├── message_update ×N      （每个 token 一次）</span><span class="ln">│   ├── message_end</span><span class="ln">│   ├── tool_execution_start</span><span class="ln">│   ├── tool_execution_update ×N</span><span class="ln">│   └── tool_execution_end</span><span class="ln">└── turn_end</span></code></pre></div>
 <p><code>agent_end</code> 不在这棵树里——它是整棵树结束后才发的最后一颗。</p>
-<h3 id="sec-2-1-1-为什么没有-thinking-事件">1.1 为什么没有 thinking 事件</h3>
+<h3 id="sec-3-1-1-为什么没有-thinking-事件">1.1 为什么没有 thinking 事件</h3>
 <p>十二种 <code>AssistantMessageEvent</code> 里有 <code>thinking_start</code> / <code>thinking_delta</code> /
 <code>thinking_end</code>，但十种 <code>AgentEvent</code> 里<strong>没有任何一个专门表示思考</strong>。</p>
 <p>答案在 <code>message_update</code> 身上：它把整个 <code>AssistantMessageEvent</code> 原样塞进了
@@ -135,7 +143,7 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 而不是由&quot;东西的种类&quot;决定。</strong> 消息里能装的内容有十二种，
 但消息的生命周期只有三段：开始、更新、结束。
 所以事件按三段切，不按十二种切。</p>
-<h3 id="sec-3-1-2-emit-的签名">1.2 <code>emit</code> 的签名</h3>
+<h3 id="sec-4-1-2-emit-的签名">1.2 <code>emit</code> 的签名</h3>
 <p><code>AgentEventSink</code> 只有一行（<code>packages/agent/src/agent-loop.ts:35</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -145,9 +153,9 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 <p>对比一下 M05 的 <code>beforeToolCall</code>：那个是 <code>Promise&lt;BeforeToolCallResult | undefined&gt;</code>，
 有返回值，能改参数、能拦。<strong>有没有返回值，是&quot;通知&quot;和&quot;钩子&quot;的分界线。</strong></p>
 <hr>
-<h2 id="sec-4-二-三条通道-不是一条">二、三条通道，不是一条</h2>
+<h2 id="sec-5-二-三条通道-不是一条">二、三条通道，不是一条</h2>
 <p>如果只记住一句话，记这句：<strong>Pi 有三条并行的通道，能力完全不同。</strong></p>
-<h3 id="sec-5-2-1-通道一-内核事件流">2.1 通道一：内核事件流</h3>
+<h3 id="sec-6-2-1-通道一-内核事件流">2.1 通道一：内核事件流</h3>
 <p><code>agentLoop()</code> 返回一个 <code>EventStream&lt;AgentEvent, AgentMessage[]&gt;</code>
 （<code>agent-loop.ts:47-70</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -161,7 +169,7 @@ M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
 <code>for await (const event of stream)</code> 读到 <code>agent_end</code> 就停，<code>.result()</code> 拿到全部消息。</p>
 <p>这条通道是<strong>给谁用的</strong>？给&quot;直接调 <code>agentLoop()</code> 的代码&quot;。M03 的
 <code>runAgentLoop</code> 就是一例。它是拉取式的：<strong>你不读，事件就堆在队列里。</strong></p>
-<h3 id="sec-6-2-2-通道二-agent-subscribe">2.2 通道二：<code>Agent.subscribe</code></h3>
+<h3 id="sec-7-2-2-通道二-agent-subscribe">2.2 通道二：<code>Agent.subscribe</code></h3>
 <p><code>Agent</code> 类（<code>packages/agent/src/agent.ts</code>）在内部消费那条流，再广播一遍。
 订阅接口只有三行（<code>:275-278</code>）：</p>
 <div class="code-block" data-lang="ts">
@@ -179,14 +187,14 @@ listeners for that event are still part of run settlement.</p>
 </blockquote>
 <p><strong><code>agent_end</code> 不是&quot;结束了&quot;，是&quot;不会再有事件了&quot;。</strong> Agent 真正 idle
 要等这批 listener 全部 resolve。</p>
-<h3 id="sec-7-2-3-通道三-agent-hook">2.3 通道三：agent hook</h3>
+<h3 id="sec-8-2-3-通道三-agent-hook">2.3 通道三：agent hook</h3>
 <p><code>Agent</code> 上还有几个可写的属性（<code>agent-session.ts:668-671</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">this</span>.agent.beforeToolCall = (context) =&gt; <span class="tok-kw">this</span>.<span class="tok-fn">_beforeToolCall</span>(context);</span><span class="ln"><span class="tok-kw">this</span>.agent.afterToolCall  = (context) =&gt; <span class="tok-kw">this</span>.<span class="tok-fn">_afterToolCall</span>(context);</span></code></pre></div>
 <p>这些不是事件，是<strong>回调</strong>——有返回值，能改行为。M05 讲的五步管道里，
 <code>beforeToolCall</code> 就是那道&quot;一票否决&quot;的关卡。</p>
-<h3 id="sec-8-2-4-三条通道的分工">2.4 三条通道的分工</h3>
+<h3 id="sec-9-2-4-三条通道的分工">2.4 三条通道的分工</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -222,7 +230,7 @@ listeners for that event are still part of run settlement.</p>
 </tbody>
 </table></div>
 <p><strong>&quot;能不能改&quot;由签名决定，&quot;等不等&quot;由实现决定。</strong> 记住这两条就不会混。</p>
-<h3 id="sec-9-2-5-一个场景-走一遍三条通道">2.5 一个场景，走一遍三条通道</h3>
+<h3 id="sec-10-2-5-一个场景-走一遍三条通道">2.5 一个场景，走一遍三条通道</h3>
 <p>假设你想&quot;每次工具执行完打印一行日志&quot;。三条通道各写一遍：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -236,14 +244,14 @@ listeners for that event are still part of run settlement.</p>
 <p>TUI 选通道二，因为它要在一个长驻进程里反复渲染。测试代码常选通道一，
 因为 <code>for await</code> 写起来最直、生命周期最短。</p>
 <hr>
-<h2 id="sec-10-三-翻译层-十变成四十一">三、翻译层：十变成四十一</h2>
+<h2 id="sec-11-三-翻译层-十变成四十一">三、翻译层：十变成四十一</h2>
 <p>内核发十种，扩展能挂四十一个钩子。中间少了什么、多了什么？</p>
 <p><code>ExtensionAPI.on()</code> 有四十一个重载（<code>core/extensions/types.ts:1621-1688</code>）。
 <code>ExtensionEvent</code> 联合类型只有三十二个成员（<code>:1425-1457</code>）——比四十一少
 九个，因为 <code>SessionEvent</code> 把十个 <code>session_*</code> 事件收成了一个类型（<code>:882-892</code>）。
 工具亚型（<code>BashToolCallEvent</code>、<code>EditToolCallEvent</code>……九个）藏在
 <code>ToolCallEvent</code> 内部（<code>:1276-1285</code>），在这个联合里只占一个位置。</p>
-<h3 id="sec-11-3-1-翻译发生在一个函数里">3.1 翻译发生在一个函数里</h3>
+<h3 id="sec-12-3-1-翻译发生在一个函数里">3.1 翻译发生在一个函数里</h3>
 <p><code>agent-session.ts:1319</code> 的 <code>_emitExtensionEvent</code> 是这张翻译表的全部实现。
 它有十个分支，正好对应十种 <code>AgentEvent</code>：</p>
 <div class="code-block" data-lang="ts">
@@ -252,7 +260,7 @@ listeners for that event are still part of run settlement.</p>
 <p>十个分支里，<strong>九个直接转发，一个（<code>turn_end</code>）转去别处</strong>。</p>
 <p>注意 <code>turn_start</code> 那两个新字段：<code>turnIndex</code> 和 <code>timestamp</code> 内核根本没有。
 扩展看到的不是内核事件，是<strong>加工过的事件</strong>。</p>
-<h3 id="sec-12-3-2-tool_call-和-tool_result-不走这里">3.2 <code>tool_call</code> 和 <code>tool_result</code> 不走这里</h3>
+<h3 id="sec-13-3-2-tool_call-和-tool_result-不走这里">3.2 <code>tool_call</code> 和 <code>tool_result</code> 不走这里</h3>
 <p>四十一个钩子里，只有这两个<strong>完全不来自事件流</strong>——它们来自 hook：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -263,7 +271,7 @@ listeners for that event are still part of run settlement.</p>
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">tool_call              ← hook，执行前，能拦、能改 input</span><span class="ln">tool_execution_start   ← 事件，已经决定要执行了，只是通知</span></code></pre></div>
 <p>一个只读通知，一个能改。名字很像，能力差一个数量级。</p>
-<h3 id="sec-13-3-3-turn_end-的岔路">3.3 <code>turn_end</code> 的岔路</h3>
+<h3 id="sec-14-3-3-turn_end-的岔路">3.3 <code>turn_end</code> 的岔路</h3>
 <p><code>turn_end</code> 没被直接转发，而是进了 <code>_dispatchTurnEndBoundary</code>
 （<code>agent-session.ts:862</code>）。它做三件事：</p>
 <ol>
@@ -280,7 +288,7 @@ listeners for that event are still part of run settlement.</p>
 <pre><code><span class="ln"><span class="tok-kw">const</span> extensionContinue = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_dispatchTurnEndBoundary</span>(...);</span><span class="ln"><span class="tok-kw">if</span> (extensionContinue) <span class="tok-kw">return</span> { action: <span class="tok-str">"continue"</span> };</span></code></pre></div>
 <p><strong>扩展在 <code>turn_end</code> 返回 <code>{ continue: true }</code>，能让 agent 自己再转一圈。</strong>
 这是四十一个钩子里权限最大的几个之一——它直接改循环的退出条件。</p>
-<h3 id="sec-14-3-4-为什么翻译层不在-agent-包里">3.4 为什么翻译层不在 <code>agent</code> 包里</h3>
+<h3 id="sec-15-3-4-为什么翻译层不在-agent-包里">3.4 为什么翻译层不在 <code>agent</code> 包里</h3>
 <p>一个自然的疑问：既然要翻译，为什么不直接在 <code>agent</code> 包里把十种改成四十一种，
 省得两层？</p>
 <p>因为 <code>agent</code> 包<strong>不知道</strong>那四十一个概念。看几个钩子名：
@@ -300,7 +308,7 @@ AgentSession via agent-core hooks.</p>
 给扩展注册的工具塞一个 <code>ctx</code>。</p>
 <p>分层不是按文件数分的，是按&quot;谁知道什么&quot;分的。</p>
 <hr>
-<h2 id="sec-15-四-四十一个钩子的地图">四、四十一个钩子的地图</h2>
+<h2 id="sec-16-四-四十一个钩子的地图">四、四十一个钩子的地图</h2>
 <p>不用背，按&quot;你什么时候想动手&quot;查：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -421,7 +429,7 @@ AgentSession via agent-core hooks.</p>
 <li><strong><code>turn_end</code> / <code>agent_before_settle</code></strong>：能改控制流</li>
 </ul>
 <p><strong>越往后，权限越大，能出的事也越大。</strong></p>
-<h3 id="sec-16-4-1-四十一个里-常用的只有六个">4.1 四十一个里，常用的只有六个</h3>
+<h3 id="sec-17-4-1-四十一个里-常用的只有六个">4.1 四十一个里，常用的只有六个</h3>
 <p>按 <code>examples/extensions/</code> 那 70 个例子统计，出场率最高的六个：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -469,7 +477,7 @@ AgentSession via agent-core hooks.</p>
 <code>provider-payload</code>）。这两类是&quot;做产品&quot;，不是&quot;改行为&quot;。</p>
 <p><strong>先掌握这六个，能覆盖八成的扩展需求。</strong> 剩下那些不是不重要，
 是你一时半会不会去碰。</p>
-<h3 id="sec-17-4-2-ctx-是谁">4.2 <code>ctx</code> 是谁</h3>
+<h3 id="sec-18-4-2-ctx-是谁">4.2 <code>ctx</code> 是谁</h3>
 <p>每个 handler 都拿两个参数：<code>event</code> 和 <code>ctx</code>。
 <strong><code>event</code> 是数据，<code>ctx</code> 是能力。</strong></p>
 <p><code>ctx</code> 由 <code>createContext()</code>（<code>runner.ts:884</code>）现造，字段分三组：</p>
@@ -516,17 +524,17 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 这是&quot;用一个对象代表一次会话&quot;必然的代价：对象不会自己知道已经过期，
 只能靠调用时检查。</p>
 <hr>
-<h2 id="sec-18-五-三种错误策略">五、三种错误策略</h2>
+<h2 id="sec-19-五-三种错误策略">五、三种错误策略</h2>
 <p>扩展是第三方代码，它会抛错。Pi 对不同的钩子选了<strong>三种不同的态度</strong>，
 这是全章最值得抄的设计。</p>
-<h3 id="sec-19-5-1-观察类-吞掉-记一笔">5.1 观察类：吞掉，记一笔</h3>
+<h3 id="sec-20-5-1-观察类-吞掉-记一笔">5.1 观察类：吞掉，记一笔</h3>
 <p><code>ExtensionRunner.emit()</code>（<code>runner.ts:1096-1125</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> { ext, handlers } <span class="tok-kw">of</span> <span class="tok-fn">snapshotEventHandlers</span>(...)) {</span><span class="ln">	<span class="tok-kw">for</span> (<span class="tok-kw">const</span> handler <span class="tok-kw">of</span> handlers) {</span><span class="ln">		<span class="tok-kw">try</span> {</span><span class="ln">			<span class="tok-kw">await</span> <span class="tok-fn">handler</span>(event, ctx);</span><span class="ln">		} <span class="tok-kw">catch</span> (err) {</span><span class="ln">			<span class="tok-kw">this</span>.<span class="tok-fn">emitError</span>({</span><span class="ln">				extensionPath: ext.path,</span><span class="ln">				event: event.<span class="tok-kw">type</span>,</span><span class="ln">				error: <span class="tok-fn">String</span>(err),</span><span class="ln">			});</span><span class="ln">		}</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
 <p>吞掉，上报，<strong>继续跑下一个 handler</strong>。因为这类钩子本来就不能改变行为——
 它抛错不该影响 agent。一个只想打日志的扩展崩了，不该让整轮对话失败。</p>
-<h3 id="sec-20-5-2-变换类-吞掉-丢掉这次修改">5.2 变换类：吞掉，丢掉这次修改</h3>
+<h3 id="sec-21-5-2-变换类-吞掉-丢掉这次修改">5.2 变换类：吞掉，丢掉这次修改</h3>
 <p><code>emitMessageEnd</code> / <code>emitToolResult</code> / <code>emitContext</code> / <code>emitBoundary</code>
 都是这个策略：catch 之后 <code>emitError</code>，然后<strong>把这次的返回值当没发生</strong>。</p>
 <p><code>emitMessageEnd</code> 还多一道护栏（<code>runner.ts:1163-1170</code>）：</p>
@@ -535,7 +543,7 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 <pre><code><span class="ln"><span class="tok-kw">if</span> (handlerResult.message.role !== currentMessage.role) {</span><span class="ln">	<span class="tok-kw">this</span>.<span class="tok-fn">emitError</span>({ ..., error: <span class="tok-str">"message_end handlers must return a "</span> +</span><span class="ln">		<span class="tok-str">"message with the same role"</span> });</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
 <p><strong>能改内容，不能改身份。</strong> 把 <code>assistant</code> 换成 <code>user</code> 会让 M06 那套
 &quot;最后一条必须是 user/toolResult&quot;的假设全部失效，所以直接拒。</p>
-<h3 id="sec-21-5-3-拦截类-不吞-让它阻断">5.3 拦截类：不吞，让它阻断</h3>
+<h3 id="sec-22-5-3-拦截类-不吞-让它阻断">5.3 拦截类：不吞，让它阻断</h3>
 <p><code>emitToolCall</code>（<code>:1249-1267</code>）<strong>没有 try/catch</strong>。handler 抛错就一路往上抛：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -545,7 +553,7 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 默认应该拦，不是默认放行。</strong></p>
 <p><code>emitUserBash</code>（<code>:1269-1298</code>）稍有不同：catch → <code>emitError</code> → <strong>重新抛</strong>。
 上报一次是为了让用户看见，重抛是为了让调用方停手。</p>
-<h3 id="sec-22-5-4-一张表">5.4 一张表</h3>
+<h3 id="sec-23-5-4-一张表">5.4 一张表</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -573,7 +581,7 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 </tbody>
 </table></div>
 <p><strong>越有权限的钩子，越不该宽容。</strong> 这是一条可以搬到任何插件系统的规则。</p>
-<h3 id="sec-23-5-5-四种返回值-四种权力">5.5 四种返回值，四种权力</h3>
+<h3 id="sec-24-5-5-四种返回值-四种权力">5.5 四种返回值，四种权力</h3>
 <p>四十一个钩子的返回值，语义只有四种：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -614,8 +622,8 @@ into <code>withSession</code> and use the ctx passed to <code>withSession</code>
 <strong>扩展可以在模型停下的那一刻说&quot;还没完&quot;。</strong></p>
 <p>代价是：这是唯一能让 agent 无限循环的钩子。用之前先想清楚退出条件。</p>
 <hr>
-<h2 id="sec-24-六-顺序-快照与并发">六、顺序、快照与并发</h2>
-<h3 id="sec-25-6-1-三路广播的先后">6.1 三路广播的先后</h3>
+<h2 id="sec-25-六-顺序-快照与并发">六、顺序、快照与并发</h2>
+<h3 id="sec-26-6-1-三路广播的先后">6.1 三路广播的先后</h3>
 <p><code>_handleAgentEvent</code> 里顺序是写死的（<code>agent-session.ts:1158-1160</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -636,7 +644,7 @@ turn/agent events, listeners, and the eventual persistence in sync.</p>
 </blockquote>
 <p><strong>agent 核心在发事件之前就把对象存进 state 了</strong>，你换一个新对象，state 里还是旧的。
 所以只能掏空再填——这是&quot;共享可变对象&quot;的典型代价。</p>
-<h3 id="sec-26-6-2-快照-slice">6.2 快照：<code>slice()</code></h3>
+<h3 id="sec-27-6-2-快照-slice">6.2 快照：<code>slice()</code></h3>
 <p><code>snapshotEventHandlers</code>（<code>runner.ts:276-278</code>）只有两行：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -644,12 +652,12 @@ turn/agent events, listeners, and the eventual persistence in sync.</p>
 <p><code>.slice()</code> 是关键。handler 里调用 <code>pi.on()</code> 返回的取消函数，<strong>不会影响当前这一轮</strong>
 ——数组已经是副本。同理，handler 里新注册的也不会在本轮生效。</p>
 <p>这让&quot;边遍历边改集合&quot;这个经典 bug 不可能发生。</p>
-<h3 id="sec-27-6-3-没有并行">6.3 没有并行</h3>
+<h3 id="sec-28-6-3-没有并行">6.3 没有并行</h3>
 <p>所有 handler 都是串行 <code>await</code>。四十一个钩子，没有一个是 <code>Promise.all</code>。</p>
 <p>代价是慢——十个扩展各花 10ms，一次事件就 100ms。收益是<strong>确定性</strong>：
 后一个扩展能看到前一个的修改，<code>emitMessageEnd</code> 的&quot;链式替换&quot;才成立。</p>
 <p>对一个需要可复现的调试工具来说，这个交换是对的。</p>
-<h3 id="sec-28-6-4-顺序本身就是契约">6.4 顺序本身就是契约</h3>
+<h3 id="sec-29-6-4-顺序本身就是契约">6.4 顺序本身就是契约</h3>
 <p>&quot;扩展 → UI → 落盘&quot;这个顺序，看着像实现细节，其实是契约。</p>
 <p><strong>一，<code>message_end</code> 改消息。</strong> 扩展先改，UI 渲染改后的版本，落盘也是改后的。
 如果反过来——先落盘再给扩展——那改完的内容<strong>存不进文件</strong>，
@@ -662,16 +670,16 @@ turn/agent events, listeners, and the eventual persistence in sync.</p>
 <strong>扩展收到的那份没有</strong>。想让扩展知道会不会重试，得自己判断。</p>
 <p><strong>一个事件，两个版本，三种时序。</strong> 读代码时先问&quot;这个 handler 在第几站&quot;，
 比问&quot;它什么时候触发&quot;更有用。</p>
-<h3 id="sec-29-6-5-没有超时">6.5 没有超时</h3>
+<h3 id="sec-30-6-5-没有超时">6.5 没有超时</h3>
 <p>四十一个钩子，<strong>没有一个有超时</strong>。handler 里 <code>await</code> 一个永不 resolve 的
 promise，agent 就永久卡住。</p>
-<p>Pi 没加超时，理由大概是想清楚了：<strong>加了也没用。</strong> 真超时了你只有两个选择——
+<p>Pi 没加超时，理由是想清楚了：<strong>加了也没用。</strong> 真超时了你只有两个选择——
 吞掉（丢掉用户的拦截意图）或者抛错（连观察类都变致命）。两个都比&quot;卡住&quot;更难排。</p>
 <p>所以责任在写扩展的人身上：<strong>handler 里的每个 await 都得有界。</strong>
 <code>pi.exec</code> 有进程级超时；<code>ctx.ui.confirm()</code> 等用户，天然可能无限期——
 这也是为什么它只该出现在有人、有 UI 的环境里（§8.3 那道 <code>ctx.hasUI</code>）。</p>
 <hr>
-<h2 id="sec-30-七-写一个扩展">七、写一个扩展</h2>
+<h2 id="sec-31-七-写一个扩展">七、写一个扩展</h2>
 <p><code>ExtensionAPI</code> 的入口是一个工厂函数（<code>types.ts:2069</code>）：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -698,7 +706,7 @@ promise，agent 就永久卡住。</p>
 </blockquote>
 <p>自定义工具的 <code>toolName</code> 是宽 <code>string</code>，所以直接比较永远不能收窄类型。
 得走显式的类型守卫函数。</p>
-<h3 id="sec-31-7-1-用-turn_end-让-agent-继续">7.1 用 <code>turn_end</code> 让 agent 继续</h3>
+<h3 id="sec-32-7-1-用-turn_end-让-agent-继续">7.1 用 <code>turn_end</code> 让 agent 继续</h3>
 <p>验收要求&quot;在指定事件点插入行为&quot;，最能把这条讲透的是 <code>turn_end</code>——
 因为它能改控制流。</p>
 <p>场景：模型觉得&quot;干完了&quot;但其实没验证。你想在它停下的那一刻推它一把。</p>
@@ -715,7 +723,7 @@ promise，agent 就永久卡住。</p>
 <p><strong>必须有递减的计数器。</strong> <code>continue: true</code> 没有上限，这就是 §5.5 说的&quot;踩油门&quot;。
 没有退出条件的 <code>turn_end</code> 扩展，会让 agent 永远转下去。</p>
 <hr>
-<h2 id="sec-32-八-扩展从哪来">八、扩展从哪来</h2>
+<h2 id="sec-33-八-扩展从哪来">八、扩展从哪来</h2>
 <p><code>discoverAndLoadExtensions</code>（<code>loader.ts:832-880</code>）按三处找：</p>
 <ol>
 <li><strong>项目级</strong>：<code>&lt;cwd&gt;/.pi/extensions/</code>（目录名来自 <code>CONFIG_DIR_NAME</code>，
@@ -730,7 +738,7 @@ promise，agent 就永久卡住。</p>
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> <span class="tok-kw">module</span> = <span class="tok-kw">await</span> jiti.<span class="tok-kw">import</span>(extensionPath, { <span class="tok-kw">default</span>: <span class="tok-kw">true</span> });</span></code></pre></div>
 <p>这也是为什么你可以直接把 <code>.ts</code> 丢进 <code>.pi/extensions/</code> 就用。</p>
-<h3 id="sec-33-8-1-加载期的-quot-半成品-quot-状态">8.1 加载期的&quot;半成品&quot;状态</h3>
+<h3 id="sec-34-8-1-加载期的-quot-半成品-quot-状态">8.1 加载期的&quot;半成品&quot;状态</h3>
 <p><code>createExtensionAPI</code>（<code>:248-272</code>）里有个状态机：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -738,13 +746,13 @@ promise，agent 就永久卡住。</p>
 <p>扩展加载过程中调用的&quot;动作类&quot; API（发消息、改设置）不会立刻生效，而是<strong>排队</strong>，
 等加载完 <code>commit()</code> 时一起放。加载失败就 <code>discard()</code> 全部丢弃。</p>
 <p><strong>一个半死不活的扩展，不该留下半个副作用。</strong></p>
-<h3 id="sec-34-8-2-70-个现成例子">8.2 70 个现成例子</h3>
+<h3 id="sec-35-8-2-70-个现成例子">8.2 70 个现成例子</h3>
 <p><code>packages/coding-agent/examples/extensions/</code> 下有 70 个 <code>.ts</code> 扩展：
 <code>hello.ts</code>（26 行，最小可运行）、<code>confirm-destructive.ts</code>（59 行，用
 <code>cancel: true</code> 拦会话切换）、<code>auto-commit-on-exit.ts</code>（49 行，<code>session_shutdown</code>
 时自动 commit）、<code>event-bus.ts</code>（43 行，扩展之间互相发消息）。</p>
 <p><strong>读扩展比读框架快。</strong> 每个文件都是&quot;一个钩子 + 一段业务&quot;。</p>
-<h3 id="sec-35-8-3-拆三个例子">8.3 拆三个例子</h3>
+<h3 id="sec-36-8-3-拆三个例子">8.3 拆三个例子</h3>
 <p><strong><code>hello.ts</code>（26 行）：最小可运行。</strong></p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -765,7 +773,7 @@ promise，agent 就永久卡住。</p>
 提交信息取最后一条 assistant 消息的第一行（截断到 50 字）。</p>
 <p>这个例子演示两件事：一是 <code>pi.exec</code> 可以在扩展里跑外部命令；
 二是 <code>ctx.sessionManager.getEntries()</code> 能读全部历史——包括 M06 那八种消息。</p>
-<h3 id="sec-36-8-4-扩展之间也能说话">8.4 扩展之间也能说话</h3>
+<h3 id="sec-37-8-4-扩展之间也能说话">8.4 扩展之间也能说话</h3>
 <p><code>createEventBus()</code>（<code>core/event-bus.ts</code>，33 行）是扩展之间的独立通道，
 和那四十一个钩子<strong>完全无关</strong>：</p>
 <div class="code-block" data-lang="ts">
@@ -779,7 +787,7 @@ promise，agent 就永久卡住。</p>
 所以总线事件<strong>不保证顺序，也不保证完成</strong>。</p>
 <p><strong>它是广播，不是 RPC。</strong> 想让另一个扩展&quot;回你一句&quot;，得自己再发一条。</p>
 <hr>
-<h2 id="sec-37-九-完整数据流">九、完整数据流</h2>
+<h2 id="sec-38-九-完整数据流">九、完整数据流</h2>
 <p>从内核一颗钉子，到扩展拿到它：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -792,7 +800,10 @@ promise，agent 就永久卡住。</p>
 想观察的去 <code>subscribe</code>，想拦的去 <code>tool_call</code>，想改上下文的去 <code>context</code>。
 <strong>每一类需求都有且只有一个正确入口</strong>，别的地方虽然能实现，但会让时序乱掉。</p>
 <hr>
-<h2 id="sec-38-十-自己动手验证">十、自己动手验证</h2>
+<h2 id="sec-39-十-自己动手验证">十、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。每条判据都是这一版实跑的输出。</p>
+</blockquote>
 <p><strong>实验 1：数一数内核事件。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -869,7 +880,7 @@ promise，agent 就永久卡住。</p>
 <li><strong>回滚</strong>　两行换回去。改回来再跑一次，<code>subscribe</code> 又变回 <code>&quot;收到[改]&quot;</code>。</li>
 </ul>
 <hr>
-<h2 id="sec-39-十一-工程暗坑">十一、工程暗坑</h2>
+<h2 id="sec-40-十一-工程暗坑">十一、工程暗坑</h2>
 <p><strong>1. 以为 <code>tool_execution_start</code> 能拦。</strong></p>
 <p>不能。它是通知，返回值被丢弃。要拦用 <code>tool_call</code>。</p>
 <p><strong>2. 以为 <code>subscribe</code> 的 listener 抛错会中断。</strong></p>
@@ -926,7 +937,7 @@ promise，agent 就永久卡住。</p>
 <p>没有更好的办法吗？有——把&quot;用完这个 ctx&quot;的代码搬进 <code>withSession</code>，
 用回调里传进来的新 ctx。错误消息里就是这么建议的。</p>
 <p><strong>存一个有能力对象的时候，就要准备好它会被吊销。</strong></p>
-<p><strong>13. handler 的执行顺序 = 扩展的加载顺序，而加载顺序是拼出来的。</strong></p>
+<p><strong>12. handler 的执行顺序 = 扩展的加载顺序，而加载顺序是拼出来的。</strong></p>
 <p><code>discoverAndLoadExtensions</code> 按&quot;项目 → 全局 → 显式配置&quot;三段拼（<code>loader.ts:853-877</code>），
 <code>snapshotEventHandlers</code> 再按这个数组顺序遍历。</p>
 <p>所以两个扩展都挂 <code>tool_call</code> 时，谁先跑取决于它们在哪——
@@ -934,7 +945,7 @@ promise，agent 就永久卡住。</p>
 要保证顺序，就在同一个扩展里注册两个 handler（<code>pi.on</code> 可多次调用，
 顺序按注册先后）。</p>
 <hr>
-<h2 id="sec-40-十二-三个可以带走的方法">十二、三个可以带走的方法</h2>
+<h2 id="sec-41-十二-三个可以带走的方法">十二、三个可以带走的方法</h2>
 <p><strong>方法一：通知用一个空返回值的签名，钩子用带返回值的签名。</strong></p>
 <p><code>AgentEventSink = (event) =&gt; Promise&lt;void&gt; | void</code> 和
 <code>beforeToolCall = (ctx) =&gt; Promise&lt;Result | undefined&gt;</code> 的差别只有一处：
@@ -961,14 +972,73 @@ promise，agent 就永久卡住。</p>
 <p>第三类 Pi 没拦，因为 <code>tool_call</code> 排在 <code>validateToolArguments</code> 之后（M05）。
 <strong>能拦的别放过，拦不到的写进文档。</strong></p>
 <hr>
-<h2 id="sec-41-读完自检">读完自检</h2>
+<h2 id="sec-42-本章小结">本章小结</h2>
+<ol>
+<li>内核只发 10 种事件，扩展能挂 41 个钩子，中间隔一层翻译。</li>
+<li>三条通道：事件广播 / 钩子 / 工具包装，不是一条。</li>
+<li>异常策略按权限定：观察类吞、变换类丢、拦截类抛。</li>
+<li>越权处加形状校验：允许换内容，不允许换 role。</li>
+<li>handler 在边界处快照，运行中注册本轮不生效。</li>
+</ol>
+<h2 id="sec-43-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>三条通道</td>
+<td>事件 / 钩子 / 工具包装，各有各的返回值约定</td>
+<td>§二</td>
+</tr>
+<tr>
+<td>翻译层</td>
+<td>10 个内核事件翻成 41 个钩子</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>三种策略</td>
+<td>吞 / 丢 / 抛，按&quot;本来能做什么&quot;分</td>
+<td>§五</td>
+</tr>
+<tr>
+<td>快照</td>
+<td><code>snapshotEventHandlers</code>，本轮不变</td>
+<td>§六</td>
+</tr>
+<tr>
+<td>形状校验</td>
+<td>改完还要满足下游假设</td>
+<td>§十二 方法三</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-44-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§五 说拦截类钩子抛了必须让用户看到。
+如果把它当&quot;观察类&quot;一并吞掉，用户会经历什么？→ 对比 §五 的三种策略表。</p>
+<p><strong>练习 2（改）</strong>：照 §七 的模板写一个扩展，在 <code>beforeToolCall</code> 里
+对 <code>edit</code> 一律 <code>block</code>（不带 <code>terminate</code>）。预期：<code>edit</code> 不执行，
+模型收到一条被拦截的结果，循环继续；回滚：删掉这个扩展文件。</p>
+<h2 id="sec-45-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> 四十一钩子都得会用；<strong>实际是</strong> 常用只有六个；<strong>证据</strong> §4.1。</li>
+<li><strong>你会以为</strong> 扩展抛异常会中断流程；<strong>实际是</strong> 观察类直接吞；<strong>证据</strong> §五。</li>
+<li><strong>你会以为</strong> 运行中注册的 handler 立刻生效；<strong>实际是</strong> 要等下一个边界；
+<strong>证据</strong> §六 的快照。</li>
+</ol>
+<hr>
+<h2 id="sec-46-读完自检">读完自检</h2>
 <p>三条，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>自检</th>
 <th>一句话答案</th>
-<th>在哪</th>
+<th>不会就去</th>
 </tr>
 </thead>
 <tbody>
@@ -989,14 +1059,14 @@ promise，agent 就永久卡住。</p>
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-42-下一步">下一步</h2>
+<h2 id="sec-47-下一步">下一步</h2>
 <p>事件系统讲完，内核部分就齐了：循环在前面转，模型在后面调，
 工具在手里，消息在账上，事件在血管里流。</p>
 <p>下一章开始往上走。模型每次请求都要带上&quot;系统提示词&quot;——那段几千字的、
 告诉模型它是谁的文本，是怎么拼出来的？谁往里加东西？顺序能不能改？</p>
 <p>打开上下文装配。</p>
 <hr>
-<h2 id="sec-43-本章源码索引">本章源码索引</h2>
+<h2 id="sec-48-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1069,7 +1139,7 @@ promise，agent 就永久卡住。</p>
       <a class="next" href="m08-context.html"><span class="lbl">下一篇</span>上下文装配 —— 八节提示词，一条目录链</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一次工具调用-十颗钉子" class="">一、一次工具调用，十颗钉子</a><a href="#sec-2-1-1-为什么没有-thinking-事件" class="lv3">1.1 为什么没有 thinking 事件</a><a href="#sec-3-1-2-emit-的签名" class="lv3">1.2 emit 的签名</a><a href="#sec-4-二-三条通道-不是一条" class="">二、三条通道，不是一条</a><a href="#sec-5-2-1-通道一-内核事件流" class="lv3">2.1 通道一：内核事件流</a><a href="#sec-6-2-2-通道二-agent-subscribe" class="lv3">2.2 通道二：Agent.subscribe</a><a href="#sec-7-2-3-通道三-agent-hook" class="lv3">2.3 通道三：agent hook</a><a href="#sec-8-2-4-三条通道的分工" class="lv3">2.4 三条通道的分工</a><a href="#sec-9-2-5-一个场景-走一遍三条通道" class="lv3">2.5 一个场景，走一遍三条通道</a><a href="#sec-10-三-翻译层-十变成四十一" class="">三、翻译层：十变成四十一</a><a href="#sec-11-3-1-翻译发生在一个函数里" class="lv3">3.1 翻译发生在一个函数里</a><a href="#sec-12-3-2-tool_call-和-tool_result-不走这里" class="lv3">3.2 tool_call 和 tool_result 不走这里</a><a href="#sec-13-3-3-turn_end-的岔路" class="lv3">3.3 turn_end 的岔路</a><a href="#sec-14-3-4-为什么翻译层不在-agent-包里" class="lv3">3.4 为什么翻译层不在 agent 包里</a><a href="#sec-15-四-四十一个钩子的地图" class="">四、四十一个钩子的地图</a><a href="#sec-16-4-1-四十一个里-常用的只有六个" class="lv3">4.1 四十一个里，常用的只有六个</a><a href="#sec-17-4-2-ctx-是谁" class="lv3">4.2 ctx 是谁</a><a href="#sec-18-五-三种错误策略" class="">五、三种错误策略</a><a href="#sec-19-5-1-观察类-吞掉-记一笔" class="lv3">5.1 观察类：吞掉，记一笔</a><a href="#sec-20-5-2-变换类-吞掉-丢掉这次修改" class="lv3">5.2 变换类：吞掉，丢掉这次修改</a><a href="#sec-21-5-3-拦截类-不吞-让它阻断" class="lv3">5.3 拦截类：不吞，让它阻断</a><a href="#sec-22-5-4-一张表" class="lv3">5.4 一张表</a><a href="#sec-23-5-5-四种返回值-四种权力" class="lv3">5.5 四种返回值，四种权力</a><a href="#sec-24-六-顺序-快照与并发" class="">六、顺序、快照与并发</a><a href="#sec-25-6-1-三路广播的先后" class="lv3">6.1 三路广播的先后</a><a href="#sec-26-6-2-快照-slice" class="lv3">6.2 快照：slice()</a><a href="#sec-27-6-3-没有并行" class="lv3">6.3 没有并行</a><a href="#sec-28-6-4-顺序本身就是契约" class="lv3">6.4 顺序本身就是契约</a><a href="#sec-29-6-5-没有超时" class="lv3">6.5 没有超时</a><a href="#sec-30-七-写一个扩展" class="">七、写一个扩展</a><a href="#sec-31-7-1-用-turn_end-让-agent-继续" class="lv3">7.1 用 turn_end 让 agent 继续</a><a href="#sec-32-八-扩展从哪来" class="">八、扩展从哪来</a><a href="#sec-33-8-1-加载期的-quot-半成品-quot-状态" class="lv3">8.1 加载期的&amp;quot;半成品&amp;quot;状态</a><a href="#sec-34-8-2-70-个现成例子" class="lv3">8.2 70 个现成例子</a><a href="#sec-35-8-3-拆三个例子" class="lv3">8.3 拆三个例子</a><a href="#sec-36-8-4-扩展之间也能说话" class="lv3">8.4 扩展之间也能说话</a><a href="#sec-37-九-完整数据流" class="">九、完整数据流</a><a href="#sec-38-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-39-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-40-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-41-读完自检" class="">读完自检</a><a href="#sec-42-下一步" class="">下一步</a><a href="#sec-43-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-读这章之前-你需要先知道一件事" class="">零、读这章之前，你需要先知道一件事</a><a href="#sec-2-一-一次工具调用-十颗钉子" class="">一、一次工具调用，十颗钉子</a><a href="#sec-3-1-1-为什么没有-thinking-事件" class="lv3">1.1 为什么没有 thinking 事件</a><a href="#sec-4-1-2-emit-的签名" class="lv3">1.2 emit 的签名</a><a href="#sec-5-二-三条通道-不是一条" class="">二、三条通道，不是一条</a><a href="#sec-6-2-1-通道一-内核事件流" class="lv3">2.1 通道一：内核事件流</a><a href="#sec-7-2-2-通道二-agent-subscribe" class="lv3">2.2 通道二：Agent.subscribe</a><a href="#sec-8-2-3-通道三-agent-hook" class="lv3">2.3 通道三：agent hook</a><a href="#sec-9-2-4-三条通道的分工" class="lv3">2.4 三条通道的分工</a><a href="#sec-10-2-5-一个场景-走一遍三条通道" class="lv3">2.5 一个场景，走一遍三条通道</a><a href="#sec-11-三-翻译层-十变成四十一" class="">三、翻译层：十变成四十一</a><a href="#sec-12-3-1-翻译发生在一个函数里" class="lv3">3.1 翻译发生在一个函数里</a><a href="#sec-13-3-2-tool_call-和-tool_result-不走这里" class="lv3">3.2 tool_call 和 tool_result 不走这里</a><a href="#sec-14-3-3-turn_end-的岔路" class="lv3">3.3 turn_end 的岔路</a><a href="#sec-15-3-4-为什么翻译层不在-agent-包里" class="lv3">3.4 为什么翻译层不在 agent 包里</a><a href="#sec-16-四-四十一个钩子的地图" class="">四、四十一个钩子的地图</a><a href="#sec-17-4-1-四十一个里-常用的只有六个" class="lv3">4.1 四十一个里，常用的只有六个</a><a href="#sec-18-4-2-ctx-是谁" class="lv3">4.2 ctx 是谁</a><a href="#sec-19-五-三种错误策略" class="">五、三种错误策略</a><a href="#sec-20-5-1-观察类-吞掉-记一笔" class="lv3">5.1 观察类：吞掉，记一笔</a><a href="#sec-21-5-2-变换类-吞掉-丢掉这次修改" class="lv3">5.2 变换类：吞掉，丢掉这次修改</a><a href="#sec-22-5-3-拦截类-不吞-让它阻断" class="lv3">5.3 拦截类：不吞，让它阻断</a><a href="#sec-23-5-4-一张表" class="lv3">5.4 一张表</a><a href="#sec-24-5-5-四种返回值-四种权力" class="lv3">5.5 四种返回值，四种权力</a><a href="#sec-25-六-顺序-快照与并发" class="">六、顺序、快照与并发</a><a href="#sec-26-6-1-三路广播的先后" class="lv3">6.1 三路广播的先后</a><a href="#sec-27-6-2-快照-slice" class="lv3">6.2 快照：slice()</a><a href="#sec-28-6-3-没有并行" class="lv3">6.3 没有并行</a><a href="#sec-29-6-4-顺序本身就是契约" class="lv3">6.4 顺序本身就是契约</a><a href="#sec-30-6-5-没有超时" class="lv3">6.5 没有超时</a><a href="#sec-31-七-写一个扩展" class="">七、写一个扩展</a><a href="#sec-32-7-1-用-turn_end-让-agent-继续" class="lv3">7.1 用 turn_end 让 agent 继续</a><a href="#sec-33-八-扩展从哪来" class="">八、扩展从哪来</a><a href="#sec-34-8-1-加载期的-quot-半成品-quot-状态" class="lv3">8.1 加载期的&amp;quot;半成品&amp;quot;状态</a><a href="#sec-35-8-2-70-个现成例子" class="lv3">8.2 70 个现成例子</a><a href="#sec-36-8-3-拆三个例子" class="lv3">8.3 拆三个例子</a><a href="#sec-37-8-4-扩展之间也能说话" class="lv3">8.4 扩展之间也能说话</a><a href="#sec-38-九-完整数据流" class="">九、完整数据流</a><a href="#sec-39-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-40-十一-工程暗坑" class="">十一、工程暗坑</a><a href="#sec-41-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-42-本章小结" class="">本章小结</a><a href="#sec-43-概念回顾" class="">概念回顾</a><a href="#sec-44-练习" class="">练习</a><a href="#sec-45-常见误区" class="">常见误区</a><a href="#sec-46-读完自检" class="">读完自检</a><a href="#sec-47-下一步" class="">下一步</a><a href="#sec-48-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>

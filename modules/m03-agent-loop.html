@@ -119,6 +119,7 @@
 <li>一条 message 在流式过程中拆成若干 <code>message_update</code>。</li>
 </ul>
 <p><strong>循环只 emit 事件，不碰 UI。</strong> 这是它能被四种宿主复用的根本原因。</p>
+<p><strong>宿主可以追加自己的事件。</strong> 内核的 10 种到这里就完了；<code>coding-agent</code> 在会话层又加了一个 <code>agent_settled</code>（<code>packages/coding-agent/src/core/agent-session.ts:216</code> 定义、<code>:1100</code> 发出），意思是&quot;这一轮彻底停了，连同排队里的活&quot;。后面某章的输出里看到它时，别去 <code>AgentEvent</code> 里找——它不在那儿。</p>
 <hr>
 <h2 id="sec-3-三-全景-一次-prompt-的完整旅程">三、全景：一次 prompt 的完整旅程</h2>
 <p>先看图，再逐个拆。</p>
@@ -135,7 +136,7 @@
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">── 第 2 轮的请求载荷：currentContext.messages 原样摊开 ──</span><span class="ln">[0] (system)      工具声明差量，工具集没变就没这条   造 :119 存 :123</span><span class="ln">[1] (user)        "找出所有 TODO"                    存 :123</span><span class="ln">[2] (assistant)   第 1 轮的 text + thinking + 1 个 read   存 :428 换 :457</span><span class="ln">[3] (toolResult)  read 的返回                        存 :284</span><span class="ln">[4] (user)        插话，:214 捞到才有                 存 :223</span><span class="ln">  ── 第 1 轮的全部输出 = [2] + [3]，全在这，不删不改 ──</span><span class="ln">[5] (assistant)   第 2 轮的回答：请求发出去之后才 append 进来</span></code></pre></div>
 <p><code>:251</code> 把 <code>currentContext</code> 整个交给 <code>streamAssistantResponse</code>，后者从 <code>:398</code> 起一路把这串数组重拼、重发（7.1 的三级流水线）。内核自己一行剪枝代码都没有：数组只增不减，想让它变小只有两条路，都在宿主手里——<code>transformContext</code>（<code>:400</code>）在语义层剪，或者 <code>prepareNextTurn</code>（<code>:197</code>）交一份全新的 <code>context</code> 顶掉旧的。逐条总账在 7.5。</p>
-<p><code>[0]</code> 那行有个容易看错的点：transcript 里的 system 消息<strong>不是完整提示词，是差量补丁</strong>。发请求前由 <code>getCurrentSystemMessage()</code>（<code>packages/ai/src/utils/transcript.ts:73-96</code>）把历条 system 重放成头部一条：<code>content</code> 逐段追加、<code>sections</code> 按名覆盖、值为 <code>null</code> 就删节、工具按 <code>toolsAdded</code> / <code>toolsRemoved</code> 增删。碰上不支持会话中途 system 的模型，还要再过一道 <code>collapseSystemMessages</code>（<code>:108-120</code>）——后面的 system 全删，只留重放出的那条；调用点在各 provider 开头（<code>anthropic-messages.ts:583</code>、<code>openai-completions.ts:316</code>、<code>bedrock-converse-stream.ts:145</code>）。<strong>存的是差量，模型看到的是重放后的全量</strong>；<code>agent.ts:369</code> 的 <code>reset()</code> 敢把历史清空只留一条 baseline，靠的就是这个性质。</p>
+<p><code>[0]</code> 那行容易看错：transcript 里的 system 消息<strong>不是完整提示词，是差量补丁</strong>。发请求前由 <code>getCurrentSystemMessage()</code>（<code>packages/ai/src/utils/transcript.ts:73-96</code>）把历条 system 重放成头部一条：<code>content</code> 逐段追加、<code>sections</code> 按名覆盖、值为 <code>null</code> 就删节、工具按 <code>toolsAdded</code> / <code>toolsRemoved</code> 增删。碰上不支持会话中途 system 的模型，还要过一道 <code>collapseSystemMessages</code>（<code>:108-120</code>）：后面的 system 全删，只留重放的那条；调用点在各 provider 开头（<code>anthropic-messages.ts:583</code>、<code>openai-completions.ts:316</code>、<code>bedrock-converse-stream.ts:145</code>）。<strong>存的是差量，模型看到的是重放后的全量</strong>；<code>agent.ts:369</code> 的 <code>reset()</code> 敢清空历史只留一条 baseline，靠的就是这个性质。</p>
 <p>三个折扣得记住：进了 transcript 不等于进了请求——自定义 role 会被 <code>convertToLlm</code>（<code>:404</code>）滤掉，<code>tools</code> 字段压根不进请求，thinking 重不重发由 provider 定。这三条 7.5 逐个展开。</p>
 <p>四处不对称得点清。<code>agent_start</code> 全 run 只发一次（<code>:126</code>，它在 <code>runLoop</code> 外面）；prompt 那条 user 只在开场 emit（<code>:128-131</code>），后面每轮的 <code>:221-222</code> 管的是插话、追问和 <code>prepareNextTurn</code> 交来的消息；<code>turn_start</code> 有两个发出点（<code>:127</code>、<code>:216</code>），为什么不会重发，5.5 专门讲；<code>prepareNextTurn</code> 只在第 2 轮之后跑（<code>:194</code> 要求 <code>lastCompletedTurn</code> 存在），所以<strong>第 1 轮的请求只被 <code>prepareRequest</code> 动过</strong>。</p>
 <p>还有一处顺序容易记反：第 2 轮是 <code>prepareNextTurn</code> 和两次 steering Poll <strong>先跑</strong>，然后才 <code>turn_start</code>（<code>:216</code>）。也就是说钩子比&quot;新一轮开始&quot;这个信号更早——UI 看到 <code>turn_start</code> 时，模型和上下文已经换过了。</p>
@@ -497,7 +498,7 @@
 </tbody>
 </table></div>
 <p><code>:315</code> 是个省钱技巧。follow-up 和 steering 语义完全不同（一个&quot;等你说完&quot;，一个&quot;打断你&quot;），但<strong>注入机制一模一样</strong>：塞进 <code>pendingMessages</code> → <code>continue</code> 回外层 → 内层再转一圈。所以复用同一个变量、同一段注入代码（<code>:220-225</code>），只在最外层多一个判断。</p>
-<p><strong><code>explicitContinuation</code> 被清掉的机会比设上的多。</strong> 设它只有一处（<code>:303</code>），清它有三处：<code>:306</code> 被自然满足、<code>:314</code> 有 follow-up 顶替、<code>:321</code> 兑现完。这个比例是对的——一个&quot;待办记号&quot;本来就该在大部分情况下被别的路径消化掉，只在所有路径都没兜住时才真正执行。那一次执行就是&quot;用当前上下文再发一次请求&quot;，不注入任何消息。</p>
+<p><strong><code>explicitContinuation</code> 被清掉的机会比设上的多。</strong> 设它一处（<code>:303</code>），清它三处：<code>:306</code> 被自然满足、<code>:314</code> 有 follow-up 顶替、<code>:321</code> 兑现完。这个比例是对的——&quot;待办记号&quot;本就该被别的路径消化掉，只在都没兜住时才真正执行。那一次执行就是&quot;用当前上下文再发一次请求&quot;，不注入任何消息。</p>
 <hr>
 <h2 id="sec-16-六-旧版的那盏信号灯-新版拆成了三盏">六、旧版的那盏信号灯，新版拆成了三盏</h2>
 <p>如果你读过旧教程，可能记得一句话：<strong>stopReason 是循环唯一的信号灯</strong>。</p>
@@ -742,7 +743,7 @@
 <p>6.1 那张表里，三行值得单独说。</p>
 <p><code>pending</code> 是纯内部值：provider 开流时先造一条 <code>content: []</code> 的 partial，<code>done</code> 一到就换成终态（<code>anthropic-messages.ts:601</code> 等 11 处），循环碰不到它。</p>
 <p><code>toolUse</code> 更有意思：类型里留着，4 个 provider 也还在发（<code>anthropic-messages.ts:1670</code>、<code>openai-completions.ts:1569</code> 等 4 处），<strong>循环已经不看它了</strong>。这是兼容性残留——UI 和 <code>durable</code> 的日志格式还在读这个字段，删掉会破契约。读源码时看到这种&quot;还在产出、核心却不用&quot;的东西，往往就是历史的断面。</p>
-<p><code>deferred</code> 最能说明分层：<code>ai/src/types.ts:382</code> 有这个请求选项，provider 先接单、稍后给结果，消息的 <code>stopReason</code> 记为 <code>deferred</code> 并附一个句柄。循环完全不认识它，只看到&quot;这条消息没有 <code>toolCall</code>&quot;，于是内层退出、外层问 follow-up（6.3）、没有就 <code>agent_end</code>——<strong>&quot;稍后取&quot;整个交给宿主在 <code>finishTurn</code>（6.4）里处理，内核一行代码都没加</strong>。不认识就按&quot;这一轮结束了&quot;处理，扩展点留在外面；当初若为它加个特殊分支，往后每来一个新特性都得改核心，那正是旧版把 <code>stopReason</code> 当信号灯的病根。<code>ai</code> 那边为什么只肯用一个枚举值就把这个能力换进来，M04 §3.1 讲它的另一半。</p>
+<p><code>deferred</code> 最能说明分层：<code>ai/src/types.ts:382</code> 有这个请求选项，provider 先接单、稍后给结果，消息的 <code>stopReason</code> 记为 <code>deferred</code> 并附一个句柄。循环完全不认识它，只看到&quot;这条消息没有 <code>toolCall</code>&quot;，于是内层退出、外层问 follow-up（6.3）、没有就 <code>agent_end</code>——<strong>&quot;稍后取&quot;整个交给宿主在 <code>finishTurn</code>（6.4）里处理，内核一行代码都没加</strong>。不认识就按&quot;这一轮结束了&quot;处理，扩展点留在外面；为它加个特殊分支才是病根：往后每来一个新特性都得改核心，旧版就是这么把 <code>stopReason</code> 当信号灯的。<code>ai</code> 那边为什么只用一个枚举值就换来这个能力，M04 §3.1 讲另一半。</p>
 <hr>
 <h2 id="sec-24-七-一次请求之前">七、一次请求之前</h2>
 <h3 id="sec-25-7-1-三级流水线">7.1 三级流水线</h3>
@@ -919,6 +920,9 @@
 </tr>
 </tbody>
 </table></div>
+<blockquote>
+<p>第三行只举了三档。<code>ThinkingLevel</code> 实际有七个取值（<code>packages/agent/src/types.ts:349</code>）：<code>off</code> 加 <code>minimal</code> / <code>low</code> / <code>medium</code> / <code>high</code> / <code>xhigh</code> / <code>max</code>。除 <code>off</code> 以外的<strong>任何</strong>档位都走第三行，原样透传——这张表说的是三种语义，不是档位清单。</p>
+</blockquote>
 <p>为什么&quot;关掉&quot;要映成 <code>undefined</code> 而不是保留 <code>&quot;off&quot;</code>？因为 <code>reasoning</code> 最终是传给 <code>pi-ai</code> 的可选配置，<code>undefined</code> 意味着&quot;不传这个字段，用 provider 默认&quot;。<code>&quot;off&quot;</code> 是 agent 层自己的概念，往下传没意义。</p>
 <p><strong>同一个值在两层的名字不一样，中间必须翻译一次。</strong> 这段三元表达式就是那个翻译层。而它上面一行 <code>thinkingLevel: config.reasoning ?? &quot;off&quot;</code>（<code>:232</code>）是反方向翻译：进请求时把 <code>undefined</code> 还原成 <code>&quot;off&quot;</code> 给钩子看。一个概念、两种表示、三个翻译点，这是分层系统必然的摩擦成本。</p>
 <h3 id="sec-29-7-5-第二轮的输入-到底是哪些东西">7.5 第二轮的输入，到底是哪些东西</h3>
@@ -1133,8 +1137,10 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> failureMessage = {</span><span class="ln">	role: <span class="tok-str">"assistant"</span>,</span><span class="ln">	content: [{ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">""</span> }],</span><span class="ln">	api: <span class="tok-kw">this</span>._state.model.api,</span><span class="ln">	provider: <span class="tok-kw">this</span>._state.model.provider,</span><span class="ln">	model: <span class="tok-kw">this</span>._state.model.id,</span><span class="ln">	usage: EMPTY_USAGE,</span><span class="ln">	stopReason: aborted ? <span class="tok-str">"aborted"</span> : <span class="tok-str">"error"</span>,</span><span class="ln">	errorMessage: error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error),</span><span class="ln">	timestamp: Date.<span class="tok-fn">now</span>(),</span><span class="ln">} <span class="tok-kw">satisfies</span> AgentMessage;</span></code></pre></div>
 <p>末尾那个 <code>satisfies</code> 是本章第一次用到：意思是&quot;按 <code>AgentMessage</code> 的形状检查这个
-字面量，但别把我的类型放宽成 <code>AgentMessage</code>&quot;。它和 <code>: AgentMessage</code> 差在哪，
-附录 B §2.6 有三行对照。</p>
+字面量，但别把我的类型放宽成 <code>AgentMessage</code>&quot;。</p>
+<p>区别看后果：写成 <code>: AgentMessage</code>，变量就成了整个联合类型，后面只能访问
+所有分支共有的字段；写 <code>satisfies</code>，类型还是那个窄字面量，字段随便取，
+只多一道&quot;形状对不对&quot;的检查。附录 B §2.6 有三行对照。</p>
 <p>然后照常发 <code>message_start</code> / <code>message_end</code> / <code>turn_end</code> / <code>agent_end</code>。</p>
 <p>这样外部消费者<strong>只有一条路径要处理</strong>：订阅事件，等 <code>agent_end</code>。不需要 try/catch，不需要区分&quot;正常结束&quot;和&quot;崩了&quot;。</p>
 <p>代价是：真实异常被降级成了数据，调试时得看 <code>errorMessage</code> 字段。这是个权衡——把复杂度从&quot;N 个调用方&quot;收敛到&quot;内核的一处&quot;。</p>
@@ -1259,6 +1265,9 @@
 <p>串行 await，按订阅顺序。慢监听器会拖慢 run 的收尾——这是&quot;顺序可预测&quot;换来的代价。</p>
 <hr>
 <h2 id="sec-46-十二-自己动手验证">十二、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。每条判据都是这一版实跑的输出；需要真 key 的两条已标出。</p>
+</blockquote>
 <p>六个实验，从易到难。</p>
 <p>先备好一件事：<strong>没有 API key 也能跑完这六个实验。</strong> 实验 1、2、5 都要真的发请求，不想花额度（或者手上没 key），就把 <code>streamFn</code> 换成固定假回复——二十行以内：</p>
 <div class="code-block" data-lang="ts">
@@ -1378,14 +1387,76 @@
 <p>工具不存在、参数非法、被拦截、抛异常、模型报错、外壳崩溃——全部降级成一条带 <code>isError</code> 的消息，或一条 <code>stopReason: &quot;error&quot;</code> 的 assistant 消息。</p>
 <p>调用方只需处理一条路径：订阅事件，等 <code>agent_end</code>。内核把&quot;N 种失败&quot;收敛成&quot;1 种数据&quot;。</p>
 <hr>
-<h2 id="sec-49-读完自检">读完自检</h2>
+<h2 id="sec-49-本章小结">本章小结</h2>
+<ol>
+<li>一次 prompt 走九站：拼 context → 请求 → 落 transcript → 工具 → 回写。</li>
+<li>内层循环管&quot;模型↔工具&quot;的锯齿，外层管&quot;还要不要继续&quot;。</li>
+<li>退出不看 <code>stopReason</code>，看还有没有没执行的 <code>toolCall</code>。</li>
+<li>预检串行、执行并发、结果按原序组装，transcript 才可重放。</li>
+<li>十种失败全降级成一条消息，调用方只有一条路径。</li>
+</ol>
+<h2 id="sec-50-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>transcript</td>
+<td>只追加的消息序列，run 的输入输出都在它上面</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>锯齿</td>
+<td>一轮 assistant + 一批 toolResult 的往复</td>
+<td>§五</td>
+</tr>
+<tr>
+<td>steering</td>
+<td>跑到一半插话用的队列，下个 drain 点生效</td>
+<td>§6.2</td>
+</tr>
+<tr>
+<td>显式状态</td>
+<td>进度存在对象里，不靠函数调用栈</td>
+<td>§六</td>
+</tr>
+<tr>
+<td>降级</td>
+<td>任何失败都变成带 <code>isError</code> 的消息</td>
+<td>§十</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-51-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§十三 坑 7 说中止会留下&quot;半批&quot;结果。
+假设 assistant 发了 3 个 <code>toolCall</code> 只回了 1 个 <code>toolResult</code>，
+下一次请求会发生什么？→ 回 §八 / §十 找到那条被破坏的不变量。</p>
+<p><strong>练习 2（改）</strong>：把 <code>agent.ts:255</code> 的 <code>steeringMode</code> 从默认
+<code>&quot;one-at-a-time&quot;</code> 改成 <code>&quot;all&quot;</code>，连插三句。预期：三句在同一次 drain 全部注入；
+回滚：改回默认值或删掉这一行。</p>
+<h2 id="sec-52-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> 循环停不停看 <code>stopReason</code>；<strong>实际是</strong> 看还有没有未执行的
+<code>toolCall</code>；<strong>证据</strong> §6.1。</li>
+<li><strong>你会以为</strong> 并行执行会让结果顺序乱；<strong>实际是</strong> 执行并发、按原序组装；
+<strong>证据</strong> §九 的 <code>orderedFinalizedCalls</code>。</li>
+<li><strong>你会以为</strong> 只要一条工具 <code>terminate</code> 就能停；<strong>实际是</strong> 整批都为 true 才生效；
+<strong>证据</strong> §十三 坑 6。</li>
+</ol>
+<hr>
+<h2 id="sec-53-读完自检">读完自检</h2>
 <p>对照开头那三问，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>自检</th>
 <th>一句话答案</th>
-<th>在哪</th>
+<th>不会就去</th>
 </tr>
 </thead>
 <tbody>
@@ -1406,12 +1477,12 @@
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-50-下一步">下一步</h2>
+<h2 id="sec-54-下一步">下一步</h2>
 <p>现在我们知道了循环怎么转、什么时候停、消息怎么流动。但有一块被当成黑盒跳过了：<code>streamAssistantResponse</code> 里那句 <code>await streamFunction(...)</code>。</p>
 <p><code>StreamFn</code> 的契约到底是什么？一个 provider 实现要处理多少种流事件？工具调用的参数是怎么一个字一个字吐出来的？为什么 <code>pi-ai</code> 要在 7 家 provider 之上再盖一层归一？</p>
 <p>下一章拆 <code>packages/ai</code>——那 28,551 行里的统一层。</p>
 <hr>
-<h2 id="sec-51-源码索引">源码索引</h2>
+<h2 id="sec-55-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1464,7 +1535,7 @@
       <a class="next" href="m04-model-call.html"><span class="lbl">下一篇</span>模型调用 —— 一行代码背后的十层翻译</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-引子-同一个模型-三种用法" class="">一、引子：同一个模型，三种用法</a><a href="#sec-2-二-先把词对齐" class="">二、先把词对齐</a><a href="#sec-3-三-全景-一次-prompt-的完整旅程" class="">三、全景：一次 prompt 的完整旅程</a><a href="#sec-4-四-五个函数-撑起一个循环" class="">四、五个函数，撑起一个循环</a><a href="#sec-5-4-1-为什么-agentloop-不是-async" class="lv3">4.1 为什么 agentLoop 不是 async</a><a href="#sec-6-4-2-agent_end-一身二职" class="lv3">4.2 agent_end 一身二职</a><a href="#sec-7-4-3-continue-的两道前置校验" class="lv3">4.3 continue 的两道前置校验</a><a href="#sec-8-4-4-文件头那-13-个符号-划出了内核的势力范围" class="lv3">4.4 文件头那 13 个符号，划出了内核的势力范围</a><a href="#sec-9-五-两层循环" class="">五、两层循环</a><a href="#sec-10-5-1-骨架" class="lv3">5.1 骨架</a><a href="#sec-11-5-2-内层在转什么" class="lv3">5.2 内层在转什么</a><a href="#sec-12-5-3-外层在补什么" class="lv3">5.3 外层在补什么</a><a href="#sec-13-5-4-三条退出路径" class="lv3">5.4 三条退出路径</a><a href="#sec-14-5-5-turn_start-为什么有两个发出点" class="lv3">5.5 turn_start 为什么有两个发出点</a><a href="#sec-15-5-6-runloop-里的五个可变状态" class="lv3">5.6 runLoop 里的五个可变状态</a><a href="#sec-16-六-旧版的那盏信号灯-新版拆成了三盏" class="">六、旧版的那盏信号灯，新版拆成了三盏</a><a href="#sec-17-6-1-stopreason-退居二线" class="lv3">6.1 stopReason 退居二线</a><a href="#sec-18-6-2-出路一-steering-跑到一半插话" class="lv3">6.2 出路一：steering —— 跑到一半插话</a><a href="#sec-19-6-3-出路二-follow-up-等你说完我再说" class="lv3">6.3 出路二：follow-up —— 等你说完我再说</a><a href="#sec-20-6-4-出路三-finishturn-宿主说了算" class="lv3">6.4 出路三：finishTurn —— 宿主说了算</a><a href="#sec-21-6-5-真实宿主怎么用这三个钩子" class="lv3">6.5 真实宿主怎么用这三个钩子</a><a href="#sec-22-6-6-一次-run-把三条出路都走一遍" class="lv3">6.6 一次 run 把三条出路都走一遍</a><a href="#sec-23-6-7-三个还在产-已经没人读的取值" class="lv3">6.7 三个还在产、已经没人读的取值</a><a href="#sec-24-七-一次请求之前" class="">七、一次请求之前</a><a href="#sec-25-7-1-三级流水线" class="lv3">7.1 三级流水线</a><a href="#sec-26-7-2-三个-quot-请求前-quot-钩子-别搞混" class="lv3">7.2 三个&amp;quot;请求前&amp;quot;钩子，别搞混</a><a href="#sec-27-7-3-贯穿全章的一条哲学-变更即追加" class="lv3">7.3 贯穿全章的一条哲学：变更即追加</a><a href="#sec-28-7-4-两个钩子的返回值-形状故意不一样" class="lv3">7.4 两个钩子的返回值，形状故意不一样</a><a href="#sec-29-7-5-第二轮的输入-到底是哪些东西" class="lv3">7.5 第二轮的输入，到底是哪些东西</a><a href="#sec-30-八-流式响应如何落进-transcript" class="">八、流式响应如何落进 transcript</a><a href="#sec-31-8-1-provider-吐-12-种事件-这里只写了-4-个分支" class="lv3">8.1 provider 吐 12 种事件，这里只写了 4 个分支</a><a href="#sec-32-九-工具执行" class="">九、工具执行</a><a href="#sec-33-9-1-分派-一个坏苹果拖垮整批" class="lv3">9.1 分派：一个坏苹果拖垮整批</a><a href="#sec-34-9-2-并行执行-顺序记账" class="lv3">9.2 并行执行，顺序记账</a><a href="#sec-35-9-3-terminate-全体一致才能停" class="lv3">9.3 terminate：全体一致才能停</a><a href="#sec-36-9-4-一次工具调用的四道关" class="lv3">9.4 一次工具调用的四道关</a><a href="#sec-37-9-5-截断保护" class="lv3">9.5 截断保护</a><a href="#sec-38-9-6-并行版的类型把戏-一个数组装两种东西" class="lv3">9.6 并行版的类型把戏：一个数组装两种东西</a><a href="#sec-39-9-7-执行期的三个守卫" class="lv3">9.7 执行期的三个守卫</a><a href="#sec-40-十-失败也是消息" class="">十、失败也是消息</a><a href="#sec-41-十一-agent-有状态的那层" class="">十一、Agent：有状态的那层</a><a href="#sec-42-11-1-systemprompt-是算出来的" class="lv3">11.1 systemPrompt 是算出来的</a><a href="#sec-43-11-2-单飞" class="lv3">11.2 单飞</a><a href="#sec-44-11-3-reducer" class="lv3">11.3 reducer</a><a href="#sec-45-11-4-agent_end-不等于-idle" class="lv3">11.4 agent_end 不等于 idle</a><a href="#sec-46-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-47-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-48-十四-三个可以带走的方法" class="">十四、三个可以带走的方法</a><a href="#sec-49-读完自检" class="">读完自检</a><a href="#sec-50-下一步" class="">下一步</a><a href="#sec-51-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-引子-同一个模型-三种用法" class="">一、引子：同一个模型，三种用法</a><a href="#sec-2-二-先把词对齐" class="">二、先把词对齐</a><a href="#sec-3-三-全景-一次-prompt-的完整旅程" class="">三、全景：一次 prompt 的完整旅程</a><a href="#sec-4-四-五个函数-撑起一个循环" class="">四、五个函数，撑起一个循环</a><a href="#sec-5-4-1-为什么-agentloop-不是-async" class="lv3">4.1 为什么 agentLoop 不是 async</a><a href="#sec-6-4-2-agent_end-一身二职" class="lv3">4.2 agent_end 一身二职</a><a href="#sec-7-4-3-continue-的两道前置校验" class="lv3">4.3 continue 的两道前置校验</a><a href="#sec-8-4-4-文件头那-13-个符号-划出了内核的势力范围" class="lv3">4.4 文件头那 13 个符号，划出了内核的势力范围</a><a href="#sec-9-五-两层循环" class="">五、两层循环</a><a href="#sec-10-5-1-骨架" class="lv3">5.1 骨架</a><a href="#sec-11-5-2-内层在转什么" class="lv3">5.2 内层在转什么</a><a href="#sec-12-5-3-外层在补什么" class="lv3">5.3 外层在补什么</a><a href="#sec-13-5-4-三条退出路径" class="lv3">5.4 三条退出路径</a><a href="#sec-14-5-5-turn_start-为什么有两个发出点" class="lv3">5.5 turn_start 为什么有两个发出点</a><a href="#sec-15-5-6-runloop-里的五个可变状态" class="lv3">5.6 runLoop 里的五个可变状态</a><a href="#sec-16-六-旧版的那盏信号灯-新版拆成了三盏" class="">六、旧版的那盏信号灯，新版拆成了三盏</a><a href="#sec-17-6-1-stopreason-退居二线" class="lv3">6.1 stopReason 退居二线</a><a href="#sec-18-6-2-出路一-steering-跑到一半插话" class="lv3">6.2 出路一：steering —— 跑到一半插话</a><a href="#sec-19-6-3-出路二-follow-up-等你说完我再说" class="lv3">6.3 出路二：follow-up —— 等你说完我再说</a><a href="#sec-20-6-4-出路三-finishturn-宿主说了算" class="lv3">6.4 出路三：finishTurn —— 宿主说了算</a><a href="#sec-21-6-5-真实宿主怎么用这三个钩子" class="lv3">6.5 真实宿主怎么用这三个钩子</a><a href="#sec-22-6-6-一次-run-把三条出路都走一遍" class="lv3">6.6 一次 run 把三条出路都走一遍</a><a href="#sec-23-6-7-三个还在产-已经没人读的取值" class="lv3">6.7 三个还在产、已经没人读的取值</a><a href="#sec-24-七-一次请求之前" class="">七、一次请求之前</a><a href="#sec-25-7-1-三级流水线" class="lv3">7.1 三级流水线</a><a href="#sec-26-7-2-三个-quot-请求前-quot-钩子-别搞混" class="lv3">7.2 三个&amp;quot;请求前&amp;quot;钩子，别搞混</a><a href="#sec-27-7-3-贯穿全章的一条哲学-变更即追加" class="lv3">7.3 贯穿全章的一条哲学：变更即追加</a><a href="#sec-28-7-4-两个钩子的返回值-形状故意不一样" class="lv3">7.4 两个钩子的返回值，形状故意不一样</a><a href="#sec-29-7-5-第二轮的输入-到底是哪些东西" class="lv3">7.5 第二轮的输入，到底是哪些东西</a><a href="#sec-30-八-流式响应如何落进-transcript" class="">八、流式响应如何落进 transcript</a><a href="#sec-31-8-1-provider-吐-12-种事件-这里只写了-4-个分支" class="lv3">8.1 provider 吐 12 种事件，这里只写了 4 个分支</a><a href="#sec-32-九-工具执行" class="">九、工具执行</a><a href="#sec-33-9-1-分派-一个坏苹果拖垮整批" class="lv3">9.1 分派：一个坏苹果拖垮整批</a><a href="#sec-34-9-2-并行执行-顺序记账" class="lv3">9.2 并行执行，顺序记账</a><a href="#sec-35-9-3-terminate-全体一致才能停" class="lv3">9.3 terminate：全体一致才能停</a><a href="#sec-36-9-4-一次工具调用的四道关" class="lv3">9.4 一次工具调用的四道关</a><a href="#sec-37-9-5-截断保护" class="lv3">9.5 截断保护</a><a href="#sec-38-9-6-并行版的类型把戏-一个数组装两种东西" class="lv3">9.6 并行版的类型把戏：一个数组装两种东西</a><a href="#sec-39-9-7-执行期的三个守卫" class="lv3">9.7 执行期的三个守卫</a><a href="#sec-40-十-失败也是消息" class="">十、失败也是消息</a><a href="#sec-41-十一-agent-有状态的那层" class="">十一、Agent：有状态的那层</a><a href="#sec-42-11-1-systemprompt-是算出来的" class="lv3">11.1 systemPrompt 是算出来的</a><a href="#sec-43-11-2-单飞" class="lv3">11.2 单飞</a><a href="#sec-44-11-3-reducer" class="lv3">11.3 reducer</a><a href="#sec-45-11-4-agent_end-不等于-idle" class="lv3">11.4 agent_end 不等于 idle</a><a href="#sec-46-十二-自己动手验证" class="">十二、自己动手验证</a><a href="#sec-47-十三-工程暗坑" class="">十三、工程暗坑</a><a href="#sec-48-十四-三个可以带走的方法" class="">十四、三个可以带走的方法</a><a href="#sec-49-本章小结" class="">本章小结</a><a href="#sec-50-概念回顾" class="">概念回顾</a><a href="#sec-51-练习" class="">练习</a><a href="#sec-52-常见误区" class="">常见误区</a><a href="#sec-53-读完自检" class="">读完自检</a><a href="#sec-54-下一步" class="">下一步</a><a href="#sec-55-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

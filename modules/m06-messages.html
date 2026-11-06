@@ -394,7 +394,8 @@ drwxr-xr-x  5 user  staff  160 Nov  2 10:00 .
 <pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">defaultConvertToLlm</span>(messages: AgentMessage[]): Message[] {</span><span class="ln">	<span class="tok-kw">return</span> messages.<span class="tok-fn">filter</span>(</span><span class="ln">		(message) =&gt;</span><span class="ln">			message.role === <span class="tok-str">"system"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"user"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"assistant"</span> ||</span><span class="ln">			message.role === <span class="tok-str">"toolResult"</span>,</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
 <p>没用配置时，<code>convertToLlm</code> 是<strong>纯过滤</strong>——四种认识的留下，其他全丢。</p>
 <p>而 <code>coding-agent</code> 显式传入了自己的版本（<code>sdk.ts:411</code>）。</p>
-<p><strong>默认丢、显式转</strong>这个方向选得很对：一个不认识的类型，默认行为应该是&quot;不要发给外部服务&quot;，而不是&quot;试着塞过去&quot;。安全默认值 + 显式覆盖，这是所有&quot;往外部系统发数据&quot;的接口都该有的姿态。</p>
+<p><strong>默认丢、显式转</strong>：一个不认识的类型，默认行为应该是&quot;不要发给外部服务&quot;，
+而不是&quot;试着塞过去&quot;。安全默认值 + 显式覆盖，是所有&quot;往外发数据&quot;的接口都该有的姿态。</p>
 <h3 id="sec-23-4-4-闸门只有一个-入口有八处">4.4 闸门只有一个，入口有八处</h3>
 <p><code>convertToLlm</code> 在 <code>coding-agent</code> 里被调用八次，分布在六个文件：</p>
 <div class="table-wrap"><table>
@@ -432,9 +433,9 @@ drwxr-xr-x  5 user  staff  160 Nov  2 10:00 .
 </tbody>
 </table></div>
 <p>看第四类就明白为什么这么多：<strong>压缩本身也是一次模型调用。</strong>
-M09 会讲，压缩的做法是&quot;把历史摘要成一段话&quot;，那个摘要请求同样得把历史
-降级成 <code>Message[]</code> 才能发给 provider。所以这不是&quot;主循环的门&quot;，
-而是&quot;<strong>所有要把对话发给模型的地方</strong>的门&quot;。</p>
+M09 会讲，压缩是&quot;把历史摘要成一段话&quot;，那个摘要请求同样得把历史降级成
+<code>Message[]</code> 才能发给 provider。所以这不是&quot;主循环的门&quot;，而是
+&quot;<strong>所有要把对话发给模型的地方</strong>的门&quot;。</p>
 <p><code>compaction/utils.ts:109</code> 有一行注释把这个约束写死了：</p>
 <blockquote>
 <p>Call <code>convertToLlm()</code> first to handle custom message types.</p>
@@ -571,9 +572,9 @@ it summarizes</strong>.</p>
 <p>这也解释了为什么扩展机制要有信任边界——<code>custom</code> 消息是一条完全开放的注入通道。</p>
 <h3 id="sec-32-6-4-为什么不合并成一个枚举">6.4 为什么不合并成一个枚举</h3>
 <p>三个开关看着可以合成一个字段，比如 <code>visibility: &quot;both&quot; | &quot;ui-only&quot; | ...</code>。
-没合是因为<strong>作用域不同</strong>：前两个是单条消息的属性，
-第三个是全局设置。把全局设置塞进每条消息，就得在写入时快照——
-而 <code>blockImages</code> 明确要求&quot;中途改立刻生效&quot;。</p>
+没合是因为<strong>作用域不同</strong>：前两个是单条消息的属性，第三个是全局设置。
+把全局设置塞进每条消息就得在写入时快照——而 <code>blockImages</code> 明确要求
+&quot;中途改立刻生效&quot;。</p>
 <p><strong>短命的状态不要存进长命的数据里。</strong> 设置存进 jsonl，就永远追不上它的下一次变化。</p>
 <hr>
 <h2 id="sec-33-七-完整数据流">七、完整数据流</h2>
@@ -693,6 +694,9 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <p>遇到同样情况时，先把约束写在最靠近真相的地方，比发明一个假的校验点强。</p>
 <hr>
 <h2 id="sec-36-九-自己动手验证">九、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。每条判据都是这一版实跑的输出。</p>
+</blockquote>
 <p><strong>实验 1：数一数 <code>Message</code> 有几个成员。</strong></p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -717,6 +721,9 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">cd ../../coding-agent/src</span><span class="ln">grep -rn "convertToLlm(" --include=*.ts | wc -l</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd ../../coding-agent/src</span><span class="ln">(Get-ChildItem -Recurse -Filter *.ts |</span><span class="ln">  Select-String -Pattern 'convertToLlm\(').Count</span></code></pre></div>
 <p>十行命中 = 八处调用 + 一处定义（<code>messages.ts:148</code>）+ 一处注释
 （<code>compaction/utils.ts:109</code>）。六个文件，见 §4.4 的表。</p>
 <p><strong>实验 6：验证穷尽检查。</strong></p>
@@ -742,9 +749,9 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <ul>
 <li><strong>预期</strong>　拿一条 <code>excludeFromContext: true</code> 的 <code>bashExecution</code> 消息
 跑 <code>convertToLlm</code>，本机实测：转换后条数由 <code>0</code> 变 <code>1</code>。</li>
-<li><strong>连带</strong>　<code>!!</code> 前缀的语义就是「跑了但别进上下文」，删掉它是把这条规则
-取消了。连带的影响在 M09：被排除的消息一旦进了上下文，压缩时的 token
-计数会多算，压缩触发点提前。</li>
+<li><strong>连带</strong>　<code>!!</code> 前缀的语义就是「跑了但别进上下文」，删掉它等于取消这条规则。
+影响在 M09：被排除的消息一旦进了上下文，压缩时的 token 计数会多算，
+压缩触发点提前。</li>
 <li><strong>回滚</strong>　把三行加回去。</li>
 </ul>
 <p>跑法：两行脚本导入 <code>convertToLlm</code>，造一条带 <code>excludeFromContext: true</code>
@@ -789,14 +796,76 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <strong>一个什么都不做的接口，必须能被静态检查证明&quot;确实什么都没做&quot;</strong>——
 空接口 + <code>filter</code>，两个都可以用类型和逻辑看完。</p>
 <hr>
-<h2 id="sec-39-读完自检">读完自检</h2>
+<h2 id="sec-39-本章小结">本章小结</h2>
+<ol>
+<li>给模型的只有四种 role；给系统记的有八种。</li>
+<li>多出的四种靠空接口 + 声明合并，不改 <code>agent</code> 包。</li>
+<li><code>convertToLlm</code> 是唯一闸门，默认行为是&quot;过滤&quot;。</li>
+<li>降级全部落到 <code>role: &quot;user&quot;</code>，因为 role 集合由协议定。</li>
+<li>发给模型的最后一条必须是 <code>user</code> 或 <code>toolResult</code>。</li>
+</ol>
+<h2 id="sec-40-概念回顾">概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>一句话</th>
+<th>在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>超集</td>
+<td>8 种对 4 种，多的四种只给系统记</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>声明合并</td>
+<td>空接口 + <code>declare module</code>，不传染泛型</td>
+<td>§三</td>
+</tr>
+<tr>
+<td>闸门</td>
+<td><code>convertToLlm</code>，唯一出口</td>
+<td>§四</td>
+</tr>
+<tr>
+<td>三开关</td>
+<td>显示 / 排除上下文 / 转换，三件不同的事</td>
+<td>§六</td>
+</tr>
+<tr>
+<td>两时钟</td>
+<td>记时刻用墙钟，量间隔用单调钟</td>
+<td>§十 坑 8</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="sec-41-练习">练习</h2>
+<p><strong>练习 1（读）</strong>：§八 说最后一条必须是 <code>user</code> 或 <code>toolResult</code>。
+如果 transcript 停在一条 assistant 上，哪些下游会先报错？
+→ 回 §五 的&quot;两阶段管道&quot;找它在哪里被兜住。</p>
+<p><strong>练习 2（改）</strong>：给 <code>CustomAgentMessages</code> 加一种消息，只写声明、
+不写 <code>convertToLlm</code> 分支。预期：<code>default</code> 分支静默丢弃，模型永远看不到；
+回滚：删掉那条声明，编译即恢复。</p>
+<h2 id="sec-42-常见误区">常见误区</h2>
+<ol>
+<li><strong>你会以为</strong> <code>display: false</code> 就不进上下文；<strong>实际是</strong> 它只影响 UI；
+<strong>证据</strong> §十 坑 3。</li>
+<li><strong>你会以为</strong> 加消息类型要改 <code>agent</code> 包；<strong>实际是</strong> 声明合并就够了；
+<strong>证据</strong> §三。</li>
+<li><strong>你会以为</strong> <code>convertToLlm</code> 默认会尽力转换；<strong>实际是</strong> 默认当过滤器；
+<strong>证据</strong> §4.3。</li>
+</ol>
+<hr>
+<h2 id="sec-43-读完自检">读完自检</h2>
 <p>三条，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>自检</th>
 <th>一句话答案</th>
-<th>在哪</th>
+<th>不会就去</th>
 </tr>
 </thead>
 <tbody>
@@ -817,12 +886,12 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-40-下一步">下一步</h2>
+<h2 id="sec-44-下一步">下一步</h2>
 <p>消息有了，工具有了，循环有了。但这些东西怎么跟外面说话？</p>
 <p>用户按了 Esc，循环怎么知道要停？工具跑了 3 秒，进度怎么到 UI？扩展想在&quot;工具调用之前&quot;插一脚，它挂在哪？</p>
 <p>下一章打开事件系统。</p>
 <hr>
-<h2 id="sec-41-本章源码索引">本章源码索引</h2>
+<h2 id="sec-45-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -885,7 +954,7 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
       <a class="next" href="m07-event-driven.html"><span class="lbl">下一篇</span>事件驱动 —— 十颗钉子，四十一个挂钩</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给模型看的只有四种" class="">一、给模型看的只有四种</a><a href="#sec-2-1-1-字段对照" class="lv3">1.1 字段对照</a><a href="#sec-3-1-2-content-是唯一形状各异的字段" class="lv3">1.2 content 是唯一形状各异的字段</a><a href="#sec-4-1-3-三个-quot-本来不该在这里-quot-的字段" class="lv3">1.3 三个&amp;quot;本来不该在这里&amp;quot;的字段</a><a href="#sec-5-1-4-sections-里别用整数键" class="lv3">1.4 sections 里别用整数键</a><a href="#sec-6-1-5-一条消息-两个消费者" class="lv3">1.5 一条消息，两个消费者</a><a href="#sec-7-二-给系统记的还有四种" class="">二、给系统记的还有四种</a><a href="#sec-8-2-1-bashexecution-命令的记录" class="lv3">2.1 bashExecution：! 命令的记录</a><a href="#sec-9-2-2-custom-扩展的注入口" class="lv3">2.2 custom：扩展的注入口</a><a href="#sec-10-2-3-branchsummary-分叉回退的凭证" class="lv3">2.3 branchSummary：分叉回退的凭证</a><a href="#sec-11-2-4-compactionsummary-压缩后的替身" class="lv3">2.4 compactionSummary：压缩后的替身</a><a href="#sec-12-2-5-三类来源-三种信任等级" class="lv3">2.5 三类来源，三种信任等级</a><a href="#sec-13-三-超集是怎么做到不侵入的" class="">三、超集是怎么做到不侵入的</a><a href="#sec-14-3-1-空接口-声明合并" class="lv3">3.1 空接口 + 声明合并</a><a href="#sec-15-3-2-为什么这个设计值得学" class="lv3">3.2 为什么这个设计值得学</a><a href="#sec-16-3-3-代价-穷尽检查必须写" class="lv3">3.3 代价：穷尽检查必须写</a><a href="#sec-17-3-4-声明合并是-quot-编译单元级-quot-的" class="lv3">3.4 声明合并是&amp;quot;编译单元级&amp;quot;的</a><a href="#sec-18-3-5-非法-details-让它编译不过" class="lv3">3.5 非法 details 让它编译不过</a><a href="#sec-19-四-converttollm-那道转换闸门" class="">四、convertToLlm：那道转换闸门</a><a href="#sec-20-4-1-四条-case-一种产物" class="lv3">4.1 四条 case，一种产物</a><a href="#sec-21-4-2-bash-记录变成什么样" class="lv3">4.2 bash 记录变成什么样</a><a href="#sec-22-4-3-默认实现是-quot-丢-quot-不是-quot-转-quot" class="lv3">4.3 默认实现是&amp;quot;丢&amp;quot;，不是&amp;quot;转&amp;quot;</a><a href="#sec-23-4-4-闸门只有一个-入口有八处" class="lv3">4.4 闸门只有一个，入口有八处</a><a href="#sec-24-五-两阶段管道" class="">五、两阶段管道</a><a href="#sec-25-5-1-为什么不能合成一步" class="lv3">5.1 为什么不能合成一步</a><a href="#sec-26-5-2-顺序不能换" class="lv3">5.2 顺序不能换</a><a href="#sec-27-5-3-还有第三次降级-变成纯文本" class="lv3">5.3 还有第三次降级：变成纯文本</a><a href="#sec-28-六-过滤-三个独立开关" class="">六、过滤：三个独立开关</a><a href="#sec-29-6-1-excludefromcontext-走的是丢弃-不是标记" class="lv3">6.1 excludeFromContext 走的是丢弃，不是标记</a><a href="#sec-30-6-2-blockimages-是第二道过滤" class="lv3">6.2 blockImages 是第二道过滤</a><a href="#sec-31-6-3-display-与上下文无关" class="lv3">6.3 display 与上下文无关</a><a href="#sec-32-6-4-为什么不合并成一个枚举" class="lv3">6.4 为什么不合并成一个枚举</a><a href="#sec-33-七-完整数据流" class="">七、完整数据流</a><a href="#sec-34-7-1-反方向-一次响应怎么变回消息" class="lv3">7.1 反方向：一次响应怎么变回消息</a><a href="#sec-35-八-暗坑-最后一条必须是-user-或-toolresult" class="">八、暗坑：最后一条必须是 user 或 toolResult</a><a href="#sec-36-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-37-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-38-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-39-读完自检" class="">读完自检</a><a href="#sec-40-下一步" class="">下一步</a><a href="#sec-41-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-给模型看的只有四种" class="">一、给模型看的只有四种</a><a href="#sec-2-1-1-字段对照" class="lv3">1.1 字段对照</a><a href="#sec-3-1-2-content-是唯一形状各异的字段" class="lv3">1.2 content 是唯一形状各异的字段</a><a href="#sec-4-1-3-三个-quot-本来不该在这里-quot-的字段" class="lv3">1.3 三个&amp;quot;本来不该在这里&amp;quot;的字段</a><a href="#sec-5-1-4-sections-里别用整数键" class="lv3">1.4 sections 里别用整数键</a><a href="#sec-6-1-5-一条消息-两个消费者" class="lv3">1.5 一条消息，两个消费者</a><a href="#sec-7-二-给系统记的还有四种" class="">二、给系统记的还有四种</a><a href="#sec-8-2-1-bashexecution-命令的记录" class="lv3">2.1 bashExecution：! 命令的记录</a><a href="#sec-9-2-2-custom-扩展的注入口" class="lv3">2.2 custom：扩展的注入口</a><a href="#sec-10-2-3-branchsummary-分叉回退的凭证" class="lv3">2.3 branchSummary：分叉回退的凭证</a><a href="#sec-11-2-4-compactionsummary-压缩后的替身" class="lv3">2.4 compactionSummary：压缩后的替身</a><a href="#sec-12-2-5-三类来源-三种信任等级" class="lv3">2.5 三类来源，三种信任等级</a><a href="#sec-13-三-超集是怎么做到不侵入的" class="">三、超集是怎么做到不侵入的</a><a href="#sec-14-3-1-空接口-声明合并" class="lv3">3.1 空接口 + 声明合并</a><a href="#sec-15-3-2-为什么这个设计值得学" class="lv3">3.2 为什么这个设计值得学</a><a href="#sec-16-3-3-代价-穷尽检查必须写" class="lv3">3.3 代价：穷尽检查必须写</a><a href="#sec-17-3-4-声明合并是-quot-编译单元级-quot-的" class="lv3">3.4 声明合并是&amp;quot;编译单元级&amp;quot;的</a><a href="#sec-18-3-5-非法-details-让它编译不过" class="lv3">3.5 非法 details 让它编译不过</a><a href="#sec-19-四-converttollm-那道转换闸门" class="">四、convertToLlm：那道转换闸门</a><a href="#sec-20-4-1-四条-case-一种产物" class="lv3">4.1 四条 case，一种产物</a><a href="#sec-21-4-2-bash-记录变成什么样" class="lv3">4.2 bash 记录变成什么样</a><a href="#sec-22-4-3-默认实现是-quot-丢-quot-不是-quot-转-quot" class="lv3">4.3 默认实现是&amp;quot;丢&amp;quot;，不是&amp;quot;转&amp;quot;</a><a href="#sec-23-4-4-闸门只有一个-入口有八处" class="lv3">4.4 闸门只有一个，入口有八处</a><a href="#sec-24-五-两阶段管道" class="">五、两阶段管道</a><a href="#sec-25-5-1-为什么不能合成一步" class="lv3">5.1 为什么不能合成一步</a><a href="#sec-26-5-2-顺序不能换" class="lv3">5.2 顺序不能换</a><a href="#sec-27-5-3-还有第三次降级-变成纯文本" class="lv3">5.3 还有第三次降级：变成纯文本</a><a href="#sec-28-六-过滤-三个独立开关" class="">六、过滤：三个独立开关</a><a href="#sec-29-6-1-excludefromcontext-走的是丢弃-不是标记" class="lv3">6.1 excludeFromContext 走的是丢弃，不是标记</a><a href="#sec-30-6-2-blockimages-是第二道过滤" class="lv3">6.2 blockImages 是第二道过滤</a><a href="#sec-31-6-3-display-与上下文无关" class="lv3">6.3 display 与上下文无关</a><a href="#sec-32-6-4-为什么不合并成一个枚举" class="lv3">6.4 为什么不合并成一个枚举</a><a href="#sec-33-七-完整数据流" class="">七、完整数据流</a><a href="#sec-34-7-1-反方向-一次响应怎么变回消息" class="lv3">7.1 反方向：一次响应怎么变回消息</a><a href="#sec-35-八-暗坑-最后一条必须是-user-或-toolresult" class="">八、暗坑：最后一条必须是 user 或 toolResult</a><a href="#sec-36-九-自己动手验证" class="">九、自己动手验证</a><a href="#sec-37-十-工程暗坑" class="">十、工程暗坑</a><a href="#sec-38-十一-三个可以带走的方法" class="">十一、三个可以带走的方法</a><a href="#sec-39-本章小结" class="">本章小结</a><a href="#sec-40-概念回顾" class="">概念回顾</a><a href="#sec-41-练习" class="">练习</a><a href="#sec-42-常见误区" class="">常见误区</a><a href="#sec-43-读完自检" class="">读完自检</a><a href="#sec-44-下一步" class="">下一步</a><a href="#sec-45-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>
