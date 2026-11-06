@@ -41,7 +41,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M06</div>
       <h1>消息系统 —— 四种给模型看，八种给系统记</h1>
-      <div class="module-meta">6,200 字 · 含 166 行代码 · 约 31 分钟</div>
+      <div class="module-meta">6,744 字 · 170 行代码 · 约 32 分钟</div>
     </header>
     <p>M05 里工具执行完了，产出变成一条 <code>ToolResultMessage</code>。它进了 transcript，然后在下一轮被发给模型。</p>
 <p>问题来了：用户在 TUI 里敲 <code>!ls -la</code>，这条 bash 执行记录是什么消息？它<strong>不是</strong>用户说的话，也<strong>不是</strong>模型说的话，更<strong>不是</strong>工具调用结果。可是它必须留在 transcript 里——下次打开会话还能看到&quot;我当时跑了什么&quot;。</p>
