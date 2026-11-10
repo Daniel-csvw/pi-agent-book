@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E05</div>
       <h1>加工具 —— 从契约到渲染，一个新能力</h1>
-      <div class="module-meta">1,533 字 · 含 17 行代码 · 约 10 分钟</div>
+      <div class="module-meta">1,564 字 · 含 17 行代码 · 约 10 分钟</div>
     </header>
     <p>E04 只改值和配置，模型能做还是那些事。想让它多一种能力，必须加工具。</p>
 <p>加工具听起来像「写个函数」，实际要动的地方比你想的多：模型得知道它存在、
@@ -169,8 +169,11 @@
 <p>第 2 条最容易假通过：工具被调用了，不代表参数对。看 <code>tool_call</code> 事件里的
 <code>input</code>，不要只看「有没有输出」。</p>
 <blockquote>
-<p>本章的实验未在本机跑通：<code>pi-lab</code> 的依赖没装完（见 E04 §一）。
-命令与判据来自 <code>read.ts</code> / <code>index.ts</code> 的真实结构，装好依赖后按上表验证。</p>
+<p>依赖已就位（E04 §一 四道闸全绿）。前两条可以离线自证：
+<code>test/tool-system-prompt-contributions.test.ts</code> 与 <code>test/tools.test.ts</code>
+就是 Pi 自己的判据。第 3 条「模型会不会主动选它」需要模型凭据，本机未配。
+另：我在 Windows 上跑 <code>tools.test.ts</code>，4 条失败全因 <code>EPERM</code>/<code>EACCES</code>、
+<code>chmod</code> 与 ripgrep 参数解析的平台差异——不是 Pi 的 bug。</p>
 </blockquote>
 <hr>
 <h2 id="sec-7-七-小结">七、小结</h2>

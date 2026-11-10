@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E04</div>
       <h1>调参 —— 先改一个数字，再谈改代码</h1>
-      <div class="module-meta">1,963 字 · 含 12 行代码 · 约 11 分钟</div>
+      <div class="module-meta">2,176 字 · 含 21 行代码 · 约 11 分钟</div>
     </header>
     <p>前半结束在 E03 的对照表上。从这一章开始，你不再写自己的内核，而是进
 <code>pi-lab/</code> 改 Pi 本身。第一个动作不是读代码，是<strong>确认你改的是能跑的那份</strong>。</p>
@@ -65,25 +65,28 @@
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">node scripts/lab-check.mjs</span></code></pre></div>
-<p>我本机的真实输出（网络受限，依赖没装完）：</p>
+<p>我本机的真实输出：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">[PASS] node     24.12.0</span><span class="ln">[PASS] 副本版本     1.4.0（与 pi-main 一致）</span><span class="ln">[PASS] 依赖       node_modules 已就绪</span><span class="ln">[FAIL] 可启动      exit 1</span><span class="ln">[INFO] 未发现模型凭据；离线实验不需要，接真模型时再配</span></code></pre></div>
-<p>第 4 条失败的原因不是版本，是依赖树不完整：</p>
+<pre><code><span class="ln">[PASS] node     24.12.0</span><span class="ln">[PASS] 副本版本     1.4.0（与 pi-main 一致）</span><span class="ln">[PASS] 依赖       node_modules 已就绪</span><span class="ln">[PASS] 可启动     1.4.0</span><span class="ln">[INFO] 未发现模型凭据；离线实验不需要，接真模型时再配</span></code></pre></div>
+<p>四条全绿之前，第 3、4 条曾经是红的。当时的原因不是版本，是依赖树不完整：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">Error: Cannot find package</span><span class="ln">  '.../pi-lab/node_modules/cross-spawn/index.js'</span></code></pre></div>
-<p><code>npm install --offline</code> 只装了一半。这不是 Pi 的问题，是网络的问题。<strong>判据
-的作用就在这里：</strong> 它不让你在「副本是坏的」情况下改配置，然后把失败归因
-给参数。</p>
-<p>一条命令修：</p>
+<p><code>npm install --offline</code> 只装了一半，<code>cross-spawn</code> 这类传递依赖缺了。这不
+是 Pi 的问题，是网络的问题。<strong>判据的作用就在这里：</strong> 它不让你在「副本是
+坏的」情况下改配置，然后把失败归因给参数。</p>
+<p>第 4 条还有更阴的一层：<strong>判据本身也会说谎。</strong> 依赖装完之后它仍然报
+<code>exit 1</code>，真因是脚本把 <code>--import</code> 的参数写成了裸相对路径
+<code>packages/coding-agent/...</code>——Node 把 <code>packages</code> 当成包名去找，直接
+<code>ERR_MODULE_NOT_FOUND</code>。改成 file URL 才真正变绿。所以看见 FAIL，先确认
+命令本身对不对，再怀疑被测对象。</p>
+<p>依赖装好后可以顺手跑一组离线单测（不需要凭据）：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">cd pi-lab &amp;&amp; npm install</span></code></pre></div>
-<p>装完再跑一次，第 4 条应该变成：</p>
-<div class="code-block" data-lang="text">
-<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">[PASS] 可启动   1.4.0</span></code></pre></div>
+<pre><code><span class="ln">cd packages/coding-agent</span><span class="ln">npx vitest --run test/block-images.test.ts \</span><span class="ln">  test/system-prompt.test.ts test/compaction.test.ts \</span><span class="ln">  test/file-mutation-queue.test.ts test/max-thinking.test.ts</span></code></pre></div>
+<p>我本机：<strong>5 个文件全过，62 passed / 2 skipped</strong>。这五个文件正好覆盖本章的
+旋钮 1、2、4、6 和 E05 的写队列。</p>
 <hr>
 <h2 id="sec-2-二-六个旋钮">二、六个旋钮</h2>
 <div class="table-wrap"><table>
@@ -170,6 +173,17 @@
 </ul>
 <p>这条最容易出错的地方不是 JSON 语法，是<strong>能力标记和真实模型不匹配</strong>。
 窗口写大了，压缩永远不触发；工具标记写错了，模型永远不调工具。</p>
+<p>能力标记不是抽象概念，<code>--list-models</code> 会把它直接印成一张表。在 <code>pi-lab</code> 根
+目录，source 形态启动（<code>pi</code> 这个 bin 指向未构建的 <code>dist/</code>，所以显式跑源码）：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node --import ./packages/coding-agent/src/experimental/source-resolver.ts \</span><span class="ln">  packages/coding-agent/src/cli.ts --offline --list-models</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">provider        model                       context  max-out  thinking  images</span><span class="ln">funagent        funagent-default            128K     16.4K    no        no</span><span class="ln">funagent-local  funagent-default            128K     16.4K    no        no</span><span class="ln">svw             doubao                      262.1K   32.8K    no        no</span><span class="ln">volcengine      deepseek-v4-1-flash-260910  262.1K   32.8K    no        no</span></code></pre></div>
+<p>四列就是四个能力标记：<code>context</code> 决定压缩阈值在哪，<code>max-out</code> 决定回答被截断
+的位置，<code>thinking</code> 和 <code>images</code> 决定请求能不能带思考块和图片。改 <code>models.json</code>
+改的就是这四列。</p>
 <hr>
 <h2 id="sec-7-四-三个源码旋钮-改常量-不改结构">四、三个源码旋钮：改常量，不改结构</h2>
 <h3 id="sec-8-旋钮-4-删一段系统提示词">旋钮 4：删一段系统提示词</h3>

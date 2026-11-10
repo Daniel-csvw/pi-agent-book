@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E06</div>
       <h1>写扩展 —— 三个钩子，一条看不见的消息</h1>
-      <div class="module-meta">1,458 字 · 含 16 行代码 · 约 10 分钟</div>
+      <div class="module-meta">1,493 字 · 含 16 行代码 · 约 10 分钟</div>
     </header>
     <p>E05 加的是「模型能做的事」，E06 加的是「系统在什么时候做事」。</p>
 <p>扩展不改工具列表，也不改循环。它只是注册几个函数，在特定时刻被调用：
@@ -161,8 +161,9 @@
 <p>再加一条阻断规则：<code>bash</code> 命令含 <code>rm -rf</code> 时 <code>return { block: true }</code>。
 判据是模型收到一条「被拒绝」的工具结果，而不是命令真的执行了。</p>
 <blockquote>
-<p>本章实验未在本机跑通：<code>pi-lab</code> 依赖未装完（E04 §一）。
-钩子名与返回结构抄自 <code>docs/extensions.md</code>，装好依赖后按上表验证。</p>
+<p>依赖已就位（E04 §一 四道闸全绿）。三个钩子的存在与顺序可以离线自证：
+<code>test/extensions-runner.test.ts</code> 我跑过并通过。「模型看到什么」仍需凭据。
+报告式作业（L4）也不需凭据：钩子打印什么，就是模型看到了什么的反面。</p>
 </blockquote>
 <hr>
 <h2 id="sec-5-五-小结">五、小结</h2>
