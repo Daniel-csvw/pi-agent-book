@@ -32,7 +32,7 @@
                 <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
                 <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
-                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="active">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="active">
                 <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
                 <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
                 <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E02</div>
       <h1>记忆 —— 四种给模型，多一种给自己</h1>
-      <div class="module-meta">1,867 字 · 含 44 行代码 · 约 11 分钟</div>
+      <div class="module-meta">1,869 字 · 含 44 行代码 · 约 11 分钟</div>
     </header>
     <p>E01 的历史只有四种消息，正好等于模型能理解的四类角色。真实会话没这么干净：</p>
 <ul>
@@ -268,7 +268,7 @@ provider 的方言是外部约束，不是你说了算。Pi 的 <code>Message</c
 <h2 id="sec-12-十二-下一步">十二、下一步</h2>
 <p>现在 <code>loop.ts</code> 还硬绑着 <code>createMockProvider()</code>。E02 的闸门让消息形状稳定了，
 下一步该让 provider 可替换：先写一个离线的 <code>fixture</code>，再写真的 <code>openai</code>，
-最后把两张表对起来——你的 690 行，对应 Pi 的哪 9 处。</p>
+最后把两张表对起来——你手上的 351 行，对应 Pi 的哪 9 处？</p>
 <h3 id="sec-13-源码索引">源码索引</h3>
 <div class="table-wrap"><table>
 <thead>
@@ -308,7 +308,7 @@ provider 的方言是外部约束，不是你说了算。Pi 的 <code>Message</c
 </table></div>
 
 <div class="pager">
-      <a class="prev" href="e01-skeleton.html"><span class="lbl">上一篇</span>骨架 —— 先用假模型，把循环跑通</a>
+      <a class="prev" href="e01-skeleton.html"><span class="lbl">上一篇</span>骨架 —— 从空目录，到跑通第一个循环</a>
       <a class="next" href="e03-interface.html"><span class="lbl">下一篇</span>接口 —— 先抽出来，再换一家模型</a>
     </div>
 </main>

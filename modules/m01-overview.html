@@ -32,7 +32,7 @@
                 <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
                 <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
-                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
                 <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
                 <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
                 <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
@@ -878,7 +878,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 <p><strong>Part B · 内核（M03–M07）</strong> —— <code>agent</code> 包的六个文件（<code>agent-loop</code> / <code>agent</code> / <code>types</code> / <code>proxy</code> / <code>stream-fn</code> / <code>index</code>）+ <code>ai</code> 的归一层 + <code>coding-agent</code> 的工具和消息。这五章是全书密度最高的部分，<code>agent-loop.ts</code> 那 960 行会被拆到不能再拆。</p>
 <p><strong>Part C · 上下文工程（M08–M10）</strong> —— 系统提示词怎么拼、超长对话怎么压、会话怎么存和恢复。这三章回答&quot;模型凭什么知道得这么多&quot;。</p>
 <p><strong>Part D · 盲区（M11–M15）</strong> —— <code>durable</code>、<code>chord</code>、<code>mcp</code>+<code>codemode</code>、<code>tui</code>、<code>schema</code>+<code>telemetry</code>。这五块网上的讲解最少，却占仓库 44% 的代码。</p>
-<p><strong>Part E · 造物（E01–E06，选修）</strong> —— 先用 690 行写一个零依赖的 mini-agent，把七个决定各踩一遍；再拉一份 v1.4.0 源码副本（书中叫 <code>pi-lab/</code>，E04 §一 给三条命令）改真源码：调参、加工具、写扩展。它不依赖前面任何一章也能开始，但读完 Part B 再做 E01–E03 会快很多。</p>
+<p><strong>Part E · 造物（E01–E06，选修）</strong> —— 先用 830 行写一个零依赖的 mini-agent，把七个决定各踩一遍；再拉一份 v1.4.0 源码副本（书中叫 <code>pi-lab/</code>，E04 §一 给三条命令）改真源码：调参、加工具、写扩展。它不依赖前面任何一章也能开始，但读完 Part B 再做 E01–E03 会快很多。</p>
 <p>读法建议：</p>
 <ul>
 <li>想改 Pi 的行为 → 读 Part B 的钩子章节（M03 第七节），别动内核</li>

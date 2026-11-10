@@ -44,7 +44,8 @@ export async function runAgent(options: RunOptions): Promise<RunResult> {
     const content: ContentBlock[] = [];
     let reason: StopReason = "stop";
     const llm = project(messages);
-    for await (const chunk of options.provider.stream(llm, options.tools, options.signal)) {
+    const stream = options.provider.stream(llm, options.tools, options.signal);
+    for await (const chunk of stream) {
       if (chunk.type === "text") {
         content.push({ type: "text", text: chunk.text });
         emit({ type: "text_delta", text: chunk.text });

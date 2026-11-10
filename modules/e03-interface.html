@@ -32,7 +32,7 @@
                 <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
                 <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
-                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
                 <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="active">
                 <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
                 <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E03</div>
       <h1>接口 —— 先抽出来，再换一家模型</h1>
-      <div class="module-meta">1,486 字 · 含 42 行代码 · 约 10 分钟</div>
+      <div class="module-meta">1,483 字 · 含 42 行代码 · 约 10 分钟</div>
     </header>
     <p>E02 结束时，<code>loop.ts</code> 还是写死的：<code>createMockProvider()</code>。想接真模型，按理
 只该改一行。但大多数第一版做不到——它们把「发请求」写进了循环里，于是换
@@ -57,7 +57,7 @@ provider 等于重写循环。</p>
 <ol>
 <li>换一家模型，最少要改几行？</li>
 <li>没有 key、没有网络时，怎么验证「换 provider 这条路是通的」？</li>
-<li>你写的这 690 行，对应 Pi 的哪几处？</li>
+<li>你写的这 584 行，对应 Pi 的哪几处？</li>
 </ol>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -124,8 +124,8 @@ provider 等于重写循环。</p>
 <pre><code><span class="ln">Error: 缺 OPENAI_BASE_URL 或 OPENAI_API_KEY</span></code></pre></div>
 <p>这是把「配置错误」和「网络错误」分开的最简单办法。</p>
 <hr>
-<h2 id="sec-4-四-毕业判据-我的-690-行对应-pi-的-9-处">四、毕业判据：我的 690 行对应 Pi 的 9 处</h2>
-<p>到这儿，mini-agent 一共有 690 行源码、150 行测试。它当然不是 Pi，但它把
+<h2 id="sec-4-四-毕业判据-我的-584-行对应-pi-的-9-处">四、毕业判据：我的 584 行对应 Pi 的 9 处</h2>
+<p>到这儿，mini-agent 一共有 584 行源码 + 154 行测试。它当然不是 Pi，但它把
 Pi 的骨架走了一遍。逐项对：</p>
 <div class="table-wrap"><table>
 <thead>
@@ -304,7 +304,7 @@ Pi 的骨架走了一遍。逐项对：</p>
 </ol>
 <hr>
 <h2 id="sec-11-十一-下一步">十一、下一步</h2>
-<p>前半到此结束。你有了一个能跑、能换模型、能存会话、能压缩的 690 行内核，
+<p>前半到此结束。你有了一个能跑、能换真模型、能回放 fixture 的 584 行内核，
 也知道它对应 Pi 的哪 9 处。</p>
 <p>后半换战场：不再写自己的代码，改 Pi 的源码。E04 第一步教你怎么拉一份
 v1.4.0 的工作副本（书中叫 <code>pi-lab/</code>），然后只改六个数字和配置，看行为怎么变。</p>
@@ -351,7 +351,7 @@ v1.4.0 的工作副本（书中叫 <code>pi-lab/</code>），然后只改六个�
       <a class="next" href="e04-tuning.html"><span class="lbl">下一篇</span>调参 —— 先改一个数字，再谈改代码</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-接口只有三样东西" class="">一、接口只有三样东西</a><a href="#sec-2-二-先写-fixture-不联网也能跑完整条路" class="">二、先写 fixture：不联网也能跑完整条路</a><a href="#sec-3-三-真模型只换三个值" class="">三、真模型只换三个值</a><a href="#sec-4-四-毕业判据-我的-690-行对应-pi-的-9-处" class="">四、毕业判据：我的 690 行对应 Pi 的 9 处</a><a href="#sec-5-五-五组实验" class="">五、五组实验</a><a href="#sec-6-六-小结" class="">六、小结</a><a href="#sec-7-七-概念回顾" class="">七、概念回顾</a><a href="#sec-8-八-练习" class="">八、练习</a><a href="#sec-9-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-10-十-自检" class="">十、自检</a><a href="#sec-11-十一-下一步" class="">十一、下一步</a><a href="#sec-12-源码索引" class="lv3">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-接口只有三样东西" class="">一、接口只有三样东西</a><a href="#sec-2-二-先写-fixture-不联网也能跑完整条路" class="">二、先写 fixture：不联网也能跑完整条路</a><a href="#sec-3-三-真模型只换三个值" class="">三、真模型只换三个值</a><a href="#sec-4-四-毕业判据-我的-584-行对应-pi-的-9-处" class="">四、毕业判据：我的 584 行对应 Pi 的 9 处</a><a href="#sec-5-五-五组实验" class="">五、五组实验</a><a href="#sec-6-六-小结" class="">六、小结</a><a href="#sec-7-七-概念回顾" class="">七、概念回顾</a><a href="#sec-8-八-练习" class="">八、练习</a><a href="#sec-9-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-10-十-自检" class="">十、自检</a><a href="#sec-11-十一-下一步" class="">十一、下一步</a><a href="#sec-12-源码索引" class="lv3">源码索引</a></nav>
 </div>
 </div>
 <script>

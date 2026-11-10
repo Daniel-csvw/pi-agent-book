@@ -79,7 +79,12 @@ export interface Tool {
 
 export type ProviderChunk =
   | { type: "text"; text: string }
-  | { type: "toolCall"; id: string; name: string; args: Record<string, unknown> }
+  | {
+      type: "toolCall";
+      id: string;
+      name: string;
+      args: Record<string, unknown>;
+    }
   | { type: "done"; stopReason: StopReason };
 
 export interface Provider {

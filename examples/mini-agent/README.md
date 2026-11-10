@@ -1,6 +1,14 @@
 # mini-agent
 
-Part E 的示例：560 行复刻 Pi 的循环、消息与工具形状。
+Part E 的示例：830 行复刻 Pi 的循环、消息与工具形状。
+
+`E01` 只需要前四个文件（`types.ts` / `provider/mock.ts` / `loop.ts` / `demo.ts`）：
+
+```bash
+node src/demo.ts
+```
+
+后面几章才会用到完整入口：
 
 ```bash
 node src/cli.ts --mock "读 README"

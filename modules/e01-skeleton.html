@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>骨架 —— 先用假模型，把循环跑通 · Pi Agent 源码级教程</title>
+<title>骨架 —— 从空目录，到跑通第一个循环 · Pi Agent 源码级教程</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
                 <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
                 <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="active">
-                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
                 <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
                 <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
                 <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
@@ -46,345 +46,383 @@
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">E01</div>
-      <h1>骨架 —— 先用假模型，把循环跑通</h1>
-      <div class="module-meta">2,201 字 · 含 73 行代码 · 约 12 分钟</div>
+      <h1>骨架 —— 从空目录，到跑通第一个循环</h1>
+      <div class="module-meta">3,285 字 · 含 352 行代码 · 约 20 分钟</div>
     </header>
-    <p>M03 里那张「一次模型调用」的图，你可能已经看过三遍：发消息、收流、判断
-<code>stopReason</code>、执行工具、把结果塞回去、再来一轮。看懂和写出来之间，隔着
-一层很实在的东西——<strong>你会不会在第一次跑不通的时候，知道该怀疑哪一行。</strong></p>
-<p>这一章我们不看 Pi，先自己写一个 410 行的 mini-agent。它不 import 任何外部
-依赖，模型是假的，工具只有两个，测试 11 个。目标不是做一个能用的 agent，
-而是把循环的形状钉死；等你在 E04 打开真源码，会发现 Pi 多出来的全是
-「在这根骨架上补的肉」。</p>
-<p>三个问题，读完应该能答：</p>
-<ol>
-<li>一个 agent 最小需要几个文件，各自负责什么？</li>
-<li>模型只会说「我要调 read」，真正去调它的是谁？</li>
-<li>循环有哪几种结束方式，凭什么说「停」？</li>
-</ol>
-<p>先看全景。整条链路只有五个文件，箭头方向就是数据流方向：</p>
+    <p>前面的 Part A–D 都在读别人写的 Pi。从这一章起换成另一种姿势：<strong>你自己写</strong>。</p>
+<p>目标很具体：从空目录开始，敲四个文件、318 行，<code>node src/demo.ts</code> 打印出一次
+完整的「模型说话 → 调工具 → 模型收尾」。不 clone Pi，不配 API key，不打开任何
+别人的源码。全部代码在本章里逐行给出，复制就能跑。</p>
+<p>跑出来的样子（本机真实输出，后面 §五 会逐行拆）：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">  cli.ts        读一行输入，打印事件</span><span class="ln">    |</span><span class="ln">    v</span><span class="ln">  loop.ts       外层轮次 / 内层工具，三处出口</span><span class="ln">    |  \</span><span class="ln">    |   \--&gt; tools.ts    name + description + parameters + execute</span><span class="ln">    v</span><span class="ln">  provider/mock.ts      假模型：吐 chunk，不联网</span><span class="ln">    |</span><span class="ln">    v</span><span class="ln">  types.ts      Message / Tool / Provider / AgentEvent 四个契约</span></code></pre></div>
-<hr>
-<h2 id="sec-1-一-先定形状-再写逻辑">一、先定形状，再写逻辑</h2>
-<p>新手写 agent 最常见的顺序是：先写 while 循环，再补消息类型，最后发现
-「工具结果该放哪」想不清楚，回头改类型，循环也跟着改。</p>
-<p>反过来做：<strong>先把四个契约写死。</strong></p>
-<p><code>types.ts</code> 里最要紧的是这两个：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Tool {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  description: <span class="tok-kw">string</span>;</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>;</span><span class="ln">    properties: Record&lt;<span class="tok-kw">string</span>, ToolParameter&gt;;</span><span class="ln">    required: <span class="tok-kw">string</span>[];</span><span class="ln">  };</span><span class="ln">  <span class="tok-fn">execute</span>(args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;): Promise&lt;<span class="tok-kw">string</span>&gt; | <span class="tok-kw">string</span>;</span><span class="ln">}</span></code></pre></div>
-<p>工具的四个字段不是随便凑的。<code>name</code> 是模型回传时的唯一凭据；<code>description</code>
-是模型决定「要不要用它」的唯一依据；<code>parameters</code> 是 JSON Schema 的子集，
-模型照着它填参数；<code>execute</code> 是唯一真正碰副作用的地方。</p>
-<p>第二个是 provider：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Provider {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  <span class="tok-fn">stream</span>(</span><span class="ln">    messages: Message[],</span><span class="ln">    tools: Tool[],</span><span class="ln">    signal?: AbortSignal,</span><span class="ln">  ): AsyncIterable&lt;ProviderChunk&gt;;</span><span class="ln">}</span></code></pre></div>
-<p>注意它只收 <code>Message[]</code>，不收 <code>AgentMessage[]</code>。这条边界是 E02 的主角，
-现在只要记住：<strong>给模型看的东西，比系统自己记的东西少。</strong></p>
-<hr>
-<h2 id="sec-2-二-假模型-三条规则-够用就好">二、假模型：三条规则，够用就好</h2>
-<p>真模型有三个麻烦：要 key、要网络、输出不确定。第一周就把这三样接进来，
-你会把大量时间花在「为什么这次没返回工具调用」上，而不是循环本身。</p>
-<p><code>provider/mock.ts</code> 只有 39 行，规则三条：</p>
-<ul>
-<li>第一次调用、输入里有「读」、并且 <code>read</code> 有描述 → 发一条 <code>toolCall</code></li>
-<li>已经有 <code>tool</code> 结果 → 回一句总结，停</li>
-<li>其余 → 原样回显，停</li>
-</ul>
-<p>&lt;!-- file: examples/mini-agent/src/provider/mock.ts --&gt;</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">      <span class="tok-kw">const</span> wantsRead = /读|read/i.<span class="tok-fn">test</span>(text);</span><span class="ln">      <span class="tok-kw">if</span> (!usedTool &amp;&amp; read &amp;&amp; read.description !== <span class="tok-str">""</span> &amp;&amp; wantsRead) {</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">"先看看文件。"</span> };</span><span class="ln">        <span class="tok-kw">yield</span> {</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">          id: <span class="tok-str">"call_1"</span>,</span><span class="ln">          name: <span class="tok-str">"read"</span>,</span><span class="ln">          args: { path: <span class="tok-str">"README.md"</span> },</span><span class="ln">        };</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"toolUse"</span> };</span><span class="ln">        <span class="tok-kw">return</span>;</span><span class="ln">      }</span></code></pre></div>
-<p>这段代码有两个刻意为之的地方，后面都会变成实验：</p>
+<pre><code><span class="ln">[turn 1] 先看看文件。</span><span class="ln">  -&gt; read [ok]</span><span class="ln">[turn 2] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop] turns=2 stop=stop</span><span class="ln">roles: user → assistant → tool → assistant</span></code></pre></div>
+<p>四个文件，职责一条一条对齐：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>只负责一件事</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/types.ts</code></td>
+<td>106</td>
+<td>四个契约：消息、工具、provider、事件</td>
+</tr>
+<tr>
+<td><code>src/provider/mock.ts</code></td>
+<td>40</td>
+<td>假模型：不联网，按三条规则吐 chunk</td>
+</tr>
+<tr>
+<td><code>src/loop.ts</code></td>
+<td>112</td>
+<td>外层轮次 + 内层工具，三个出口</td>
+</tr>
+<tr>
+<td><code>src/demo.ts</code></td>
+<td>60</td>
+<td>入口：拼起来跑一条链路，把事件打成文字</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td><strong>318</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>读完你应该能答三个问题：</p>
 <ol>
-<li><code>read.description !== &quot;&quot;</code> —— 描述是空的，假模型就不选它。真模型也一
-样，只是它不会这么干脆。</li>
-<li><code>stopReason: &quot;toolUse&quot;</code> —— 这一轮结束的原因是「我还想调工具」，不是
-「我说完了」。整本书里所有「要不要再来一轮」的判断，都挂在这个字段上。</li>
+<li>模型说「我要调 <code>read</code>」，真正去执行它的是谁？</li>
+<li>循环凭什么说「停」？有几种停法？</li>
+<li>为什么 provider 返回的是一串 chunk，而不是一条完整消息？</li>
 </ol>
-<p>它吐的是 <code>ProviderChunk</code>，不是完整消息。流式的本质就是：先给增量，最后
-给一个结论。结论只有一个字段，<code>done.stopReason</code>。</p>
 <hr>
-<h2 id="sec-3-三-循环-一个-while-三处出口">三、循环：一个 while，三处出口</h2>
-<p>先看最容易被写错的地方：<strong>谁执行工具。</strong></p>
-<p>不是 provider。provider 只负责说「我想调 read，参数是这个」。执行发生在
-<code>loop.ts</code>，因为它才知道有哪些工具、失败要不要重试、结果怎么记。</p>
-<p>核心就这几行：</p>
-<p>&lt;!-- file: examples/mini-agent/src/loop.ts --&gt;</p>
+<h2 id="sec-1-一-先定契约-再写逻辑">一、先定契约，再写逻辑</h2>
+<p>新手最常见的顺序是：先写 <code>while</code>，再补类型，然后卡在「工具结果该塞到哪」，
+回头改类型，循环跟着改两遍。</p>
+<p>反过来做：<strong>先花 106 行把契约钉死</strong>，后面三章都不再动它。</p>
+<p><code>src/types.ts</code> 全文：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">    messages.<span class="tok-fn">push</span>({ role: <span class="tok-str">"assistant"</span>, content, stopReason: reason });</span><span class="ln"></span><span class="ln">    <span class="tok-kw">const</span> calls = content.<span class="tok-fn">filter</span>((b) =&gt; b.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span><span class="ln">    <span class="tok-kw">if</span> (calls.length === <span class="tok-num">0</span>) {</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_end"</span>, turn: turns, stopReason: reason });</span><span class="ln">      stop = reason;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span></code></pre></div>
-<p>三件事按顺序发生：把 assistant 消息落进历史；从内容块里挑出工具调用；
-没有工具调用就是这一轮的终点。</p>
-<p>有工具调用时，逐个执行，把结果作为 <code>tool</code> 消息塞回历史，然后进入下一轮
-<code>while</code>。这里有个容易忽略的细节：<strong>工具失败不算循环失败。</strong></p>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 四个契约：消息、工具、事件、provider。</span></span><span class="ln"><span class="tok-com"> * 这一层不 import 任何外部包，换 provider 也改不到它。</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> StopReason = <span class="tok-str">"stop"</span> | <span class="tok-str">"toolUse"</span> | <span class="tok-str">"length"</span> | <span class="tok-str">"maxTurns"</span> | <span class="tok-str">"error"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> TextBlock {</span><span class="ln">  <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>;</span><span class="ln">  text: <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ToolCallBlock {</span><span class="ln">  <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>;</span><span class="ln">  id: <span class="tok-kw">string</span>;</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ContentBlock = TextBlock | ToolCallBlock;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> SystemMessage {</span><span class="ln">  role: <span class="tok-str">"system"</span>;</span><span class="ln">  content: <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> UserMessage {</span><span class="ln">  role: <span class="tok-str">"user"</span>;</span><span class="ln">  content: <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> AssistantMessage {</span><span class="ln">  role: <span class="tok-str">"assistant"</span>;</span><span class="ln">  content: ContentBlock[];</span><span class="ln">  stopReason: StopReason;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ToolResultMessage {</span><span class="ln">  role: <span class="tok-str">"tool"</span>;</span><span class="ln">  toolCallId: <span class="tok-kw">string</span>;</span><span class="ln">  toolName: <span class="tok-kw">string</span>;</span><span class="ln">  content: <span class="tok-kw">string</span>;</span><span class="ln">  isError?: <span class="tok-kw">boolean</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 给模型看的只有这四种。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> Message =</span><span class="ln">  | SystemMessage</span><span class="ln">  | UserMessage</span><span class="ln">  | AssistantMessage</span><span class="ln">  | ToolResultMessage;</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 只给自己看的一种：display=false 时只进上下文，不上屏。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> NoteMessage {</span><span class="ln">  role: <span class="tok-str">"note"</span>;</span><span class="ln">  kind: <span class="tok-str">"summary"</span> | <span class="tok-str">"reminder"</span>;</span><span class="ln">  text: <span class="tok-kw">string</span>;</span><span class="ln">  display: <span class="tok-kw">boolean</span>;</span><span class="ln">  timestamp: <span class="tok-kw">number</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> AgentMessage = Message | NoteMessage;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ToolParameter {</span><span class="ln">  <span class="tok-kw">type</span>: <span class="tok-str">"string"</span> | <span class="tok-str">"number"</span> | <span class="tok-str">"boolean"</span>;</span><span class="ln">  description: <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Tool {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  description: <span class="tok-kw">string</span>;</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>;</span><span class="ln">    properties: Record&lt;<span class="tok-kw">string</span>, ToolParameter&gt;;</span><span class="ln">    required: <span class="tok-kw">string</span>[];</span><span class="ln">  };</span><span class="ln">  <span class="tok-fn">execute</span>(args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;): Promise&lt;<span class="tok-kw">string</span>&gt; | <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> ProviderChunk =</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>; text: <span class="tok-kw">string</span> }</span><span class="ln">  | {</span><span class="ln">      <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>;</span><span class="ln">      id: <span class="tok-kw">string</span>;</span><span class="ln">      name: <span class="tok-kw">string</span>;</span><span class="ln">      args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;;</span><span class="ln">    }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>; stopReason: StopReason };</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Provider {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  <span class="tok-fn">stream</span>(</span><span class="ln">    messages: Message[],</span><span class="ln">    tools: Tool[],</span><span class="ln">    signal?: AbortSignal,</span><span class="ln">  ): AsyncIterable&lt;ProviderChunk&gt;;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> AgentEvent =</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"agent_start"</span> }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"turn_start"</span>; turn: <span class="tok-kw">number</span> }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"text_delta"</span>; text: <span class="tok-kw">string</span> }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"tool_start"</span>; id: <span class="tok-kw">string</span>; name: <span class="tok-kw">string</span> }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"tool_end"</span>; id: <span class="tok-kw">string</span>; isError: <span class="tok-kw">boolean</span> }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"turn_end"</span>; turn: <span class="tok-kw">number</span>; stopReason: StopReason }</span><span class="ln">  | { <span class="tok-kw">type</span>: <span class="tok-str">"agent_end"</span>; stopReason: StopReason };</span></code></pre></div>
+<p>106 行，五组。每组都在回答一个后面会反复用到的问题。</p>
+<h3 id="sec-2-1-stopreason-先把-怎么停-定死">1. <code>StopReason</code>：先把「怎么停」定死</h3>
+<p>五种，一个不多：<code>stop</code> 模型说完了；<code>toolUse</code> 模型要调工具；<code>length</code> 被截断；
+<code>maxTurns</code> 轮次用完；<code>error</code> 出错。</p>
+<p>绝大多数 agent 的 bug 都能归到这一行上——<strong>用「循环结束了」表示成功</strong>。循环结束
+有五种原因，<code>maxTurns</code> 和 <code>error</code> 都不算成功，但如果你只有一个 boolean，它们就
+全变成「成功」。</p>
+<h3 id="sec-3-2-contentblock-一条消息里能装什么">2. <code>ContentBlock</code>：一条消息里能装什么</h3>
+<p>只有两种：文字、工具调用。注意<strong>它们是同一个数组里的元素</strong>，不是两个字段。真
+模型的返回也是这样：先吐一句「我看看」，再吐一个 tool call，顺序有意义，所以必须
+同一条 assistant 消息里共存、保序。</p>
+<h3 id="sec-4-3-message-四种-vs-agentmessage-五种">3. <code>Message</code> 四种 vs <code>AgentMessage</code> 五种</h3>
+<p>给模型看的只有四种。第五种 <code>NoteMessage</code>（<code>role: &quot;note&quot;</code>）<strong>永远不发给模型</strong>，
+它只进你自己的上下文——E02 会讲到它为什么必须存在。现在只要记住：<strong>「我记下的」
+和「模型能看到的」是两层，<code>AgentMessage</code> 是上层，<code>Message</code> 是下层</strong>。这个分层
+是后面省掉一大堆 bug 的关键。</p>
+<h3 id="sec-5-4-tool-描述是给模型看的">4. <code>Tool</code>：描述是给模型看的</h3>
+<p>四个字段不是凑数：<code>name</code> 是模型回传时的唯一凭据；<code>description</code> 是模型决定要
+不要用它的唯一依据；<code>parameters</code> 是 JSON Schema 的子集，模型照着填；<code>execute</code>
+是唯一真正碰副作用的地方。</p>
+<p>注意 <code>execute</code> 返回 <code>string</code>，不是对象。<strong>工具的输出必须是字符串</strong>——它会原样
+变成一条消息塞回上下文，模型只认文本。</p>
+<h3 id="sec-6-5-provider-为什么返回-chunk-流-而不是一条消息">5. <code>Provider</code>：为什么返回 chunk 流，而不是一条消息</h3>
+<p>这是本章第一个真正的设计决定。三种做法都能跑，但只有一种是活的：</p>
+<ul>
+<li>返回完整消息：调用方拿不到「正在打字」的中间态，UI 只能等</li>
+<li>返回完整消息 + 回调：能打字了，但两次回调之间没法取消</li>
+<li><strong>返回 async 迭代器</strong>：要一个字给一个字，中途可以 <code>return</code>，也可以 <code>signal.abort()</code></li>
+</ul>
+<p>真模型的工具调用参数还是<strong>分片到达</strong>的（<code>{&quot;pa</code> <code>th&quot;: &quot;RE</code> <code>ADME.md&quot;}</code>），
+拼装必须发生在接收流的人手里。所以契约定成 <code>AsyncIterable&lt;ProviderChunk&gt;</code>，
+E03 接真 SSE 时一行都不用改。</p>
+<h3 id="sec-7-五个契约怎么串起来">五个契约怎么串起来</h3>
+<p>这 106 行看着零散，其实是同一条流水线上五个工位的进出料规格：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  Provider.stream()</span><span class="ln">    出料：chunk（text / toolCall / done）</span><span class="ln">        |</span><span class="ln">        v   loop.ts 收流拼装</span><span class="ln">    进料：ContentBlock[]           出料：AssistantMessage</span><span class="ln">        |</span><span class="ln">        v   loop.ts 执行工具</span><span class="ln">    进料：Tool.execute(args)        出料：ToolResultMessage</span><span class="ln">        |</span><span class="ln">        v   下一轮再发</span><span class="ln">    进料：Message[]（四种）         出料：chunk …（回到第一行）</span></code></pre></div>
+<p>而 <code>AgentEvent</code> 是旁路：循环往右边吐进度，不参与下一步计算。<strong>进料出料是数据，
+event 是通知</strong>，混在一起就是后面所有难改的根源。</p>
+<hr>
+<h2 id="sec-8-二-先写假模型">二、先写假模型</h2>
+<p><code>src/provider/mock.ts</code> 全文：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">        } <span class="tok-kw">catch</span> (error) {</span><span class="ln">          isError = <span class="tok-kw">true</span>;</span><span class="ln">          text = error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error);</span><span class="ln">        }</span></code></pre></div>
-<p>失败信息变成工具结果的一部分，模型下一轮能看见它，自己决定重试还是换路。
-只有连续三次都失败，循环才以 <code>error</code> 收口：</p>
+<pre><code><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { Provider } <span class="tok-kw">from</span> <span class="tok-str">"../types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 假模型：不联网、不随机、不看历史的情感。</span></span><span class="ln"><span class="tok-com"> * 规则只有三条，够把循环跑通，也够让实验刻意失败。</span></span><span class="ln"><span class="tok-com"> *   1. 第一次调用、问句里有「读」、且 read 有描述 → 发一条 toolCall</span></span><span class="ln"><span class="tok-com"> *   2. 已经有 tool 结果 → 回一句总结，停</span></span><span class="ln"><span class="tok-com"> *   3. 其余 → 原样回显，停</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createMockProvider</span>(): Provider {</span><span class="ln">  <span class="tok-kw">return</span> {</span><span class="ln">    name: <span class="tok-str">"mock"</span>,</span><span class="ln">    <span class="tok-kw">async</span> *<span class="tok-fn">stream</span>(messages, tools) {</span><span class="ln">      <span class="tok-kw">const</span> last = [...messages].<span class="tok-fn">reverse</span>().<span class="tok-fn">find</span>((m) =&gt; m.role === <span class="tok-str">"user"</span>);</span><span class="ln">      <span class="tok-kw">const</span> text = last &amp;&amp; <span class="tok-str">"content"</span> <span class="tok-kw">in</span> last ? <span class="tok-fn">String</span>(last.content) : <span class="tok-str">""</span>;</span><span class="ln">      <span class="tok-kw">const</span> read = tools.<span class="tok-fn">find</span>((t) =&gt; t.name === <span class="tok-str">"read"</span>);</span><span class="ln">      <span class="tok-kw">const</span> usedTool = messages.<span class="tok-fn">some</span>((m) =&gt; m.role === <span class="tok-str">"tool"</span>);</span><span class="ln"></span><span class="ln">      <span class="tok-kw">const</span> wantsRead = /读|read/i.<span class="tok-fn">test</span>(text);</span><span class="ln">      <span class="tok-kw">if</span> (!usedTool &amp;&amp; read &amp;&amp; read.description !== <span class="tok-str">""</span> &amp;&amp; wantsRead) {</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">"先看看文件。"</span> };</span><span class="ln">        <span class="tok-kw">yield</span> {</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">          id: <span class="tok-str">"call_1"</span>,</span><span class="ln">          name: <span class="tok-str">"read"</span>,</span><span class="ln">          args: { path: <span class="tok-str">"README.md"</span> },</span><span class="ln">        };</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"toolUse"</span> };</span><span class="ln">        <span class="tok-kw">return</span>;</span><span class="ln">      }</span><span class="ln">      <span class="tok-kw">if</span> (usedTool) {</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">"（mock）读完了，文件已经在上下文里。"</span> };</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"stop"</span> };</span><span class="ln">        <span class="tok-kw">return</span>;</span><span class="ln">      }</span><span class="ln">      <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">`（mock）收到：${text}`</span> };</span><span class="ln">      <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"stop"</span> };</span><span class="ln">    },</span><span class="ln">  };</span><span class="ln">}</span></code></pre></div>
+<p>为什么第一版不接真模型，三个理由，都不是「省事」：</p>
+<ul>
+<li><strong>可复现</strong>：同样的输入永远同样的输出，测试才能断言</li>
+<li><strong>零成本</strong>：11 个测试跑完 272 毫秒，不花一分钱</li>
+<li><strong>故障可控</strong>：想让工具报错就报错，想让它不发 tool call 就不发，不用等模型心情</li>
+</ul>
+<p>关键在于：<strong>它假的只是「决策」，不是「接口」</strong>。<code>stream()</code> 的签名、chunk 的
+形状、<code>done</code> 里那个 <code>stopReason</code>，和 E03 的真模型完全一致。所以 <code>loop.ts</code> 一行
+都不知道自己在跑假模型。</p>
+<p>三条规则读一遍：</p>
+<ol>
+<li><code>!usedTool &amp;&amp; read &amp;&amp; read.description !== &quot;&quot; &amp;&amp; wantsRead</code>：没调过工具、注册
+了 <code>read</code>、描述非空、这句里有「读」→ 发一条 <code>toolCall</code>。四个条件少一个就
+走空。</li>
+<li><code>usedTool</code> 为真（上下文里已经有 <code>role: &quot;tool&quot;</code> 的消息）→ 说一句总结就停。</li>
+<li>其余 → 回显。</li>
+</ol>
+<p><code>read.description !== &quot;&quot;</code> 这个看似多余的判断，是 E05 的实验钩子：把描述清空，
+模型就不调它了。<strong>描述不是注释，是接口。</strong></p>
+<h3 id="sec-9-换成真模型-要改几行">换成真模型，要改几行</h3>
+<p>零行。<code>loop.ts</code> 不知道 provider 是谁，<code>demo.ts</code> 只改一个构造调用：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>mock（本章）</th>
+<th>真模型（E03）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>拿凭据</td>
+<td>不需要</td>
+<td><code>OPENAI_API_KEY</code> + <code>BASE_URL</code></td>
+</tr>
+<tr>
+<td>拿 chunk</td>
+<td>硬编码 yield</td>
+<td><code>fetch</code> 读 SSE，逐帧 JSON.parse</td>
+</tr>
+<tr>
+<td>拼参数</td>
+<td>一次给全</td>
+<td>分片到达，按 <code>index</code> 累积</td>
+</tr>
+<tr>
+<td>错误</td>
+<td>不会错</td>
+<td>429 退避、超时、<code>abort</code></td>
+</tr>
+<tr>
+<td>接口</td>
+<td><code>Provider</code></td>
+<td><code>Provider</code>（一模一样）</td>
+</tr>
+</tbody>
+</table></div>
+<p>这就是为什么第一章先写假的：<strong>你先把左边那列确定下来，右边那列才只有一个变量</strong>。
+一开始就接真模型，跑不通时你分不清是自己循环写错了还是网络/凭据/报文错了。</p>
+<hr>
+<h2 id="sec-10-三-循环本体">三、循环本体</h2>
+<p>整个包最值钱的 112 行。先看骨架，再看代码：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">while (turns &lt; maxTurns)</span><span class="ln">  收流 → 拼 content → assistant 入栈</span><span class="ln">  没有 toolCall？  → 停（stop）</span><span class="ln">  有             → 逐个执行 → tool 消息入栈</span><span class="ln">  工具连错 3 次？  → 停（error）</span><span class="ln">  turns 用完？     → 停（maxTurns）</span></code></pre></div>
+<p><code>src/loop.ts</code> 全文：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">    <span class="tok-kw">if</span> (errors &gt;= MAX_TOOL_ERRORS) {</span><span class="ln">      stop = <span class="tok-str">"error"</span>;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span></code></pre></div>
-<p>所以出口一共三处：</p>
+<pre><code><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> {</span><span class="ln">  AgentEvent,</span><span class="ln">  AgentMessage,</span><span class="ln">  ContentBlock,</span><span class="ln">  Message,</span><span class="ln">  Provider,</span><span class="ln">  StopReason,</span><span class="ln">  Tool,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> MAX_TOOL_ERRORS = <span class="tok-num">3</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> RunOptions {</span><span class="ln">  provider: Provider;</span><span class="ln">  tools: Tool[];</span><span class="ln">  messages: AgentMessage[];</span><span class="ln">  maxTurns?: <span class="tok-kw">number</span>;</span><span class="ln">  <span class="tok-com">/** 把 AgentMessage 投影成给模型看的 Message；E02 才传入。 */</span></span><span class="ln">  project?: (messages: AgentMessage[]) =&gt; Message[];</span><span class="ln">  emit?: (event: AgentEvent) =&gt; <span class="tok-kw">void</span>;</span><span class="ln">  signal?: AbortSignal;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> RunResult {</span><span class="ln">  messages: AgentMessage[];</span><span class="ln">  stopReason: StopReason;</span><span class="ln">  turns: <span class="tok-kw">number</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">runAgent</span>(options: RunOptions): Promise&lt;RunResult&gt; {</span><span class="ln">  <span class="tok-kw">const</span> emit = options.emit ?? (() =&gt; {});</span><span class="ln">  <span class="tok-kw">const</span> project = options.project ?? ((all: AgentMessage[]) =&gt; all <span class="tok-kw">as</span> Message[]);</span><span class="ln">  <span class="tok-kw">const</span> maxTurns = options.maxTurns ?? <span class="tok-num">3</span>;</span><span class="ln">  <span class="tok-kw">const</span> messages = [...options.messages];</span><span class="ln">  <span class="tok-kw">let</span> turns = <span class="tok-num">0</span>;</span><span class="ln">  <span class="tok-kw">let</span> stop: StopReason = <span class="tok-str">"maxTurns"</span>;</span><span class="ln">  <span class="tok-kw">let</span> errors = <span class="tok-num">0</span>;</span><span class="ln"></span><span class="ln">  <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"agent_start"</span> });</span><span class="ln">  <span class="tok-kw">while</span> (turns &lt; maxTurns) {</span><span class="ln">    turns += <span class="tok-num">1</span>;</span><span class="ln">    <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_start"</span>, turn: turns });</span><span class="ln"></span><span class="ln">    <span class="tok-kw">const</span> content: ContentBlock[] = [];</span><span class="ln">    <span class="tok-kw">let</span> reason: StopReason = <span class="tok-str">"stop"</span>;</span><span class="ln">    <span class="tok-kw">const</span> llm = <span class="tok-fn">project</span>(messages);</span><span class="ln">    <span class="tok-kw">const</span> stream = options.provider.<span class="tok-fn">stream</span>(llm, options.tools, options.signal);</span><span class="ln">    <span class="tok-kw">for</span> <span class="tok-kw">await</span> (<span class="tok-kw">const</span> chunk <span class="tok-kw">of</span> stream) {</span><span class="ln">      <span class="tok-kw">if</span> (chunk.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>) {</span><span class="ln">        content.<span class="tok-fn">push</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: chunk.text });</span><span class="ln">        <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"text_delta"</span>, text: chunk.text });</span><span class="ln">      } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (chunk.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>) {</span><span class="ln">        content.<span class="tok-fn">push</span>({</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">          id: chunk.id,</span><span class="ln">          name: chunk.name,</span><span class="ln">          args: chunk.args,</span><span class="ln">        });</span><span class="ln">      } <span class="tok-kw">else</span> {</span><span class="ln">        reason = chunk.stopReason;</span><span class="ln">      }</span><span class="ln">    }</span><span class="ln">    messages.<span class="tok-fn">push</span>({ role: <span class="tok-str">"assistant"</span>, content, stopReason: reason });</span><span class="ln"></span><span class="ln">    <span class="tok-kw">const</span> calls = content.<span class="tok-fn">filter</span>((b) =&gt; b.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span><span class="ln">    <span class="tok-kw">if</span> (calls.length === <span class="tok-num">0</span>) {</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_end"</span>, turn: turns, stopReason: reason });</span><span class="ln">      stop = reason;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span><span class="ln"></span><span class="ln">    <span class="tok-kw">for</span> (<span class="tok-kw">const</span> call <span class="tok-kw">of</span> calls) {</span><span class="ln">      <span class="tok-kw">const</span> tool = options.tools.<span class="tok-fn">find</span>((t) =&gt; t.name === call.name);</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"tool_start"</span>, id: call.id, name: call.name });</span><span class="ln">      <span class="tok-kw">let</span> text = <span class="tok-str">""</span>;</span><span class="ln">      <span class="tok-kw">let</span> isError = <span class="tok-kw">false</span>;</span><span class="ln">      <span class="tok-kw">if</span> (!tool) {</span><span class="ln">        isError = <span class="tok-kw">true</span>;</span><span class="ln">        text = <span class="tok-str">`未知工具：${call.name}`</span>;</span><span class="ln">      } <span class="tok-kw">else</span> {</span><span class="ln">        <span class="tok-kw">try</span> {</span><span class="ln">          text = <span class="tok-kw">await</span> tool.<span class="tok-fn">execute</span>(call.args);</span><span class="ln">        } <span class="tok-kw">catch</span> (error) {</span><span class="ln">          isError = <span class="tok-kw">true</span>;</span><span class="ln">          text = error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error);</span><span class="ln">        }</span><span class="ln">      }</span><span class="ln">      errors = isError ? errors + <span class="tok-num">1</span> : <span class="tok-num">0</span>;</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"tool_end"</span>, id: call.id, isError });</span><span class="ln">      messages.<span class="tok-fn">push</span>({</span><span class="ln">        role: <span class="tok-str">"tool"</span>,</span><span class="ln">        toolCallId: call.id,</span><span class="ln">        toolName: call.name,</span><span class="ln">        content: text,</span><span class="ln">        isError,</span><span class="ln">      });</span><span class="ln">    }</span><span class="ln"></span><span class="ln">    <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_end"</span>, turn: turns, stopReason: reason });</span><span class="ln">    <span class="tok-kw">if</span> (errors &gt;= MAX_TOOL_ERRORS) {</span><span class="ln">      stop = <span class="tok-str">"error"</span>;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">if</span> (turns &gt;= maxTurns) {</span><span class="ln">      stop = <span class="tok-str">"maxTurns"</span>;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span><span class="ln">  }</span><span class="ln"></span><span class="ln">  <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"agent_end"</span>, stopReason: stop });</span><span class="ln">  <span class="tok-kw">return</span> { messages, stopReason: stop, turns };</span><span class="ln">}</span></code></pre></div>
+<p>六段，逐段看。</p>
+<h3 id="sec-11-1-参数为什么同时有-agentmessage-和-message">1. 参数为什么同时有 <code>AgentMessage[]</code> 和 <code>Message[]</code></h3>
+<p><code>messages</code> 收的是 <code>AgentMessage[]</code>（含 <code>note</code>），但 <code>stream()</code> 收的是
+<code>Message[]</code>（不含 note）。中间那道转换由 <code>project</code> 做，默认是恒等函数——因为
+E01 还没有 note。E02 会把压缩、过滤、重排全塞进这个函数，<code>loop.ts</code> 不用改。</p>
+<p>这是全章最值得抄的一个模式：<strong>把「历史」和「这一轮发给模型的视图」分成两个
+值</strong>。合成一个，后面每加一种只给自己看的东西，循环都得改。</p>
+<h3 id="sec-12-2-内层-for-await-三个分支">2. 内层 <code>for await</code>：三个分支</h3>
+<p><code>text</code> 进 content 并转发事件；<code>toolCall</code> 只进 content（<strong>工具没执行</strong>，只是记下
+来）；<code>done</code> 只改 <code>reason</code>。</p>
+<p>注意第三个分支写的是 <code>else</code>，不是 <code>else if (chunk.type === &quot;done&quot;)</code>。因为
+<code>ProviderChunk</code> 只有三种，剩下的一定是 done——让类型收窄替你写判断，写错了
+编译期就报。</p>
+<h3 id="sec-13-3-reason-只有一个来源">3. <code>reason</code> 只有一个来源</h3>
+<p><code>let reason: StopReason = &quot;stop&quot;</code> 是兜底：如果 provider 一个 done 都没吐就结束
+了，这一轮按 <code>stop</code> 算。真模型断流时就是这种情况——<strong>兜底值决定了断流算成功还是
+失败</strong>，这里选了成功，因为内容确实收到了。</p>
+<h3 id="sec-14-4-assistant-消息必须在执行工具之前入栈">4. assistant 消息必须在执行工具之前入栈</h3>
+<p>顺序不能反。模型下一轮要看到的是：自己说过「我要调 read」+ 工具结果。少任何
+一半，真模型会重复调用同一个工具，或者干脆不认这个结果。</p>
+<h3 id="sec-15-5-errors-是连续计数-不是总数">5. <code>errors</code> 是连续计数，不是总数</h3>
+<p><code>errors = isError ? errors + 1 : 0</code>——成功一次就清零。理由：agent 死循环的典型
+形态是同一个工具反复失败，那要拦；而一个长任务里零星几次失败然后自愈，是正常
+现象，不该拦。</p>
+<h3 id="sec-16-6-三个出口-一张表">6. 三个出口，一张表</h3>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>出口</th>
-<th>触发条件</th>
-<th>stopReason</th>
+<th>条件</th>
+<th><code>stopReason</code></th>
+<th>谁负责</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>正常收口</td>
-<td>这一轮没有工具调用</td>
-<td>provider 给的 <code>stop</code> / <code>length</code></td>
+<td>模型说完了</td>
+<td>这一轮没有 toolCall</td>
+<td>原样透传（通常是 <code>stop</code>）</td>
+<td>模型</td>
 </tr>
 <tr>
-<td>轮次用尽</td>
-<td>到了 <code>maxTurns</code>，还想调工具</td>
-<td><code>maxTurns</code></td>
-</tr>
-<tr>
-<td>连续失败</td>
-<td>工具连续 3 次抛错</td>
+<td>工具连续失败</td>
+<td><code>errors &gt;= 3</code></td>
 <td><code>error</code></td>
+<td>循环</td>
+</tr>
+<tr>
+<td>轮次用完</td>
+<td><code>turns &gt;= maxTurns</code></td>
+<td><code>maxTurns</code></td>
+<td>循环</td>
 </tr>
 </tbody>
 </table></div>
-<p>Pi 的 <code>packages/agent/src/agent-loop.ts</code> 在结构上就是这两层：外层
-<code>while (true)</code> 管轮次，内层 <code>while (hasMoreToolCalls ...)</code> 管工具；
-遇到 <code>stopReason === &quot;error&quot;</code> 或 <code>&quot;aborted&quot;</code> 直接退出。区别只在它有
-队列、有中断、有并发，骨架一样。</p>
+<p><code>while</code> 外面还有一次 <code>agent_end</code>：<strong>不管从哪个出口出去，事件一定要收尾</strong>。少发
+一条，订阅方就会永远等下去。</p>
+<h3 id="sec-17-为什么外层是-while-内层是-for-await">为什么外层是 while，内层是 for await</h3>
+<p>两个层次管两件事：外层管<strong>轮次预算</strong>（还能不能再来一轮），内层管<strong>这一轮的
+流</strong>（chunk 还没收完）。</p>
+<p>看得见的后果：内层 <code>for await</code> 中途 <code>break</code>，调用方就不能再 <code>yield</code> 了——所以
+想把工具改成并发执行，不能在内层动手，得等流收完之后在主循环那一层动。那是
+E04 的事，本章先按顺序执行，一行都不提前优化。</p>
+<h3 id="sec-18-一个反直觉的细节-工具失败也是消息">一个反直觉的细节：工具失败也是消息</h3>
+<p>工具抛错时，<code>loop.ts</code> 并没有往外抛，而是把错误文本当成 <code>content</code>、<code>isError</code>
+置真，<strong>照常压进上下文</strong>。因为模型需要知道自己错了——不告诉它，它下一轮只会
+用同样的参数再试一次。<strong>工具错误是给模型的信息，不是给程序的异常。</strong></p>
 <hr>
-<h2 id="sec-4-四-工具-一个形状-两个实现">四、工具：一个形状，两个实现</h2>
-<p><code>tools.ts</code> 里两个工具，一个读文件，一个回显。读文件这个值得逐行看：</p>
-<p>&lt;!-- file: examples/mini-agent/src/tools.ts --&gt;</p>
+<h2 id="sec-19-四-60-行入口">四、60 行入口</h2>
+<p><code>src/demo.ts</code> 全文：</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">  <span class="tok-kw">async</span> <span class="tok-fn">execute</span>(args) {</span><span class="ln">    <span class="tok-kw">const</span> file = <span class="tok-fn">String</span>(args.path ?? <span class="tok-str">""</span>);</span><span class="ln">    <span class="tok-kw">if</span> (!file) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"path 不能为空"</span>);</span><span class="ln">    <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> <span class="tok-fn">readFile</span>(file, <span class="tok-str">"utf8"</span>);</span><span class="ln">    <span class="tok-kw">const</span> body = text.length &gt; MAX_CHARS ? text.<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, MAX_CHARS) : text;</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-str">`# ${file}（${text.length} 字符）\n${body}`</span>;</span><span class="ln">  },</span></code></pre></div>
-<p>三个决定，每个都有代价：</p>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * E01 的终点：把四块拼起来，跑通一条完整链路。</span></span><span class="ln"><span class="tok-com"> * 运行：cd examples/mini-agent &amp;&amp; node src/demo.ts</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">import</span> { readFile } <span class="tok-kw">from</span> <span class="tok-str">"node:fs/promises"</span>;</span><span class="ln"><span class="tok-kw">import</span> { runAgent } <span class="tok-kw">from</span> <span class="tok-str">"./loop.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createMockProvider } <span class="tok-kw">from</span> <span class="tok-str">"./provider/mock.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { AgentEvent, Tool } <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 工具就是这个形状：名字 + 描述 + 参数表 + 一个函数。</span></span><span class="ln"><span class="tok-com"> * 描述不是给人看的，是给模型看的——mock 也照着它决定要不要调用。</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">const</span> read: Tool = {</span><span class="ln">  name: <span class="tok-str">"read"</span>,</span><span class="ln">  description: <span class="tok-str">"读一个文本文件的前 5 行"</span>,</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>,</span><span class="ln">    properties: { path: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>, description: <span class="tok-str">"相对路径"</span> } },</span><span class="ln">    required: [<span class="tok-str">"path"</span>],</span><span class="ln">  },</span><span class="ln">  <span class="tok-kw">async</span> <span class="tok-fn">execute</span>(args) {</span><span class="ln">    <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> <span class="tok-fn">readFile</span>(<span class="tok-fn">String</span>(args.path), <span class="tok-str">"utf8"</span>);</span><span class="ln">    <span class="tok-kw">return</span> text.<span class="tok-fn">split</span>(<span class="tok-str">"\n"</span>).<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, <span class="tok-num">5</span>).<span class="tok-fn">join</span>(<span class="tok-str">"\n"</span>);</span><span class="ln">  },</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 事件是给人看的：循环自己不 print，谁消费谁决定怎么显示。 */</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">trace</span>(event: AgentEvent): <span class="tok-kw">void</span> {</span><span class="ln">  <span class="tok-kw">switch</span> (event.<span class="tok-kw">type</span>) {</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-str">"turn_start"</span>:</span><span class="ln">      process.stdout.<span class="tok-fn">write</span>(<span class="tok-str">`\n[turn ${event.turn}] `</span>);</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-str">"text_delta"</span>:</span><span class="ln">      process.stdout.<span class="tok-fn">write</span>(event.text);</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-str">"tool_start"</span>:</span><span class="ln">      process.stdout.<span class="tok-fn">write</span>(<span class="tok-str">`\n  -&gt; ${event.name} `</span>);</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-str">"tool_end"</span>:</span><span class="ln">      process.stdout.<span class="tok-fn">write</span>(event.isError ? <span class="tok-str">"[err]"</span> : <span class="tok-str">"[ok]"</span>);</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">case</span> <span class="tok-str">"agent_end"</span>:</span><span class="ln">      process.stdout.<span class="tok-fn">write</span>(<span class="tok-str">`\n[${event.stopReason}] `</span>);</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">default</span>:</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">  }</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-fn">runAgent</span>({</span><span class="ln">  provider: <span class="tok-fn">createMockProvider</span>(),</span><span class="ln">  tools: [read],</span><span class="ln">  messages: [{ role: <span class="tok-str">"user"</span>, content: <span class="tok-str">"读一下 README.md 的头几行"</span> }],</span><span class="ln">  maxTurns: <span class="tok-num">3</span>,</span><span class="ln">  emit: trace,</span><span class="ln">});</span><span class="ln"></span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`turns=${result.turns} stop=${result.stopReason}`</span>);</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`roles: ${result.messages.map((m) =&gt; m.role).join(" → ")}`</span>);</span></code></pre></div>
+<p>三个要点：</p>
 <ul>
-<li><strong>参数再校验一次。</strong> 模型给的是 JSON，不是类型安全的对象；<code>args.path</code>
-可能是 <code>undefined</code>，也可能是数字。<code>String(... ?? &quot;&quot;)</code> 是最后一道防线。</li>
-<li><strong>截断到 4000 字符。</strong> 工具返回值会立刻进上下文，一个 200KB 的日志能
-把这一轮预算吃光。Pi 的 bash 工具也有类似的截断，M05 §七 专门讲过。</li>
-<li><strong>失败就抛。</strong> 不要 <code>return &quot;读取失败&quot;</code>，因为那会被当成正常结果。抛错
-后由循环包成 <code>isError: true</code> 的工具结果，模型能区分「文件内容」和
-「读取失败」。</li>
+<li><strong>工具就是字面量</strong>：没有注册器、没有装饰器，一个对象就是一把工具。E04 会加
+校验、并发、写锁，但形状不变。</li>
+<li><strong>循环不 print</strong>：<code>loop.ts</code> 只 <code>emit</code>，<code>trace</code> 决定怎么显示。所以同一份循环
+能同时喂给终端、WebSocket、测试断言。</li>
+<li><strong><code>package.json</code> 里 <code>&quot;type&quot;: &quot;module&quot;</code></strong>：这样才能用顶层 <code>await</code> 和 <code>.ts</code>
+后缀的 import（Node 24 直接擦类型，不需要 tsc）。</li>
 </ul>
 <hr>
-<h2 id="sec-5-五-跑起来">五、跑起来</h2>
-<p>在 <code>examples/mini-agent</code> 下：</p>
+<h2 id="sec-20-五-跑一遍">五、跑一遍</h2>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node src/cli.ts --mock "读 README"</span></code></pre></div>
-<p>真实输出（我本机 Node v24.12.0，两次逐字相同）：</p>
+<pre><code><span class="ln">cd examples/mini-agent</span><span class="ln">node src/demo.ts</span></code></pre></div>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">[turn 1] 先看看文件。</span><span class="ln">-&gt; read [ok]</span><span class="ln">[turn 2] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop]</span></code></pre></div>
-<p>四行输出对应四件事：第一轮模型说了半句、发了一个工具调用；工具执行成功；
-第二轮模型看到工具结果，收尾；最终 stopReason 是 <code>stop</code>。</p>
-<p>想确认消息确实存下来了，加 <code>--print</code> 看最后四条：</p>
-<div class="code-block" data-lang="bash">
-<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node src/cli.ts --mock "读 README" --print</span></code></pre></div>
-<p>不看输出也行，<code>test/loop.test.ts</code> 里的第一个断言就是答案：
-<code>[&quot;user&quot;, &quot;assistant&quot;, &quot;tool&quot;, &quot;assistant&quot;]</code>。</p>
+<pre><code><span class="ln">[turn 1] 先看看文件。</span><span class="ln">  -&gt; read [ok]</span><span class="ln">[turn 2] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop] turns=2 stop=stop</span><span class="ln">roles: user → assistant → tool → assistant</span></code></pre></div>
+<p>逐行对：</p>
+<ul>
+<li><code>[turn 1] 先看看文件。</code>：<code>text_delta</code> 一路打出来，这是模型的第一句话</li>
+<li><code>-&gt; read [ok]</code>：<code>tool_start</code> + 实际执行 + 成功</li>
+<li><code>[turn 2] …</code>：第二次调模型，此时上下文里已经有 <code>role: &quot;tool&quot;</code>，mock 走规则 2</li>
+<li><code>roles: user → assistant → tool → assistant</code>：四条的完整顺序。<strong>这个顺序就是
+agent 的全部记忆</strong>，没有别的隐藏状态</li>
+</ul>
+<h3 id="sec-21-两个故意做坏的实验">两个故意做坏的实验</h3>
+<p>把工具列表清空再跑，结果完全不同：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">A 没有工具: turns=1 stop=stop roles=user&gt;assistant</span><span class="ln">B 只给一轮: turns=1 stop=maxTurns roles=user&gt;assistant&gt;tool</span></code></pre></div>
+<ul>
+<li>A：<code>tools: []</code>，mock 的规则 1 要求 <code>read</code> 存在，条件不成立 → 不发 tool call →
+一轮就停，<code>stop</code>，只有两条消息</li>
+<li>B：<code>maxTurns: 1</code>，工具执行完了，但没机会把结果交回模型 → 卡在 <code>tool</code> 上，
+<code>stopReason</code> 是 <code>maxTurns</code>。<strong>B 看起来「跑通了」，其实是半成品</strong>——这正是
+<code>stopReason</code> 存在的意义</li>
+</ul>
+<p>跑完这两个，你对「停」的理解就从一句话变成一张状态图了。</p>
+<h3 id="sec-22-跑不通时先查这三处">跑不通时先查这三处</h3>
+<p>按命中率排序，本章范围内的故障人都是在这三行里：</p>
+<ol>
+<li><strong><code>roles</code> 里没有 <code>tool</code></strong>：工具没执行。先看 <code>content</code> 里到底有没有 <code>toolCall</code>，
+再看 <code>tools.find</code> 是不是名字没对上</li>
+<li><strong><code>turns=1</code> 就 <code>stop</code></strong>：模型没打算用工具。mock 的话看四个条件，真模型的话
+看 <code>description</code> 写清楚没有</li>
+<li><strong><code>stop=maxTurns</code> 但答案不完整</strong>：轮次给少了。一次「说一句 + 调工具」占一轮，
+别按「一轮 = 一问一答」算</li>
+</ol>
+<p>就这三条，能把本章 90% 的挫败省下来。</p>
 <hr>
-<h2 id="sec-6-六-六组实验-每改一处-看一个数">六、六组实验：每改一处，看一个数</h2>
+<h2 id="sec-23-六-本章代码地图">六、本章代码地图</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th>#</th>
-<th>改什么</th>
-<th>预期看到</th>
-<th>说明</th>
+<th>文件</th>
+<th>关键符号</th>
+<th>下一章怎么用</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td><code>--max-turns 1</code></td>
-<td><code>[maxTurns]</code>，消息 3 条</td>
-<td>轮次用尽也算正常退出</td>
+<td><code>src/types.ts</code></td>
+<td><code>AgentMessage</code> / <code>Message</code> / <code>Provider</code></td>
+<td>E02 靠这两层的差做投影</td>
 </tr>
 <tr>
-<td>2</td>
-<td>mock 里 <code>id</code> 改成空字符串</td>
-<td>工具结果 <code>toolCallId</code> 为空</td>
-<td>真接口会 400（E03 验证）</td>
+<td><code>src/provider/mock.ts</code></td>
+<td><code>createMockProvider()</code></td>
+<td>E03 换成真 SSE，接口不变</td>
 </tr>
 <tr>
-<td>3</td>
-<td>删掉 <code>read.description</code></td>
-<td>不调用工具，直接回显</td>
-<td>描述是模型选工具的唯一依据</td>
+<td><code>src/loop.ts</code></td>
+<td><code>runAgent()</code> / <code>project</code> 参数</td>
+<td>E02 传投影，E04 换工具调度</td>
 </tr>
 <tr>
-<td>4</td>
-<td>输入「读 不存在」</td>
-<td><code>[err]</code>，但循环继续</td>
-<td>工具失败不炸循环</td>
-</tr>
-<tr>
-<td>5</td>
-<td>同一条命令连跑两次</td>
-<td>输出逐字节相同</td>
-<td>假模型的价值：可复现</td>
-</tr>
-<tr>
-<td>6</td>
-<td><code>npm test</code></td>
-<td>11 个测试全绿</td>
-<td>事件顺序也在测</td>
+<td><code>src/demo.ts</code></td>
+<td><code>read</code> / <code>trace</code></td>
+<td>E08 长成 <code>cli.ts</code></td>
 </tr>
 </tbody>
 </table></div>
-<p>实验 2 值得先记一笔：<code>toolCallId</code> 唯一对应「哪次调用」，不是「哪个工具」。
-模型并行发两个 <code>read</code> 时，只有 id 能区分结果归谁。真 provider 少这个字段
-会直接拒绝请求。</p>
-<p>实验 5 的判据是 <code>diff</code>，不是「看起来一样」：</p>
-<div class="code-block" data-lang="bash">
-<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node src/cli.ts --mock "读 README" &gt; a.txt</span><span class="ln">node src/cli.ts --mock "读 README" &gt; b.txt</span><span class="ln">fc /b a.txt b.txt</span></code></pre></div>
-<p>（PowerShell 下用 <code>Compare-Object (Get-Content a.txt) (Get-Content b.txt)</code>。）</p>
-<hr>
-<h2 id="sec-7-七-小结">七、小结</h2>
-<p>410 行，五个文件，循环的形状和三万行的 Pi 是同一个：消息进、流式出、
-判断 <code>stopReason</code>、执行工具、回填、再来一轮。</p>
-<p>这一章真正学到的不是「怎么写 while」，而是三件事：</p>
+<p>整包 830 行，本章只做了 318 行——剩下 512 行是后四章要补的肉：真模型（148）、
+工具与写锁（61）、压缩（51）、会话（37）、消息投影（33）、fixture 回放（85）
+和命令行（97）。</p>
+<h3 id="sec-24-自检">自检</h3>
 <ol>
-<li><strong>先定契约，再写逻辑。</strong> 类型改一次，循环跟着改一次，成本是乘法的。</li>
-<li><strong>执行工具的是循环，不是模型。</strong> 模型只提案，循环才有权限。</li>
-<li><strong>失败是数据。</strong> 工具抛错变成一条带 <code>isError</code> 的结果，而不是异常冒泡。</li>
+<li>把 <code>mock.ts</code> 里 <code>stopReason: &quot;toolUse&quot;</code> 改成 <code>&quot;stop&quot;</code>，输出哪一行会变？
+<code>loop.ts</code> 的哪个分支受影响？</li>
+<li>如果 <code>loop.ts</code> 在 <code>for await</code> 之后、执行工具之前 <code>return</code>，<code>roles</code> 会是
+什么？<code>stopReason</code> 呢？</li>
+<li><code>demo.ts</code> 里把 <code>execute</code> 改成 <code>throw new Error(&quot;boom&quot;)</code>，再跑一遍——会停在
+哪？要跑几次才会变成 <code>error</code>？</li>
 </ol>
+<p>参考答案（先自己跑再看）：</p>
+<p><strong>第 1 题</strong>：屏幕输出不变，只差最后一条 assistant 消息里的 <code>stopReason</code> 字段。
+因为 mock 只在 <code>done</code> 里报原因，而那个原因此刻只用于写进消息和
+<code>result.stopReason</code>。</p>
+<p><strong>第 2 题</strong>：<code>roles: user → assistant</code>，<code>stopReason: &quot;maxTurns&quot;</code>。注意不是
+<code>stop</code>——<code>stop</code> 的初始值就是 <code>maxTurns</code>，这一轮没走到出口判断就被 <code>return</code>
+截断了，兜底值直接生效。<strong>这就是为什么「提前 return」是天坑：你拿到的不是
+「正常结束」。</strong></p>
+<p><strong>第 3 题</strong>：停不下来，会像平常一样跑到第二轮就正常结束。工具报错被当成消息
+吞了：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">turns=2 stop=stop</span><span class="ln">user &gt; assistant &gt; tool(err) &gt; assistant</span><span class="ln">{"content":"boom","isError":true,"role":"tool",…}</span></code></pre></div>
+<p>要连续三次失败才会变成 <code>error</code>，而 mock 拿到 tool 结果后不会再发 toolCall，
+所以本章<strong>跑不出 error 出口</strong>——想看它，得让 provider 反复吐同一个 call，
+那要到 E03 才会自然碰到。</p>
+<h3 id="sec-25-与-pi-的对照-可选-不需要打开源码">与 Pi 的对照（可选，不需要打开源码）</h3>
+<p>你写的 112 行，在 Pi 里是 <code>packages/agent/src/agent-loop.ts</code>：外层
+<code>agent-loop.ts:188</code> 一个 <code>while (true)</code>，内层 <code>agent-loop.ts:192</code> 处理工具调用
+与待发消息。结构同构，多出来的是并发、取消、流控和持久化。</p>
+<p>真要看的时候再去看，现在<strong>你手上已经有一份能跑的了</strong>。</p>
 <hr>
-<h2 id="sec-8-八-概念回顾">八、概念回顾</h2>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>概念</th>
-<th>一句话</th>
-<th>代码位置</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>ProviderChunk</code></td>
-<td>流式增量，最后一段是 <code>done</code></td>
-<td><code>src/types.ts</code></td>
-</tr>
-<tr>
-<td><code>stopReason</code></td>
-<td>这一轮为什么结束</td>
-<td><code>src/types.ts</code></td>
-</tr>
-<tr>
-<td><code>toolCallId</code></td>
-<td>哪一次调用的回执号</td>
-<td><code>src/types.ts</code></td>
-</tr>
-<tr>
-<td>工具契约</td>
-<td>name + description + parameters + execute</td>
-<td><code>src/tools.ts</code></td>
-</tr>
-<tr>
-<td>三处出口</td>
-<td>stop / maxTurns / error</td>
-<td><code>src/loop.ts</code></td>
-</tr>
-<tr>
-<td>事件</td>
-<td>只向外发，不参与判断</td>
-<td><code>src/types.ts</code></td>
-</tr>
-</tbody>
-</table></div>
-<hr>
-<h2 id="sec-9-九-练习">九、练习</h2>
-<ol>
-<li><strong>（L2）</strong> 加一个 <code>--max-turns 0</code> 的边界用例，看返回什么；补一个测试钉住它。</li>
-<li><strong>（L2）</strong> 把 <code>read</code> 的截断从 4000 改成 200，用一个 1KB 文件验证返回值长度。</li>
-<li><strong>（L3）</strong> 用一句话解释：为什么 <code>toolCallId</code> 不能换成 <code>toolName</code>？举一个会出错的场景。</li>
-<li><strong>（L4）</strong> 现在 mock 只会选 <code>read</code>。给它加一条「输入里有『写』就选 write」的规则，
-并解释为什么这个改动不需要动 <code>loop.ts</code>。</li>
-</ol>
-<hr>
-<h2 id="sec-10-十-三个常见误区">十、三个常见误区</h2>
-<p><strong>「provider 应该负责执行工具，因为它知道模型想要什么。」</strong>
-它只知道「想要」，不知道「能不能」。权限、路径校验、超时、并发，全在宿主
-这一侧。Pi 把 provider 放在 <code>packages/ai</code>，工具放在 <code>coding-agent</code>，就是
-不让这两件事相互污染。</p>
-<p><strong>「工具报错就 return 一句错误文本，简单。」</strong>
-那模型无法区分「命令输出里有 error 字样」和「命令根本没跑起来」。Pi 的
-<code>ToolResultMessage</code> 有 <code>isError</code> 字段，就是为了让这两件事在类型上分开。</p>
-<p><strong>「maxTurns 只是防死循环的保险，平时用不到。」</strong>
-它是产品语义：一次用户输入最多允许几轮工具。调小了任务做不完，调大了
-一次误触能烧掉整月额度。E04 会把它当参数改一次，你会看到差别。</p>
-<hr>
-<h2 id="sec-11-十一-自检">十一、自检</h2>
-<ol>
-<li>不看代码，说出 <code>loop.ts</code> 的三处出口和各自的 <code>stopReason</code>。</li>
-<li><code>read</code> 抛错后，下一轮模型看到的消息长什么样？<code>isError</code> 在哪一层被设上？</li>
-<li><strong>（L3）</strong> 如果让你把 <code>while</code> 换成递归，需要额外保存哪两个变量？为什么 Pi
-没有这么写？</li>
-</ol>
-<hr>
-<h2 id="sec-12-十二-下一步">十二、下一步</h2>
-<p>骨架跑通了，但它现在只有一个角色：模型说什么，就原样发回去。真实会话里
-还有系统提示、工具结果、压缩摘要、只给自己看的备注——它们不都是「给模型
-看的消息」。</p>
-<p>E02 加一层闸门：消息从四种变五种，多出来的那种永远不发给模型。</p>
-<h3 id="sec-13-源码索引">源码索引</h3>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>主题</th>
-<th>本章</th>
-<th>Pi v1.4.0</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>内层/外层循环</td>
-<td><code>src/loop.ts</code></td>
-<td><code>packages/agent/src/agent-loop.ts</code></td>
-</tr>
-<tr>
-<td>工具契约</td>
-<td><code>src/tools.ts</code></td>
-<td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
-</tr>
-<tr>
-<td>provider 契约</td>
-<td><code>src/types.ts</code></td>
-<td><code>packages/ai/src/types.ts</code></td>
-</tr>
-<tr>
-<td>三处出口</td>
-<td><code>src/loop.ts</code></td>
-<td><code>agent-loop.ts:188</code>、<code>:254</code></td>
-</tr>
-<tr>
-<td>CLI 入口</td>
-<td><code>src/cli.ts</code></td>
-<td><code>packages/coding-agent/src/cli.ts</code></td>
-</tr>
-</tbody>
-</table></div>
+<h2 id="sec-26-七-下一章">七、下一章</h2>
+<p>现在这个循环有个不舒服的地方：<code>role: &quot;note&quot;</code> 定义了却没用，<code>project</code> 参数一直
+是空的。E02 就填这个洞——<strong>四种消息给模型，第五种给自己</strong>，以及为什么「把摘要
+塞回上下文」这件事，一不小心就会变成「模型看见了自己不该看的东西」。</p>
 
 <div class="pager">
       <a class="prev" href="m15-schema-telemetry.html"><span class="lbl">上一篇</span>契约与遥测 —— 一份声明，五种解释</a>
       <a class="next" href="e02-memory.html"><span class="lbl">下一篇</span>记忆 —— 四种给模型，多一种给自己</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先定形状-再写逻辑" class="">一、先定形状，再写逻辑</a><a href="#sec-2-二-假模型-三条规则-够用就好" class="">二、假模型：三条规则，够用就好</a><a href="#sec-3-三-循环-一个-while-三处出口" class="">三、循环：一个 while，三处出口</a><a href="#sec-4-四-工具-一个形状-两个实现" class="">四、工具：一个形状，两个实现</a><a href="#sec-5-五-跑起来" class="">五、跑起来</a><a href="#sec-6-六-六组实验-每改一处-看一个数" class="">六、六组实验：每改一处，看一个数</a><a href="#sec-7-七-小结" class="">七、小结</a><a href="#sec-8-八-概念回顾" class="">八、概念回顾</a><a href="#sec-9-九-练习" class="">九、练习</a><a href="#sec-10-十-三个常见误区" class="">十、三个常见误区</a><a href="#sec-11-十一-自检" class="">十一、自检</a><a href="#sec-12-十二-下一步" class="">十二、下一步</a><a href="#sec-13-源码索引" class="lv3">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先定契约-再写逻辑" class="">一、先定契约，再写逻辑</a><a href="#sec-2-1-stopreason-先把-怎么停-定死" class="lv3">1. StopReason：先把「怎么停」定死</a><a href="#sec-3-2-contentblock-一条消息里能装什么" class="lv3">2. ContentBlock：一条消息里能装什么</a><a href="#sec-4-3-message-四种-vs-agentmessage-五种" class="lv3">3. Message 四种 vs AgentMessage 五种</a><a href="#sec-5-4-tool-描述是给模型看的" class="lv3">4. Tool：描述是给模型看的</a><a href="#sec-6-5-provider-为什么返回-chunk-流-而不是一条消息" class="lv3">5. Provider：为什么返回 chunk 流，而不是一条消息</a><a href="#sec-7-五个契约怎么串起来" class="lv3">五个契约怎么串起来</a><a href="#sec-8-二-先写假模型" class="">二、先写假模型</a><a href="#sec-9-换成真模型-要改几行" class="lv3">换成真模型，要改几行</a><a href="#sec-10-三-循环本体" class="">三、循环本体</a><a href="#sec-11-1-参数为什么同时有-agentmessage-和-message" class="lv3">1. 参数为什么同时有 AgentMessage[] 和 Message[]</a><a href="#sec-12-2-内层-for-await-三个分支" class="lv3">2. 内层 for await：三个分支</a><a href="#sec-13-3-reason-只有一个来源" class="lv3">3. reason 只有一个来源</a><a href="#sec-14-4-assistant-消息必须在执行工具之前入栈" class="lv3">4. assistant 消息必须在执行工具之前入栈</a><a href="#sec-15-5-errors-是连续计数-不是总数" class="lv3">5. errors 是连续计数，不是总数</a><a href="#sec-16-6-三个出口-一张表" class="lv3">6. 三个出口，一张表</a><a href="#sec-17-为什么外层是-while-内层是-for-await" class="lv3">为什么外层是 while，内层是 for await</a><a href="#sec-18-一个反直觉的细节-工具失败也是消息" class="lv3">一个反直觉的细节：工具失败也是消息</a><a href="#sec-19-四-60-行入口" class="">四、60 行入口</a><a href="#sec-20-五-跑一遍" class="">五、跑一遍</a><a href="#sec-21-两个故意做坏的实验" class="lv3">两个故意做坏的实验</a><a href="#sec-22-跑不通时先查这三处" class="lv3">跑不通时先查这三处</a><a href="#sec-23-六-本章代码地图" class="">六、本章代码地图</a><a href="#sec-24-自检" class="lv3">自检</a><a href="#sec-25-与-pi-的对照-可选-不需要打开源码" class="lv3">与 Pi 的对照（可选，不需要打开源码）</a><a href="#sec-26-七-下一章" class="">七、下一章</a></nav>
 </div>
 </div>
 <script>

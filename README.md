@@ -6,15 +6,15 @@
 
 <sub>上游已发布 v1.5.x；本书钉在 `v1.4.0` 这个 tag 上，文中行号与数字只对这一份有效</sub>
 
-<sub>25 篇 · 167,362 字 · 7,486 行代码 · 约 14 小时读完</sub>
+<sub>25 篇 · 168,654 字 · 7,771 行代码 · 约 14 小时读完</sub>
 
 <br>
 
 [![read online](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%98%85%E8%AF%BB-daniel--csvw.github.io-eb6c36?style=for-the-badge&labelColor=1a1d28)](https://daniel-csvw.github.io/pi-agent-book/)
 
 [![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-25-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-167%2C362-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-7%2C486%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-168%2C654-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-7%2C771%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
 [![pi-agent](https://img.shields.io/badge/pi--agent-v1.4.0-4f5d75?style=flat-square)](https://github.com/earendil-works/pi)
 
 **[马上开始读 →](https://daniel-csvw.github.io/pi-agent-book/)**
@@ -68,7 +68,7 @@
 | 依赖与发布 | `save-exact` 加两天冷静期，一条供应链是怎么被钉住的 |
 | TypeScript 语法（附录 B） | `#` 私有字段、`<const T>`、重载、映射类型：源码为什么非得这么写 |
 | 合龙（附录 D） | 一条请求依次落过二十五个落点，每站都标了出处章节 |
-| 造物（Part E） | 690 行自造一个零依赖内核；再拉一份 v1.4.0 工作副本改 Pi 本体：调参、加工具、写扩展 |
+| 造物（Part E） | 830 行自造一个零依赖内核；再拉一份 v1.4.0 工作副本改 Pi 本体：调参、加工具、写扩展 |
 
 ---
 
@@ -115,10 +115,10 @@
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| E01 | [骨架 —— 先用假模型，把循环跑通](https://daniel-csvw.github.io/pi-agent-book/modules/e01-skeleton.html) | 2,201 字 · 73 行 |
-| E02 | [记忆 —— 四种给模型，多一种给自己](https://daniel-csvw.github.io/pi-agent-book/modules/e02-memory.html) | 1,867 字 · 44 行 |
-| E03 | [接口 —— 先抽出来，再换一家模型](https://daniel-csvw.github.io/pi-agent-book/modules/e03-interface.html) | 1,472 字 · 42 行 |
-| E04 | [调参 —— 先改一个数字，再谈改代码](https://daniel-csvw.github.io/pi-agent-book/modules/e04-tuning.html) | 2,176 字 · 21 行 |
+| E01 | [骨架 —— 从空目录，到跑通第一个循环](https://daniel-csvw.github.io/pi-agent-book/modules/e01-skeleton.html) | 3,285 字 · 352 行 |
+| E02 | [记忆 —— 四种给模型，多一种给自己](https://daniel-csvw.github.io/pi-agent-book/modules/e02-memory.html) | 1,869 字 · 44 行 |
+| E03 | [接口 —— 先抽出来，再换一家模型](https://daniel-csvw.github.io/pi-agent-book/modules/e03-interface.html) | 1,483 字 · 42 行 |
+| E04 | [调参 —— 先改一个数字，再谈改代码](https://daniel-csvw.github.io/pi-agent-book/modules/e04-tuning.html) | 2,302 字 · 24 行 |
 | E05 | [加工具 —— 从契约到渲染，一个新能力](https://daniel-csvw.github.io/pi-agent-book/modules/e05-tool.html) | 1,564 字 · 17 行 |
 | E06 | [写扩展 —— 三个钩子，一条看不见的消息](https://daniel-csvw.github.io/pi-agent-book/modules/e06-extension.html) | 1,493 字 · 16 行 |
 
@@ -142,7 +142,7 @@
 | 30 分钟 | M01 → M03。先看它凭什么算一个 Agent，再看主循环怎么转 |
 | 半天 | Part A + Part B（M01–M07）。吃透内核，够你改一个自己的 Agent |
 | 全流程 | M01 → M15，再用附录 D 横向复盘一遍，最后用附录 C 把它装成一个 HTTP 服务 |
-| 想自己造一遍 | Part E 的 E01–E03 写 690 行 mini-agent，再用 E04–E06 去改 Pi 本体 |
+| 想自己造一遍 | Part E 的 E01–E03 写 830 行 mini-agent，再用 E04–E06 去改 Pi 本体 |
 
 ```mermaid
 flowchart TB
