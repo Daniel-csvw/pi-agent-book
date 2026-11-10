@@ -4,15 +4,15 @@
 
 **对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent**
 
-<sub>19 篇 · 140,900 字 · 7,159 行源码引用 · 约 12 小时读完</sub>
+<sub>25 篇 · 167,362 字 · 7,486 行代码 · 约 14 小时读完</sub>
 
 <br>
 
 [![read online](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%98%85%E8%AF%BB-daniel--csvw.github.io-eb6c36?style=for-the-badge&labelColor=1a1d28)](https://daniel-csvw.github.io/pi-agent-book/)
 
-[![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-19-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-139%2C600-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![source lines](https://img.shields.io/badge/%E6%BA%90%E7%A0%81%E5%BC%95%E7%94%A8-7%2C118%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-25-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-167%2C362-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-7%2C486%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
 [![pi-agent](https://img.shields.io/badge/pi--agent-v1.4.0-4f5d75?style=flat-square)](https://github.com/earendil-works/pi)
 
 **[马上开始读 →](https://daniel-csvw.github.io/pi-agent-book/)**
@@ -66,6 +66,7 @@
 | 依赖与发布 | `save-exact` 加两天冷静期，一条供应链是怎么被钉住的 |
 | TypeScript 语法（附录 B） | `#` 私有字段、`<const T>`、重载、映射类型：源码为什么非得这么写 |
 | 合龙（附录 D） | 一条请求依次落过二十五个落点，每站都标了出处章节 |
+| 造物（Part E） | 690 行自造一个零依赖内核，再进 `pi-lab/` 调参、加工具、写扩展 |
 
 ---
 
@@ -77,45 +78,58 @@
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M01 | [开篇 —— 为什么 Pi-Agent 值得你花时间](https://daniel-csvw.github.io/pi-agent-book/modules/m01-overview.html) | 7,100 字 · 145 行 |
-| M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 7,100 字 · 251 行 |
+| M01 | [开篇 —— 为什么 Pi-Agent 值得你花时间](https://daniel-csvw.github.io/pi-agent-book/modules/m01-overview.html) | 9,314 字 · 183 行 |
+| M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 7,671 字 · 262 行 |
 
 ### Part B · 内核
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M03 | [Agent Loop —— 两层循环，三条出路](https://daniel-csvw.github.io/pi-agent-book/modules/m03-agent-loop.html) | 10,800 字 · 585 行 |
-| M04 | [模型调用 —— 一行代码背后的十层翻译](https://daniel-csvw.github.io/pi-agent-book/modules/m04-model-call.html) | 8,300 字 · 464 行 |
-| M05 | [工具系统 —— 八个工具，一道文件锁](https://daniel-csvw.github.io/pi-agent-book/modules/m05-tools.html) | 6,200 字 · 218 行 |
-| M06 | [消息系统 —— 四种给模型看，八种给系统记](https://daniel-csvw.github.io/pi-agent-book/modules/m06-messages.html) | 6,200 字 · 166 行 |
-| M07 | [事件驱动 —— 十颗钉子，四十一个挂钩](https://daniel-csvw.github.io/pi-agent-book/modules/m07-event-driven.html) | 6,300 字 · 283 行 |
+| M03 | [Agent Loop —— 两层循环，三条出路](https://daniel-csvw.github.io/pi-agent-book/modules/m03-agent-loop.html) | 13,059 字 · 626 行 |
+| M04 | [模型调用 —— 一行代码背后的十层翻译](https://daniel-csvw.github.io/pi-agent-book/modules/m04-model-call.html) | 9,082 字 · 470 行 |
+| M05 | [工具系统 —— 八个工具，一道文件锁](https://daniel-csvw.github.io/pi-agent-book/modules/m05-tools.html) | 7,210 字 · 225 行 |
+| M06 | [消息系统 —— 四种给模型看，八种给系统记](https://daniel-csvw.github.io/pi-agent-book/modules/m06-messages.html) | 6,744 字 · 170 行 |
+| M07 | [事件驱动 —— 十颗钉子，四十一个挂钩](https://daniel-csvw.github.io/pi-agent-book/modules/m07-event-driven.html) | 6,927 字 · 284 行 |
 
 ### Part C · 上下文工程
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M08 | [上下文装配 —— 八节提示词，一条目录链](https://daniel-csvw.github.io/pi-agent-book/modules/m08-context.html) | 8,900 字 · 538 行 |
-| M09 | [上下文压缩 —— 两道闸门，两种摘要](https://daniel-csvw.github.io/pi-agent-book/modules/m09-compaction.html) | 10,100 字 · 1,062 行 |
-| M10 | [会话 —— 从会话树到持久运行时](https://daniel-csvw.github.io/pi-agent-book/modules/m10-session.html) | 10,700 字 · 495 行 |
+| M08 | [上下文装配 —— 八节提示词，一条目录链](https://daniel-csvw.github.io/pi-agent-book/modules/m08-context.html) | 9,551 字 · 553 行 |
+| M09 | [上下文压缩 —— 两道闸门，两种摘要](https://daniel-csvw.github.io/pi-agent-book/modules/m09-compaction.html) | 11,561 字 · 1,034 行 |
+| M10 | [会话 —— 从会话树到持久运行时](https://daniel-csvw.github.io/pi-agent-book/modules/m10-session.html) | 11,449 字 · 513 行 |
 
 ### Part D · 运行时与生态
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M11 | [持久运行时 —— 把 Agent Loop 拆成状态机](https://daniel-csvw.github.io/pi-agent-book/modules/m11-durable.html) | 9,300 字 · 364 行 |
-| M12 | [对象与热重载 —— 改代码为什么不用重启](https://daniel-csvw.github.io/pi-agent-book/modules/m12-chord.html) | 9,000 字 · 329 行 |
-| M13 | [扩展入口 —— MCP 连出去，codemode 收进来](https://daniel-csvw.github.io/pi-agent-book/modules/m13-mcp-codemode.html) | 10,000 字 · 944 行 |
-| M14 | [终端渲染 —— 一个 spinner 只该写 99 个字节](https://daniel-csvw.github.io/pi-agent-book/modules/m14-tui.html) | 9,300 字 · 319 行 |
-| M15 | [契约与遥测 —— 一份声明，五种解释](https://daniel-csvw.github.io/pi-agent-book/modules/m15-schema-telemetry.html) | 10,300 字 · 530 行 |
+| M11 | [持久运行时 —— 把 Agent Loop 拆成状态机](https://daniel-csvw.github.io/pi-agent-book/modules/m11-durable.html) | 9,941 字 · 368 行 |
+| M12 | [对象与热重载 —— 改代码为什么不用重启](https://daniel-csvw.github.io/pi-agent-book/modules/m12-chord.html) | 9,756 字 · 329 行 |
+| M13 | [扩展入口 —— MCP 连出去，codemode 收进来](https://daniel-csvw.github.io/pi-agent-book/modules/m13-mcp-codemode.html) | 10,923 字 · 924 行 |
+| M14 | [终端渲染 —— 一个 spinner 只该写 99 个字节](https://daniel-csvw.github.io/pi-agent-book/modules/m14-tui.html) | 9,949 字 · 319 行 |
+| M15 | [契约与遥测 —— 一份声明，五种解释](https://daniel-csvw.github.io/pi-agent-book/modules/m15-schema-telemetry.html) | 11,403 字 · 534 行 |
+
+### Part E · 造物
+
+| # | 章节 | 篇幅 |
+| --- | --- | --- |
+| E01 | [骨架 —— 先用假模型，把循环跑通](https://daniel-csvw.github.io/pi-agent-book/modules/e01-skeleton.html) | 2,201 字 · 73 行 |
+| E02 | [记忆 —— 四种给模型，多一种给自己](https://daniel-csvw.github.io/pi-agent-book/modules/e02-memory.html) | 1,867 字 · 44 行 |
+| E03 | [接口 —— 先抽出来，再换一家模型](https://daniel-csvw.github.io/pi-agent-book/modules/e03-interface.html) | 1,472 字 · 42 行 |
+| E04 | [调参 —— 先改一个数字，再谈改代码](https://daniel-csvw.github.io/pi-agent-book/modules/e04-tuning.html) | 2,176 字 · 21 行 |
+| E05 | [加工具 —— 从契约到渲染，一个新能力](https://daniel-csvw.github.io/pi-agent-book/modules/e05-tool.html) | 1,564 字 · 17 行 |
+| E06 | [写扩展 —— 三个钩子，一条看不见的消息](https://daniel-csvw.github.io/pi-agent-book/modules/e06-extension.html) | 1,493 字 · 16 行 |
+
+> E01–E03 零依赖、零凭据，`node` 直接跑；E04–E06 进实验副本改真源码，每条实验按「改哪里 / 预期 / 连带 / 回滚」四行交付。
 
 ### 附录
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| APX-1 | [附录 A —— v0.80 → v1.4 迁移对照](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-migration.html) | 3,200 字 · 73 行 |
-| APX-2 | [附录 B —— 读源码用的 TypeScript 速查](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-typescript.html) | 3,600 字 · 166 行 |
-| APX-3 | [附录 C —— 把 Agent 装进你的服务](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-service.html) | 2,900 字 · 220 行 |
-| APX-4 | [附录 D —— 合龙：一次请求，二十五个落点](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-integration.html) | 1,600 字 · 7 行 |
+| APX-1 | [附录 A —— v0.80 → v1.4 迁移对照](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-migration.html) | 3,292 字 · 86 行 |
+| APX-2 | [附录 B —— 读源码用的 TypeScript 速查](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-typescript.html) | 3,722 字 · 166 行 |
+| APX-3 | [附录 C —— 把 Agent 装进你的服务](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-service.html) | 3,339 字 · 220 行 |
+| APX-4 | [附录 D —— 合龙：一次请求，二十五个落点](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-integration.html) | 1,696 字 · 7 行 |
 
 ---
 
@@ -126,13 +140,15 @@
 | 30 分钟 | M01 → M03。先看它凭什么算一个 Agent，再看主循环怎么转 |
 | 半天 | Part A + Part B（M01–M07）。吃透内核，够你改一个自己的 Agent |
 | 全流程 | M01 → M15，再用附录 D 横向复盘一遍，最后用附录 C 把它装成一个 HTTP 服务 |
+| 想自己造一遍 | Part E 的 E01–E03 写 690 行 mini-agent，再用 E04–E06 去改 Pi 本体 |
 
 ```mermaid
 flowchart TB
     A["M01–M02 · 全景"] --> B["M03–M07 · 内核"]
     B --> C["M08–M10 · 上下文工程"]
     C --> D["M11–M15 · 运行时与生态"]
-    D --> E["附录 · 迁移对照 / TS 速查 / 上线 / 合龙"]
+    D --> E["E01–E06 · 造物"]
+    E --> F["附录 · 迁移对照 / TS 速查 / 上线 / 合龙"]
 ```
 
 ---
