@@ -1,0 +1,9 @@
+{
+  "name": "mini-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/cli.ts",
+    "test": "node --test \"test/*.test.ts\""
+  }
+}

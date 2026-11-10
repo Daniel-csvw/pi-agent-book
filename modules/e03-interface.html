@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>接口 —— 先抽出来，再换一家模型 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="active">
+                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
+                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
+                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
+                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E03</div>
+      <h1>接口 —— 先抽出来，再换一家模型</h1>
+      <div class="module-meta">1,472 字 · 含 42 行代码 · 约 10 分钟</div>
+    </header>
+    <p>E02 结束时，<code>loop.ts</code> 还是写死的：<code>createMockProvider()</code>。想接真模型，按理
+只该改一行。但大多数第一版做不到——它们把「发请求」写进了循环里，于是换
+provider 等于重写循环。</p>
+<p>这一章只做一件事：<strong>把 provider 抽成接口，然后证明它真的可换。</strong></p>
+<p>三个问题：</p>
+<ol>
+<li>换一家模型，最少要改几行？</li>
+<li>没有 key、没有网络时，怎么验证「换 provider 这条路是通的」？</li>
+<li>你写的这 690 行，对应 Pi 的哪几处？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">             loop.ts</span><span class="ln">                |</span><span class="ln">                |  只认 Provider 这个接口</span><span class="ln">                v</span><span class="ln">          +---- Provider ----+</span><span class="ln">          |                  |</span><span class="ln">   provider/mock.ts   provider/fixture.ts   provider/openai.ts</span><span class="ln">     (假模型)          (回放 SSE)            (真 HTTP)</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-接口只有三样东西">一、接口只有三样东西</h2>
+<p>&lt;!-- file: examples/mini-agent/src/types.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Provider {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  <span class="tok-fn">stream</span>(</span><span class="ln">    messages: Message[],</span><span class="ln">    tools: Tool[],</span><span class="ln">    signal?: AbortSignal,</span><span class="ln">  ): AsyncIterable&lt;ProviderChunk&gt;;</span><span class="ln">}</span></code></pre></div>
+<p><code>messages</code> 是历史，<code>tools</code> 是这一轮可用的工具，<code>signal</code> 是取消。三样缺一
+不可，但也就这三样：</p>
+<ul>
+<li>没有 <code>onText</code> 回调——流式用 <code>AsyncIterable</code> 表达，调用方 <code>for await</code> 就行；</li>
+<li>没有 <code>retry</code>——重试策略属于宿主，不属于方言；</li>
+<li>没有 <code>apiKey</code>——凭据在构造 provider 时给，循环不该看见它。</li>
+</ul>
+<p>接口越小，可换的空间越大。Pi 的 <code>packages/ai/src/types.ts</code> 里 <code>Provider</code>
+也是这个形状，只是它多了一层「十种方言 → 统一事件」的翻译。</p>
+<hr>
+<h2 id="sec-2-二-先写-fixture-不联网也能跑完整条路">二、先写 fixture：不联网也能跑完整条路</h2>
+<p>真模型的问题不是难，是不可控。录一份 SSE 回复，按行重放，就能把「解析 +
+翻译 + 进循环」这条路先跑通。</p>
+<p><code>fixtures/openai-basic.jsonl</code> 四行，最后一行是 <code>[DONE]</code>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">data: {"choices":[{"delta":{"content":"你好"}}]}</span><span class="ln">data: {"choices":[{"delta":{"content":"，这是一份录好的回复。"}}]}</span><span class="ln">data: {"choices":[{"delta":{},"finish_reason":"stop"}]}</span><span class="ln">data: [DONE]</span></code></pre></div>
+<p>解析器要做三件事：拆掉 <code>data:</code> 前缀、跳过 <code>[DONE]</code>、把 <code>delta.content</code>
+变成 <code>text</code> chunk。工具调用稍微麻烦一点，参数是分片到达的，要按 <code>index</code>
+拼起来：</p>
+<p>&lt;!-- file: examples/mini-agent/src/provider/fixture.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">      <span class="tok-kw">if</span> (call.id) slot.id = call.id;</span><span class="ln">      <span class="tok-kw">if</span> (call.<span class="tok-kw">function</span>?.name) slot.name += call.<span class="tok-kw">function</span>.name;</span><span class="ln">      <span class="tok-kw">if</span> (call.<span class="tok-kw">function</span>?.arguments) slot.args += call.<span class="tok-kw">function</span>.arguments;</span><span class="ln">      pending.<span class="tok-kw">set</span>(index, slot);</span></code></pre></div>
+<p>跑起来：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --fixture "你好"</span></code></pre></div>
+<p>真实输出：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[turn 1] 你好，这是一份录好的回复。</span><span class="ln">[stop]</span></code></pre></div>
+<p>关键不在「能输出」，而在<strong>它走的是和真模型完全相同的代码路径</strong>：同一个
+<code>loop.ts</code>、同一个 <code>toLlm</code>、同一套事件。fixture 不是玩具，是回归测试的底座。</p>
+<hr>
+<h2 id="sec-3-三-真模型只换三个值">三、真模型只换三个值</h2>
+<p><code>provider/openai.ts</code> 和 fixture 的差别，只有「数据从哪来」：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  <span class="tok-kw">const</span> env = process.env.OPENAI_BASE_URL ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">const</span> baseUrl = (options.baseUrl ?? env).<span class="tok-fn">replace</span>(/\/$/, <span class="tok-str">""</span>);</span><span class="ln">  <span class="tok-kw">const</span> apiKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">const</span> model = options.model ?? process.env.OPENAI_MODEL ?? <span class="tok-str">"gpt-4o-mini"</span>;</span></code></pre></div>
+<p>同一个 <code>stream</code> 方法，前半段把消息转成供应商格式，后半段把 SSE 翻回
+<code>ProviderChunk</code>。转换函数里最值得看的是 assistant 消息：</p>
+<p>&lt;!-- file: examples/mini-agent/src/provider/openai.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">      <span class="tok-kw">const</span> calls = message.content</span><span class="ln">        .<span class="tok-fn">filter</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>)</span><span class="ln">        .<span class="tok-kw">map</span>((block) =&gt; ({</span><span class="ln">          id: block.id,</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"function"</span>,</span><span class="ln">          <span class="tok-kw">function</span>: {</span><span class="ln">            name: block.name,</span><span class="ln">            arguments: JSON.<span class="tok-fn">stringify</span>(block.args),</span><span class="ln">          },</span><span class="ln">        }));</span></code></pre></div>
+<p>这里有一个不可协商的细节：<code>arguments</code> 必须是<strong>字符串</strong>，不是对象。你在
+自己的消息类型里存的是 <code>Record&lt;string, unknown&gt;</code>，到了线上要序列化一次；
+读回来时再 <code>JSON.parse</code> 一次。忘了任何一次，接口都会报 400，而且错误信息
+通常只说「invalid tool call」，不告诉你是哪一边。</p>
+<p>凭据缺失时，它会立刻失败，而不是等 30 秒超时：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Error: 缺 OPENAI_BASE_URL 或 OPENAI_API_KEY</span></code></pre></div>
+<p>这是把「配置错误」和「网络错误」分开的最简单办法。</p>
+<hr>
+<h2 id="sec-4-四-毕业判据-我的-690-行对应-pi-的-9-处">四、毕业判据：我的 690 行对应 Pi 的 9 处</h2>
+<p>到这儿，mini-agent 一共有 690 行源码、150 行测试。它当然不是 Pi，但它把
+Pi 的骨架走了一遍。逐项对：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你的文件</th>
+<th>干什么</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/types.ts</code> 的 <code>Provider</code></td>
+<td>provider 契约</td>
+<td><code>packages/ai/src/types.ts</code></td>
+</tr>
+<tr>
+<td><code>src/loop.ts</code> 内层</td>
+<td>工具循环</td>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+</tr>
+<tr>
+<td><code>src/loop.ts</code> 外层</td>
+<td>轮次与出口</td>
+<td><code>packages/agent/src/agent.ts</code></td>
+</tr>
+<tr>
+<td><code>src/types.ts</code> 消息联合</td>
+<td>四类消息</td>
+<td><code>packages/agent/src/types.ts</code></td>
+</tr>
+<tr>
+<td><code>src/provider/*.ts</code></td>
+<td>流式翻译</td>
+<td><code>packages/agent/src/stream-fn.ts</code></td>
+</tr>
+<tr>
+<td><code>src/loop.ts</code> 的 emit</td>
+<td>事件出口</td>
+<td><code>packages/agent/src/proxy.ts</code></td>
+</tr>
+<tr>
+<td><code>src/cli.ts</code></td>
+<td>宿主入口</td>
+<td><code>packages/coding-agent/src/cli.ts</code></td>
+</tr>
+<tr>
+<td><code>src/tools.ts</code></td>
+<td>工具契约</td>
+<td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
+</tr>
+<tr>
+<td><code>src/messages.ts</code></td>
+<td>消息闸门</td>
+<td><code>packages/coding-agent/src/core/messages.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Pi 的 <code>packages/agent/src</code> 正好六个文件：<code>agent-loop</code> / <code>agent</code> / <code>types</code> /
+<code>stream-fn</code> / <code>proxy</code> / <code>index</code>。你写的七处，落在这六个文件加一个工具目录里。</p>
+<p>「毕业」的标准不是行数，是这张表：<strong>随便指一处，你能说出它为什么在那，
+以及少了他会坏在哪。</strong> 说不出来的那一行，回去重读对应章节。</p>
+<hr>
+<h2 id="sec-5-五-五组实验">五、五组实验</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>做什么</th>
+<th>判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>--fixture &quot;你好&quot;</code></td>
+<td>输出两行，<code>[stop]</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>清空 <code>OPENAI_API_KEY</code> 再 <code>--openai</code></td>
+<td>立刻抛「缺 ...」</td>
+</tr>
+<tr>
+<td>3</td>
+<td>改 fixture 里的「你好」为「测试」</td>
+<td>输出跟着变，循环代码一行没动</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>writeTool.execute({path:&quot;tmp-w.txt&quot;,text:&quot;hi&quot;})</code></td>
+<td>返回 <code>wrote 2 chars to tmp-w.txt</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>同一命令跑两次</td>
+<td>输出逐字节相同</td>
+</tr>
+</tbody>
+</table></div>
+<p>实验 3 是这一章的核心判据：<strong>数据变了，代码不用变。</strong> 如果你改一行 fixture
+就要动循环，说明 provider 还没抽干净。</p>
+<p>实验 5 证明 fixture 是可回归的：真模型做不到逐字节相同，录制回放可以。
+这就是为什么 CI 里跑 fixture、不跑真模型。</p>
+<hr>
+<h2 id="sec-6-六-小结">六、小结</h2>
+<ul>
+<li>接口三样：历史、工具、取消信号；其余都别进。</li>
+<li>fixture 是为了让「换 provider」这条路离线可测，不是为了显得完整。</li>
+<li>真模型只差三个值：baseURL、key、model。</li>
+<li>毕业靠对照表，不靠行数。</li>
+</ul>
+<hr>
+<h2 id="sec-7-七-概念回顾">七、概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>一句话</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Provider</code></td>
+<td>只要三样输入，吐 chunk</td>
+<td><code>src/types.ts</code></td>
+</tr>
+<tr>
+<td>fixture</td>
+<td>录制 SSE，离线回放</td>
+<td><code>src/provider/fixture.ts</code></td>
+</tr>
+<tr>
+<td><code>wireMessages</code></td>
+<td>本地消息 → 供应商格式</td>
+<td><code>src/provider/openai.ts</code></td>
+</tr>
+<tr>
+<td><code>arguments</code></td>
+<td>线上是字符串，本地是对象</td>
+<td><code>src/provider/openai.ts</code></td>
+</tr>
+<tr>
+<td>对照表</td>
+<td>九处，一处一文件</td>
+<td>本章 §四</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-8-八-练习">八、练习</h2>
+<ol>
+<li><strong>（L2）</strong> 给 fixture 加一份带工具调用的录制，验证 <code>toolCall</code> 参数能拼完整。</li>
+<li><strong>（L2）</strong> 把 <code>OPENAI_MODEL</code> 默认值改掉，确认请求体里的 <code>model</code> 跟着变（打印 body 即可）。</li>
+<li><strong>（L3）</strong> 为什么 <code>signal</code> 要作为参数传给 <code>stream</code>，而不是在 provider 内部自己建 <code>AbortController</code>？</li>
+<li><strong>（L4）</strong> 你要接一家返回 JSON（非流式）的供应商。说出最少要改哪几个文件、哪几个函数，以及为什么循环不用动。</li>
+</ol>
+<hr>
+<h2 id="sec-9-九-三个常见误区">九、三个常见误区</h2>
+<p><strong>「fixture 是假的，测了不算。」</strong>
+它测的恰恰是最容易出错的部分：分片拼装、<code>finish_reason</code> 映射、工具参数
+序列化。真模型只会把这些错误放大，不会帮你发现。</p>
+<p><strong>「先接真模型，跑通再抽接口。」</strong>
+跑通之后你就不想抽了，因为循环里已经混进了 URL、header 和重试。抽接口的
+成本在第一周最低，之后每天都在涨。</p>
+<p><strong>「provider 应该自己处理超时和重试。」</strong>
+超时属于调用策略，重试属于产品决策（要不要让用户看到重试）。放进 provider
+之后，换个模型就得重写一遍策略。</p>
+<hr>
+<h2 id="sec-10-十-自检">十、自检</h2>
+<ol>
+<li>不看代码，说出 <code>Provider</code> 的三个参数和返回类型。</li>
+<li><code>arguments</code> 在哪两个位置各序列化/反序列化一次？漏了哪边会报什么？</li>
+<li><strong>（L3）</strong> 如果供应商的流里没有 <code>[DONE]</code>，只有 <code>finish_reason</code>，你的解析器
+还能停吗？哪一行负责这件事？</li>
+</ol>
+<hr>
+<h2 id="sec-11-十一-下一步">十一、下一步</h2>
+<p>前半到此结束。你有了一个能跑、能换模型、能存会话、能压缩的 690 行内核，
+也知道它对应 Pi 的哪 9 处。</p>
+<p>后半换战场：不再写自己的代码，进 <code>pi-lab/</code> 改真源码。E04 先不改代码——
+只改六个数字和配置，看行为怎么变。</p>
+<h3 id="sec-12-源码索引">源码索引</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本章</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>provider 契约</td>
+<td><code>src/types.ts</code></td>
+<td><code>packages/ai/src/types.ts</code></td>
+</tr>
+<tr>
+<td>流式翻译</td>
+<td><code>src/provider/fixture.ts</code></td>
+<td><code>packages/agent/src/stream-fn.ts</code></td>
+</tr>
+<tr>
+<td>消息序列化</td>
+<td><code>src/provider/openai.ts</code></td>
+<td><code>packages/ai/src/api/*</code></td>
+</tr>
+<tr>
+<td>循环</td>
+<td><code>src/loop.ts</code></td>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+</tr>
+<tr>
+<td>宿主</td>
+<td><code>src/cli.ts</code></td>
+<td><code>packages/coding-agent/src/cli.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="e02-memory.html"><span class="lbl">上一篇</span>记忆 —— 四种给模型，多一种给自己</a>
+      <a class="next" href="e04-tuning.html"><span class="lbl">下一篇</span>调参 —— 先改一个数字，再谈改代码</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-接口只有三样东西" class="">一、接口只有三样东西</a><a href="#sec-2-二-先写-fixture-不联网也能跑完整条路" class="">二、先写 fixture：不联网也能跑完整条路</a><a href="#sec-3-三-真模型只换三个值" class="">三、真模型只换三个值</a><a href="#sec-4-四-毕业判据-我的-690-行对应-pi-的-9-处" class="">四、毕业判据：我的 690 行对应 Pi 的 9 处</a><a href="#sec-5-五-五组实验" class="">五、五组实验</a><a href="#sec-6-六-小结" class="">六、小结</a><a href="#sec-7-七-概念回顾" class="">七、概念回顾</a><a href="#sec-8-八-练习" class="">八、练习</a><a href="#sec-9-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-10-十-自检" class="">十、自检</a><a href="#sec-11-十一-下一步" class="">十一、下一步</a><a href="#sec-12-源码索引" class="lv3">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

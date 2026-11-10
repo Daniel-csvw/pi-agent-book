@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>骨架 —— 先用假模型，把循环跑通 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="active">
+                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
+                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
+                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
+                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E01</div>
+      <h1>骨架 —— 先用假模型，把循环跑通</h1>
+      <div class="module-meta">2,201 字 · 含 73 行代码 · 约 12 分钟</div>
+    </header>
+    <p>M03 里那张「一次模型调用」的图，你可能已经看过三遍：发消息、收流、判断
+<code>stopReason</code>、执行工具、把结果塞回去、再来一轮。看懂和写出来之间，隔着
+一层很实在的东西——<strong>你会不会在第一次跑不通的时候，知道该怀疑哪一行。</strong></p>
+<p>这一章我们不看 Pi，先自己写一个 410 行的 mini-agent。它不 import 任何外部
+依赖，模型是假的，工具只有两个，测试 11 个。目标不是做一个能用的 agent，
+而是把循环的形状钉死；等你在 E04 打开真源码，会发现 Pi 多出来的全是
+「在这根骨架上补的肉」。</p>
+<p>三个问题，读完应该能答：</p>
+<ol>
+<li>一个 agent 最小需要几个文件，各自负责什么？</li>
+<li>模型只会说「我要调 read」，真正去调它的是谁？</li>
+<li>循环有哪几种结束方式，凭什么说「停」？</li>
+</ol>
+<p>先看全景。整条链路只有五个文件，箭头方向就是数据流方向：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  cli.ts        读一行输入，打印事件</span><span class="ln">    |</span><span class="ln">    v</span><span class="ln">  loop.ts       外层轮次 / 内层工具，三处出口</span><span class="ln">    |  \</span><span class="ln">    |   \--&gt; tools.ts    name + description + parameters + execute</span><span class="ln">    v</span><span class="ln">  provider/mock.ts      假模型：吐 chunk，不联网</span><span class="ln">    |</span><span class="ln">    v</span><span class="ln">  types.ts      Message / Tool / Provider / AgentEvent 四个契约</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-先定形状-再写逻辑">一、先定形状，再写逻辑</h2>
+<p>新手写 agent 最常见的顺序是：先写 while 循环，再补消息类型，最后发现
+「工具结果该放哪」想不清楚，回头改类型，循环也跟着改。</p>
+<p>反过来做：<strong>先把四个契约写死。</strong></p>
+<p><code>types.ts</code> 里最要紧的是这两个：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Tool {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  description: <span class="tok-kw">string</span>;</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>;</span><span class="ln">    properties: Record&lt;<span class="tok-kw">string</span>, ToolParameter&gt;;</span><span class="ln">    required: <span class="tok-kw">string</span>[];</span><span class="ln">  };</span><span class="ln">  <span class="tok-fn">execute</span>(args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;): Promise&lt;<span class="tok-kw">string</span>&gt; | <span class="tok-kw">string</span>;</span><span class="ln">}</span></code></pre></div>
+<p>工具的四个字段不是随便凑的。<code>name</code> 是模型回传时的唯一凭据；<code>description</code>
+是模型决定「要不要用它」的唯一依据；<code>parameters</code> 是 JSON Schema 的子集，
+模型照着它填参数；<code>execute</code> 是唯一真正碰副作用的地方。</p>
+<p>第二个是 provider：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Provider {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  <span class="tok-fn">stream</span>(</span><span class="ln">    messages: Message[],</span><span class="ln">    tools: Tool[],</span><span class="ln">    signal?: AbortSignal,</span><span class="ln">  ): AsyncIterable&lt;ProviderChunk&gt;;</span><span class="ln">}</span></code></pre></div>
+<p>注意它只收 <code>Message[]</code>，不收 <code>AgentMessage[]</code>。这条边界是 E02 的主角，
+现在只要记住：<strong>给模型看的东西，比系统自己记的东西少。</strong></p>
+<hr>
+<h2 id="sec-2-二-假模型-三条规则-够用就好">二、假模型：三条规则，够用就好</h2>
+<p>真模型有三个麻烦：要 key、要网络、输出不确定。第一周就把这三样接进来，
+你会把大量时间花在「为什么这次没返回工具调用」上，而不是循环本身。</p>
+<p><code>provider/mock.ts</code> 只有 39 行，规则三条：</p>
+<ul>
+<li>第一次调用、输入里有「读」、并且 <code>read</code> 有描述 → 发一条 <code>toolCall</code></li>
+<li>已经有 <code>tool</code> 结果 → 回一句总结，停</li>
+<li>其余 → 原样回显，停</li>
+</ul>
+<p>&lt;!-- file: examples/mini-agent/src/provider/mock.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">      <span class="tok-kw">const</span> wantsRead = /读|read/i.<span class="tok-fn">test</span>(text);</span><span class="ln">      <span class="tok-kw">if</span> (!usedTool &amp;&amp; read &amp;&amp; read.description !== <span class="tok-str">""</span> &amp;&amp; wantsRead) {</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">"先看看文件。"</span> };</span><span class="ln">        <span class="tok-kw">yield</span> {</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">          id: <span class="tok-str">"call_1"</span>,</span><span class="ln">          name: <span class="tok-str">"read"</span>,</span><span class="ln">          args: { path: <span class="tok-str">"README.md"</span> },</span><span class="ln">        };</span><span class="ln">        <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"toolUse"</span> };</span><span class="ln">        <span class="tok-kw">return</span>;</span><span class="ln">      }</span></code></pre></div>
+<p>这段代码有两个刻意为之的地方，后面都会变成实验：</p>
+<ol>
+<li><code>read.description !== &quot;&quot;</code> —— 描述是空的，假模型就不选它。真模型也一
+样，只是它不会这么干脆。</li>
+<li><code>stopReason: &quot;toolUse&quot;</code> —— 这一轮结束的原因是「我还想调工具」，不是
+「我说完了」。整本书里所有「要不要再来一轮」的判断，都挂在这个字段上。</li>
+</ol>
+<p>它吐的是 <code>ProviderChunk</code>，不是完整消息。流式的本质就是：先给增量，最后
+给一个结论。结论只有一个字段，<code>done.stopReason</code>。</p>
+<hr>
+<h2 id="sec-3-三-循环-一个-while-三处出口">三、循环：一个 while，三处出口</h2>
+<p>先看最容易被写错的地方：<strong>谁执行工具。</strong></p>
+<p>不是 provider。provider 只负责说「我想调 read，参数是这个」。执行发生在
+<code>loop.ts</code>，因为它才知道有哪些工具、失败要不要重试、结果怎么记。</p>
+<p>核心就这几行：</p>
+<p>&lt;!-- file: examples/mini-agent/src/loop.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">    messages.<span class="tok-fn">push</span>({ role: <span class="tok-str">"assistant"</span>, content, stopReason: reason });</span><span class="ln"></span><span class="ln">    <span class="tok-kw">const</span> calls = content.<span class="tok-fn">filter</span>((b) =&gt; b.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span><span class="ln">    <span class="tok-kw">if</span> (calls.length === <span class="tok-num">0</span>) {</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_end"</span>, turn: turns, stopReason: reason });</span><span class="ln">      stop = reason;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span></code></pre></div>
+<p>三件事按顺序发生：把 assistant 消息落进历史；从内容块里挑出工具调用；
+没有工具调用就是这一轮的终点。</p>
+<p>有工具调用时，逐个执行，把结果作为 <code>tool</code> 消息塞回历史，然后进入下一轮
+<code>while</code>。这里有个容易忽略的细节：<strong>工具失败不算循环失败。</strong></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">        } <span class="tok-kw">catch</span> (error) {</span><span class="ln">          isError = <span class="tok-kw">true</span>;</span><span class="ln">          text = error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error);</span><span class="ln">        }</span></code></pre></div>
+<p>失败信息变成工具结果的一部分，模型下一轮能看见它，自己决定重试还是换路。
+只有连续三次都失败，循环才以 <code>error</code> 收口：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">    <span class="tok-kw">if</span> (errors &gt;= MAX_TOOL_ERRORS) {</span><span class="ln">      stop = <span class="tok-str">"error"</span>;</span><span class="ln">      <span class="tok-kw">break</span>;</span><span class="ln">    }</span></code></pre></div>
+<p>所以出口一共三处：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>出口</th>
+<th>触发条件</th>
+<th>stopReason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>正常收口</td>
+<td>这一轮没有工具调用</td>
+<td>provider 给的 <code>stop</code> / <code>length</code></td>
+</tr>
+<tr>
+<td>轮次用尽</td>
+<td>到了 <code>maxTurns</code>，还想调工具</td>
+<td><code>maxTurns</code></td>
+</tr>
+<tr>
+<td>连续失败</td>
+<td>工具连续 3 次抛错</td>
+<td><code>error</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Pi 的 <code>packages/agent/src/agent-loop.ts</code> 在结构上就是这两层：外层
+<code>while (true)</code> 管轮次，内层 <code>while (hasMoreToolCalls ...)</code> 管工具；
+遇到 <code>stopReason === &quot;error&quot;</code> 或 <code>&quot;aborted&quot;</code> 直接退出。区别只在它有
+队列、有中断、有并发，骨架一样。</p>
+<hr>
+<h2 id="sec-4-四-工具-一个形状-两个实现">四、工具：一个形状，两个实现</h2>
+<p><code>tools.ts</code> 里两个工具，一个读文件，一个回显。读文件这个值得逐行看：</p>
+<p>&lt;!-- file: examples/mini-agent/src/tools.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  <span class="tok-kw">async</span> <span class="tok-fn">execute</span>(args) {</span><span class="ln">    <span class="tok-kw">const</span> file = <span class="tok-fn">String</span>(args.path ?? <span class="tok-str">""</span>);</span><span class="ln">    <span class="tok-kw">if</span> (!file) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"path 不能为空"</span>);</span><span class="ln">    <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> <span class="tok-fn">readFile</span>(file, <span class="tok-str">"utf8"</span>);</span><span class="ln">    <span class="tok-kw">const</span> body = text.length &gt; MAX_CHARS ? text.<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, MAX_CHARS) : text;</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-str">`# ${file}（${text.length} 字符）\n${body}`</span>;</span><span class="ln">  },</span></code></pre></div>
+<p>三个决定，每个都有代价：</p>
+<ul>
+<li><strong>参数再校验一次。</strong> 模型给的是 JSON，不是类型安全的对象；<code>args.path</code>
+可能是 <code>undefined</code>，也可能是数字。<code>String(... ?? &quot;&quot;)</code> 是最后一道防线。</li>
+<li><strong>截断到 4000 字符。</strong> 工具返回值会立刻进上下文，一个 200KB 的日志能
+把这一轮预算吃光。Pi 的 bash 工具也有类似的截断，M05 §七 专门讲过。</li>
+<li><strong>失败就抛。</strong> 不要 <code>return &quot;读取失败&quot;</code>，因为那会被当成正常结果。抛错
+后由循环包成 <code>isError: true</code> 的工具结果，模型能区分「文件内容」和
+「读取失败」。</li>
+</ul>
+<hr>
+<h2 id="sec-5-五-跑起来">五、跑起来</h2>
+<p>在 <code>examples/mini-agent</code> 下：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --mock "读 README"</span></code></pre></div>
+<p>真实输出（我本机 Node v24.12.0，两次逐字相同）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[turn 1] 先看看文件。</span><span class="ln">-&gt; read [ok]</span><span class="ln">[turn 2] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop]</span></code></pre></div>
+<p>四行输出对应四件事：第一轮模型说了半句、发了一个工具调用；工具执行成功；
+第二轮模型看到工具结果，收尾；最终 stopReason 是 <code>stop</code>。</p>
+<p>想确认消息确实存下来了，加 <code>--print</code> 看最后四条：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --mock "读 README" --print</span></code></pre></div>
+<p>不看输出也行，<code>test/loop.test.ts</code> 里的第一个断言就是答案：
+<code>[&quot;user&quot;, &quot;assistant&quot;, &quot;tool&quot;, &quot;assistant&quot;]</code>。</p>
+<hr>
+<h2 id="sec-6-六-六组实验-每改一处-看一个数">六、六组实验：每改一处，看一个数</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>改什么</th>
+<th>预期看到</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>--max-turns 1</code></td>
+<td><code>[maxTurns]</code>，消息 3 条</td>
+<td>轮次用尽也算正常退出</td>
+</tr>
+<tr>
+<td>2</td>
+<td>mock 里 <code>id</code> 改成空字符串</td>
+<td>工具结果 <code>toolCallId</code> 为空</td>
+<td>真接口会 400（E03 验证）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>删掉 <code>read.description</code></td>
+<td>不调用工具，直接回显</td>
+<td>描述是模型选工具的唯一依据</td>
+</tr>
+<tr>
+<td>4</td>
+<td>输入「读 不存在」</td>
+<td><code>[err]</code>，但循环继续</td>
+<td>工具失败不炸循环</td>
+</tr>
+<tr>
+<td>5</td>
+<td>同一条命令连跑两次</td>
+<td>输出逐字节相同</td>
+<td>假模型的价值：可复现</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>npm test</code></td>
+<td>11 个测试全绿</td>
+<td>事件顺序也在测</td>
+</tr>
+</tbody>
+</table></div>
+<p>实验 2 值得先记一笔：<code>toolCallId</code> 唯一对应「哪次调用」，不是「哪个工具」。
+模型并行发两个 <code>read</code> 时，只有 id 能区分结果归谁。真 provider 少这个字段
+会直接拒绝请求。</p>
+<p>实验 5 的判据是 <code>diff</code>，不是「看起来一样」：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --mock "读 README" &gt; a.txt</span><span class="ln">node src/cli.ts --mock "读 README" &gt; b.txt</span><span class="ln">fc /b a.txt b.txt</span></code></pre></div>
+<p>（PowerShell 下用 <code>Compare-Object (Get-Content a.txt) (Get-Content b.txt)</code>。）</p>
+<hr>
+<h2 id="sec-7-七-小结">七、小结</h2>
+<p>410 行，五个文件，循环的形状和三万行的 Pi 是同一个：消息进、流式出、
+判断 <code>stopReason</code>、执行工具、回填、再来一轮。</p>
+<p>这一章真正学到的不是「怎么写 while」，而是三件事：</p>
+<ol>
+<li><strong>先定契约，再写逻辑。</strong> 类型改一次，循环跟着改一次，成本是乘法的。</li>
+<li><strong>执行工具的是循环，不是模型。</strong> 模型只提案，循环才有权限。</li>
+<li><strong>失败是数据。</strong> 工具抛错变成一条带 <code>isError</code> 的结果，而不是异常冒泡。</li>
+</ol>
+<hr>
+<h2 id="sec-8-八-概念回顾">八、概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>一句话</th>
+<th>代码位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ProviderChunk</code></td>
+<td>流式增量，最后一段是 <code>done</code></td>
+<td><code>src/types.ts</code></td>
+</tr>
+<tr>
+<td><code>stopReason</code></td>
+<td>这一轮为什么结束</td>
+<td><code>src/types.ts</code></td>
+</tr>
+<tr>
+<td><code>toolCallId</code></td>
+<td>哪一次调用的回执号</td>
+<td><code>src/types.ts</code></td>
+</tr>
+<tr>
+<td>工具契约</td>
+<td>name + description + parameters + execute</td>
+<td><code>src/tools.ts</code></td>
+</tr>
+<tr>
+<td>三处出口</td>
+<td>stop / maxTurns / error</td>
+<td><code>src/loop.ts</code></td>
+</tr>
+<tr>
+<td>事件</td>
+<td>只向外发，不参与判断</td>
+<td><code>src/types.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-9-九-练习">九、练习</h2>
+<ol>
+<li><strong>（L2）</strong> 加一个 <code>--max-turns 0</code> 的边界用例，看返回什么；补一个测试钉住它。</li>
+<li><strong>（L2）</strong> 把 <code>read</code> 的截断从 4000 改成 200，用一个 1KB 文件验证返回值长度。</li>
+<li><strong>（L3）</strong> 用一句话解释：为什么 <code>toolCallId</code> 不能换成 <code>toolName</code>？举一个会出错的场景。</li>
+<li><strong>（L4）</strong> 现在 mock 只会选 <code>read</code>。给它加一条「输入里有『写』就选 write」的规则，
+并解释为什么这个改动不需要动 <code>loop.ts</code>。</li>
+</ol>
+<hr>
+<h2 id="sec-10-十-三个常见误区">十、三个常见误区</h2>
+<p><strong>「provider 应该负责执行工具，因为它知道模型想要什么。」</strong>
+它只知道「想要」，不知道「能不能」。权限、路径校验、超时、并发，全在宿主
+这一侧。Pi 把 provider 放在 <code>packages/ai</code>，工具放在 <code>coding-agent</code>，就是
+不让这两件事相互污染。</p>
+<p><strong>「工具报错就 return 一句错误文本，简单。」</strong>
+那模型无法区分「命令输出里有 error 字样」和「命令根本没跑起来」。Pi 的
+<code>ToolResultMessage</code> 有 <code>isError</code> 字段，就是为了让这两件事在类型上分开。</p>
+<p><strong>「maxTurns 只是防死循环的保险，平时用不到。」</strong>
+它是产品语义：一次用户输入最多允许几轮工具。调小了任务做不完，调大了
+一次误触能烧掉整月额度。E04 会把它当参数改一次，你会看到差别。</p>
+<hr>
+<h2 id="sec-11-十一-自检">十一、自检</h2>
+<ol>
+<li>不看代码，说出 <code>loop.ts</code> 的三处出口和各自的 <code>stopReason</code>。</li>
+<li><code>read</code> 抛错后，下一轮模型看到的消息长什么样？<code>isError</code> 在哪一层被设上？</li>
+<li><strong>（L3）</strong> 如果让你把 <code>while</code> 换成递归，需要额外保存哪两个变量？为什么 Pi
+没有这么写？</li>
+</ol>
+<hr>
+<h2 id="sec-12-十二-下一步">十二、下一步</h2>
+<p>骨架跑通了，但它现在只有一个角色：模型说什么，就原样发回去。真实会话里
+还有系统提示、工具结果、压缩摘要、只给自己看的备注——它们不都是「给模型
+看的消息」。</p>
+<p>E02 加一层闸门：消息从四种变五种，多出来的那种永远不发给模型。</p>
+<h3 id="sec-13-源码索引">源码索引</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本章</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内层/外层循环</td>
+<td><code>src/loop.ts</code></td>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+</tr>
+<tr>
+<td>工具契约</td>
+<td><code>src/tools.ts</code></td>
+<td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
+</tr>
+<tr>
+<td>provider 契约</td>
+<td><code>src/types.ts</code></td>
+<td><code>packages/ai/src/types.ts</code></td>
+</tr>
+<tr>
+<td>三处出口</td>
+<td><code>src/loop.ts</code></td>
+<td><code>agent-loop.ts:188</code>、<code>:254</code></td>
+</tr>
+<tr>
+<td>CLI 入口</td>
+<td><code>src/cli.ts</code></td>
+<td><code>packages/coding-agent/src/cli.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="m15-schema-telemetry.html"><span class="lbl">上一篇</span>契约与遥测 —— 一份声明，五种解释</a>
+      <a class="next" href="e02-memory.html"><span class="lbl">下一篇</span>记忆 —— 四种给模型，多一种给自己</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先定形状-再写逻辑" class="">一、先定形状，再写逻辑</a><a href="#sec-2-二-假模型-三条规则-够用就好" class="">二、假模型：三条规则，够用就好</a><a href="#sec-3-三-循环-一个-while-三处出口" class="">三、循环：一个 while，三处出口</a><a href="#sec-4-四-工具-一个形状-两个实现" class="">四、工具：一个形状，两个实现</a><a href="#sec-5-五-跑起来" class="">五、跑起来</a><a href="#sec-6-六-六组实验-每改一处-看一个数" class="">六、六组实验：每改一处，看一个数</a><a href="#sec-7-七-小结" class="">七、小结</a><a href="#sec-8-八-概念回顾" class="">八、概念回顾</a><a href="#sec-9-九-练习" class="">九、练习</a><a href="#sec-10-十-三个常见误区" class="">十、三个常见误区</a><a href="#sec-11-十一-自检" class="">十一、自检</a><a href="#sec-12-十二-下一步" class="">十二、下一步</a><a href="#sec-13-源码索引" class="lv3">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

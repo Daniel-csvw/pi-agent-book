@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记忆 —— 四种给模型，多一种给自己 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="active">
+                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
+                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
+                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
+                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E02</div>
+      <h1>记忆 —— 四种给模型，多一种给自己</h1>
+      <div class="module-meta">1,867 字 · 含 44 行代码 · 约 11 分钟</div>
+    </header>
+    <p>E01 的历史只有四种消息，正好等于模型能理解的四类角色。真实会话没这么干净：</p>
+<ul>
+<li>用户按了 Ctrl+B，把一段 bash 输出塞进对话——它不是用户说的，也不是模型说的；</li>
+<li>上下文快满了，你把前 20 条压成一段摘要——摘要得让模型看见，但它不是用户输入；</li>
+<li>界面要显示「已压缩 12 条」，模型不需要知道这个提示。</li>
+</ul>
+<p>如果这些都硬塞进四种角色，模型会以为「用户刚才说了这句话」。等它开始
+回答一句用户根本没说过的话，你才会发现历史被污染了。</p>
+<p>这一章加一层：<strong>消息从四种变五种，多出来的那种永远不直接发给模型。</strong></p>
+<p>三个问题：</p>
+<ol>
+<li>系统自己记的消息，凭什么不能直接进 prompt？</li>
+<li>谁来保证「忘了一个新角色」时不会悄悄丢历史？</li>
+<li>压缩之后，模型怎么知道之前发生过什么？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  AgentMessage（5 种）</span><span class="ln">    system / user / assistant / tool / note</span><span class="ln">                     |</span><span class="ln">                     |  toLlm()  &lt;-- 唯一出口</span><span class="ln">                     v</span><span class="ln">  Message（4 种）    system / user / assistant / tool</span><span class="ln">                     |</span><span class="ln">                     v</span><span class="ln">                  provider</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-第五种-只给自己看">一、第五种：只给自己看</h2>
+<p><code>NoteMessage</code> 的定义里有两个字段值得停一下：</p>
+<p>&lt;!-- file: examples/mini-agent/src/types.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> NoteMessage {</span><span class="ln">  role: <span class="tok-str">"note"</span>;</span><span class="ln">  kind: <span class="tok-str">"summary"</span> | <span class="tok-str">"reminder"</span>;</span><span class="ln">  text: <span class="tok-kw">string</span>;</span><span class="ln">  display: <span class="tok-kw">boolean</span>;</span><span class="ln">  timestamp: <span class="tok-kw">number</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>display</code> 不是「要不要发给模型」，而是「要不要上屏」。这两个问题必须分开：
+一条压缩摘要，模型要看（否则它不知道前文），用户未必要看（你要么折叠，
+要么只显示一行提示）。反过来，一条「已重试 2 次」的提醒，用户要看，模型
+不必看。</p>
+<p>Pi 里对应的是 <code>CustomMessage</code>：<code>role: &quot;custom&quot;</code>，带 <code>customType</code>、<code>display</code>
+和一个可选的 <code>details</code>。它同样进 transcript、同样默认不进 prompt。区别是
+Pi 的 <code>display</code> 只是布尔值，真正决定「发不发」的是另一层投影。</p>
+<hr>
+<h2 id="sec-2-二-闸门-一个-switch-缺一个角色就抛">二、闸门：一个 switch，缺一个角色就抛</h2>
+<p>所有发给模型的消息，只经过一个函数：</p>
+<p>&lt;!-- file: examples/mini-agent/src/messages.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">      <span class="tok-kw">case</span> <span class="tok-str">"note"</span>:</span><span class="ln">        out.<span class="tok-fn">push</span>({ role: <span class="tok-str">"user"</span>, content: <span class="tok-fn">renderNote</span>(message) });</span><span class="ln">        <span class="tok-kw">break</span>;</span><span class="ln">      <span class="tok-kw">default</span>: {</span><span class="ln">        <span class="tok-kw">const</span> <span class="tok-kw">unknown</span> = message <span class="tok-kw">as</span> { role?: <span class="tok-kw">string</span> };</span><span class="ln">        <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`unhandled: ${String(unknown.role)}`</span>);</span><span class="ln">      }</span></code></pre></div>
+<p>注意 <code>note</code> 的翻译方式：包成一条 <code>user</code> 消息，内容带 <code>&lt;note kind=&quot;...&quot;&gt;</code>。
+这不是偷懒，而是所有 provider 都能表达的最小形式。代价是模型可能把 note
+当成用户说的话——所以 note 的文本必须自带身份标签，就像 Pi 的压缩摘要前
+缀 <code>&quot;The conversation history before this point was compacted...&quot;</code>。</p>
+<p><code>default</code> 分支是这一章真正的重点。它不是为了处理未知角色，而是为了在
+<strong>你将来加了第六种消息却忘了改这里</strong>时，立刻炸掉。</p>
+<hr>
+<h2 id="sec-3-三-别指望类型帮你兜底">三、别指望类型帮你兜底</h2>
+<p>你可能会想：<code>AgentMessage</code> 是个联合类型，漏掉一个 case，TypeScript 会报错。
+在「有编译步骤」的项目里确实会。但 Node 22.19 起直接跑 <code>.ts</code> 只做<strong>类型
+擦除</strong>，不做类型检查。我实测过：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> m = { role: <span class="tok-str">"note"</span> } <span class="tok-kw">as</span> AgentMessage;</span><span class="ln"><span class="tok-kw">const</span> x: <span class="tok-kw">never</span> = m;   <span class="tok-com">// 一行类型错误</span></span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">"ran"</span>);</span></code></pre></div>
+<p><code>node tmp-never.ts</code> 输出的是 <code>ran</code>。类型错误一行都没报。</p>
+<p>所以判断「有没有漏角色」只能放在运行时。现在故意塞一个不存在的角色：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node -e "import('./src/messages.ts').then(m =&gt; {</span><span class="ln">  try { m.toLlm([{ role: 'unknown' }]) }</span><span class="ln">  catch (e) { console.log('ERR:', e.message) }</span><span class="ln">})"</span></code></pre></div>
+<p>真实输出：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ERR: unhandled: unknown</span></code></pre></div>
+<p>这就是一张能用的网：开发时你会立刻看到它，而不是等模型答非所问。</p>
+<hr>
+<h2 id="sec-4-四-会话-一行一条-坏行报行号">四、会话：一行一条，坏行报行号</h2>
+<p>历史要能跨进程。最小的做法是 JSONL：一行一条消息，追加写，从头读。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --mock "你好" --session tmp-e02.jsonl</span><span class="ln">node src/cli.ts --mock "读 README" --session tmp-e02.jsonl</span></code></pre></div>
+<p>第二条命令会先读回第一条的历史，再继续。文件里现在是 6 行：两轮的
+user / assistant / tool / assistant。</p>
+<p>读的时候必须防坏行，否则一行截断就能让整个会话打不开：</p>
+<p>&lt;!-- file: examples/mini-agent/src/session.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">      <span class="tok-kw">try</span> {</span><span class="ln">        session.messages.<span class="tok-fn">push</span>(JSON.<span class="tok-fn">parse</span>(line) <span class="tok-kw">as</span> AgentMessage);</span><span class="ln">      } <span class="tok-kw">catch</span> {</span><span class="ln">        <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`${file}:${index + 1} 不是合法 JSON`</span>);</span><span class="ln">      }</span></code></pre></div>
+<p>我手动往文件末尾加一行 <code>not-json</code>，再读：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ERR: tmp-e02-bad.jsonl:7 不是合法 JSON</span></code></pre></div>
+<p>行号是必须的。没有行号，你只能打开文件自己数；有了行号，修复动作是确定的：
+删掉第 7 行，或者把它前面的引号补齐。</p>
+<hr>
+<h2 id="sec-5-五-压缩-先设一道闸-再谈策略">五、压缩：先设一道闸，再谈策略</h2>
+<p>E01 的历史会无限增长。第一版压缩不需要模型，只需要一个判断：</p>
+<p>&lt;!-- file: examples/mini-agent/src/compact.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  <span class="tok-kw">if</span> (tokensBefore &lt;= threshold || messages.length &lt;= keep) {</span><span class="ln">    <span class="tok-kw">return</span> { messages, compacted: <span class="tok-kw">false</span>, tokensBefore, dropped: <span class="tok-num">0</span> };</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">const</span> cut = messages.length - keep;</span></code></pre></div>
+<p><code>estimateTokens</code> 用的是 <code>JSON 字符数 / 4</code>。这个数字不准，误差可以到 30%，
+但它比「不估」强得多：你至少有一道闸，而不是等接口返回 400。</p>
+<p>过闸之后，早期消息被替换成一条 <code>note</code>，末尾 <code>keep</code> 条原样保留。我用 10 条
+长消息、阈值 60、保留 3 条跑了一次：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">compacted true dropped 7 len 4 first note</span></code></pre></div>
+<p>四个数字，四个都能测：压了没有、丢了几条、剩几条、第一条是不是摘要。</p>
+<p>但别把这一版当答案。M09 会让你改掉三个直觉：</p>
+<ol>
+<li><strong>只看 token 不够。</strong> Pi 先看预算，再看消息边界，两道闸门缺一不可。</li>
+<li><strong>整段摘要会切断工具调用对。</strong> 一个 <code>toolCall</code> 和它的 <code>toolResult</code> 必须
+一起进、一起出，否则下一轮接口直接报错。</li>
+<li><strong>摘要里只留对话会丢文件。</strong> 模型记得「我们改过 index.ts」，但忘了改到
+哪一步；Pi 的摘要会带当前工作集，而不是只复述聊天。</li>
+</ol>
+<p>所以这一章给你的是「能跑的压缩」，不是「正确的压缩」。差别在 E04 之后你
+会看得更清楚。</p>
+<hr>
+<h2 id="sec-6-六-实验-四组-都有判据">六、实验：四组，都有判据</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>命令 / 改动</th>
+<th>判据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>toLlm([{role:&quot;unknown&quot;}])</code></td>
+<td>抛 <code>unhandled: unknown</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>往会话文件塞 <code>not-json</code></td>
+<td>报错带 <code>:7</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>阈值 60、keep 3、10 条</td>
+<td><code>compacted true dropped 7</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>不加 <code>--session</code> 再跑一次</td>
+<td>历史清空，说明状态只在文件里</td>
+</tr>
+</tbody>
+</table></div>
+<p>实验 4 最容易被跳过。它证明的是：<strong>进程无状态。</strong> 所有记忆都在文件里，
+关掉终端不等于丢会话，换个目录启动就是另一个会话。</p>
+<hr>
+<h2 id="sec-7-七-小结">七、小结</h2>
+<ul>
+<li>消息的「超集」不是为了多，而是为了让「给模型看」和「给自己看」分开。</li>
+<li>唯一出口是一道函数闸门；漏角色必须在运行时抛，不能指望类型擦除。</li>
+<li>会话是追加日志，行号是修复入口。</li>
+<li>压缩的第一版只要一道阈值就够，但要知道它哪里不对。</li>
+</ul>
+<hr>
+<h2 id="sec-8-八-概念回顾">八、概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>一句话</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NoteMessage</code></td>
+<td>第五种消息，display 只管上屏</td>
+<td><code>src/types.ts</code></td>
+</tr>
+<tr>
+<td><code>toLlm</code></td>
+<td>AgentMessage → Message 的唯一出口</td>
+<td><code>src/messages.ts</code></td>
+</tr>
+<tr>
+<td>运行时兜底</td>
+<td>漏角色直接抛，不靠类型检查</td>
+<td><code>src/messages.ts</code></td>
+</tr>
+<tr>
+<td>JSONL 会话</td>
+<td>一行一条，坏行报行号</td>
+<td><code>src/session.ts</code></td>
+</tr>
+<tr>
+<td>两道闸</td>
+<td>token 估计 + 末尾保留</td>
+<td><code>src/compact.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-9-九-练习">九、练习</h2>
+<ol>
+<li><strong>（L2）</strong> 给 <code>NoteMessage</code> 加一种 <code>kind: &quot;warning&quot;</code>，只改类型和渲染，不改闸门；确认测试仍绿。</li>
+<li><strong>（L2）</strong> 把 <code>estimateTokens</code> 改成按「每条消息固定 8 token + 字符/4」估算，观察 10 条长消息的数字变化。</li>
+<li><strong>（L3）</strong> 为什么 <code>note</code> 要包成 <code>user</code> 消息，而不是新增一个 <code>note</code> 角色发给 provider？说出两个原因。</li>
+<li><strong>（L4）</strong> 设计一个「工具结果被压缩掉、但 toolCall 还在」的场景，说明接口会报什么错，以及你会在哪一层修。</li>
+</ol>
+<hr>
+<h2 id="sec-10-十-三个常见误区">十、三个常见误区</h2>
+<p><strong>「多一种消息就要多一种 provider 角色。」</strong>
+provider 的方言是外部约束，不是你说了算。Pi 的 <code>Message</code> 永远只有四种，
+多出来的全部在投影层翻译掉。</p>
+<p><strong>「JSONL 太土，应该上 SQLite。」</strong>
+追加写 + 逐行读的协议只有一句话，坏行能定位，迁移成本为零。等你有并发写、
+跨会话检索的需求再换，别在第一天换。</p>
+<p><strong>「压缩就是摘要，摘要越短越好。」</strong>
+压得太狠，模型会反复问「我们刚才在做什么」。摘要的目标不是短，是<strong>让下一
+轮能接着干</strong>：当前任务、已改文件、未决问题，三样都不能丢。</p>
+<hr>
+<h2 id="sec-11-十一-自检">十一、自检</h2>
+<ol>
+<li><code>display: false</code> 的 note，会出现在 <code>toLlm</code> 的结果里吗？为什么？</li>
+<li>会话读到第 3 行坏了，前面的 2 条还能用吗？你的实现是「部分可用」还是「全丢」？</li>
+<li><strong>（L3）</strong> 如果让你给 <code>toLlm</code> 加一个「只发最近 N 条」的参数，它和 <code>compact.ts</code>
+的 <code>keep</code> 有什么区别？哪个更适合放在闸门里？</li>
+</ol>
+<hr>
+<h2 id="sec-12-十二-下一步">十二、下一步</h2>
+<p>现在 <code>loop.ts</code> 还硬绑着 <code>createMockProvider()</code>。E02 的闸门让消息形状稳定了，
+下一步该让 provider 可替换：先写一个离线的 <code>fixture</code>，再写真的 <code>openai</code>，
+最后把两张表对起来——你的 520 行，对应 Pi 的哪 9 处。</p>
+<h3 id="sec-13-源码索引">源码索引</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本章</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第五种消息</td>
+<td><code>src/types.ts</code></td>
+<td><code>core/messages.ts</code> 的 <code>CustomMessage</code></td>
+</tr>
+<tr>
+<td>压缩摘要前缀</td>
+<td><code>src/compact.ts</code></td>
+<td><code>core/messages.ts:11</code></td>
+</tr>
+<tr>
+<td>不进上下文的开关</td>
+<td>—</td>
+<td><code>core/messages.ts:39</code>（<code>excludeFromContext</code>）</td>
+</tr>
+<tr>
+<td>闸门</td>
+<td><code>src/messages.ts</code></td>
+<td><code>core/messages.ts</code> 的转换函数</td>
+</tr>
+<tr>
+<td>会话落盘</td>
+<td><code>src/session.ts</code></td>
+<td><code>packages/coding-agent/src/core/session-manager.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="e01-skeleton.html"><span class="lbl">上一篇</span>骨架 —— 先用假模型，把循环跑通</a>
+      <a class="next" href="e03-interface.html"><span class="lbl">下一篇</span>接口 —— 先抽出来，再换一家模型</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-第五种-只给自己看" class="">一、第五种：只给自己看</a><a href="#sec-2-二-闸门-一个-switch-缺一个角色就抛" class="">二、闸门：一个 switch，缺一个角色就抛</a><a href="#sec-3-三-别指望类型帮你兜底" class="">三、别指望类型帮你兜底</a><a href="#sec-4-四-会话-一行一条-坏行报行号" class="">四、会话：一行一条，坏行报行号</a><a href="#sec-5-五-压缩-先设一道闸-再谈策略" class="">五、压缩：先设一道闸，再谈策略</a><a href="#sec-6-六-实验-四组-都有判据" class="">六、实验：四组，都有判据</a><a href="#sec-7-七-小结" class="">七、小结</a><a href="#sec-8-八-概念回顾" class="">八、概念回顾</a><a href="#sec-9-九-练习" class="">九、练习</a><a href="#sec-10-十-三个常见误区" class="">十、三个常见误区</a><a href="#sec-11-十一-自检" class="">十一、自检</a><a href="#sec-12-十二-下一步" class="">十二、下一步</a><a href="#sec-13-源码索引" class="lv3">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>加工具 —— 从契约到渲染，一个新能力 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
+                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="active">
+                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
+                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E05</div>
+      <h1>加工具 —— 从契约到渲染，一个新能力</h1>
+      <div class="module-meta">1,533 字 · 含 17 行代码 · 约 10 分钟</div>
+    </header>
+    <p>E04 只改值和配置，模型能做还是那些事。想让它多一种能力，必须加工具。</p>
+<p>加工具听起来像「写个函数」，实际要动的地方比你想的多：模型得知道它存在、
+知道什么时候用、参数怎么填；用户得看见它在跑、跑完是什么结果；失败时
+两边都要收到干净的错误。</p>
+<p>这一章以 <code>outline</code> 为例（列出一个文件的函数/类/导出），把五个落点走一遍。</p>
+<p>三个问题：</p>
+<ol>
+<li>一个工具在 Pi 里到底由几部分组成？</li>
+<li>参数 schema 写在哪，谁在用它？</li>
+<li>工具失败了，模型和用户各自看到什么？</li>
+</ol>
+<hr>
+<h2 id="sec-1-一-一个工具-五个角色">一、一个工具，五个角色</h2>
+<p>以 <code>read</code> 为例，同一个能力在不同层出现五次：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>角色</th>
+<th>在哪</th>
+<th>谁看</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数 schema</td>
+<td><code>read.ts</code> 的 <code>readSchema</code></td>
+<td>模型填参数</td>
+</tr>
+<tr>
+<td>提示词贡献</td>
+<td><code>readToolSystemPromptContribution</code></td>
+<td>模型判断该不该用</td>
+</tr>
+<tr>
+<td>定义/执行</td>
+<td><code>createReadToolDefinition</code></td>
+<td>循环调用</td>
+</tr>
+<tr>
+<td>注册汇总</td>
+<td><code>core/tools/index.ts</code></td>
+<td>宿主组装工具集</td>
+</tr>
+<tr>
+<td>渲染</td>
+<td><code>renderers/read.ts</code></td>
+<td>用户在 TUI 里看到</td>
+</tr>
+</tbody>
+</table></div>
+<p>少任何一处，能力都是残的：没有 schema 模型不会填参数；没有提示词贡献，
+模型不知道有这么个工具；没有渲染，用户只能看到一坨 JSON。</p>
+<hr>
+<h2 id="sec-2-二-schema-模型唯一的说明书">二、schema：模型唯一的说明书</h2>
+<p><code>packages/coding-agent/src/core/tools/read.ts</code> 开头：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> readSchema = Type.<span class="tok-fn">Object</span>({</span><span class="ln">  path: Type.<span class="tok-fn">String</span>({</span><span class="ln">    description: <span class="tok-str">"Path to the file to read (relative or absolute)"</span>,</span><span class="ln">  }),</span><span class="ln">  <span class="tok-com">// 另有 offset / limit 两个可选字段，各带一句 description</span></span><span class="ln">});</span></code></pre></div>
+<p>三个字段，两个可选（排版时折了行，字段没变）。注意每个字段都有
+<code>description</code>——它会被原样塞进请求的 <code>tools[].function.parameters</code>，模型
+就是靠这几句话决定传什么。</p>
+<p>你的 <code>outline</code> 只需要一个 <code>path</code>。能少一个字段就少一个：字段越多，模型
+填错的概率越高，而错误参数会让整个工具调用失败。</p>
+<hr>
+<h2 id="sec-3-三-提示词贡献-让模型知道-什么时候用">三、提示词贡献：让模型知道「什么时候用」</h2>
+<p>schema 只说明「怎么填」，不说明「什么时候用」。后者由一段独立的贡献文本
+负责：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> readToolSystemPromptContribution = {</span><span class="ln">	snippet: <span class="tok-str">"Read file contents"</span>,</span><span class="ln">	guidelines: [<span class="tok-str">"Use read to examine files instead of cat or sed."</span>],</span><span class="ln">} <span class="tok-kw">as</span> <span class="tok-kw">const</span>;</span></code></pre></div>
+<p><code>snippet</code> 是一行简介，<code>guidelines</code> 是使用规则。它们会被拼进系统提示词的
+工具段。E04 的旋钮 4 删掉这段，模型就会开始用 <code>bash</code> 去 <code>cat</code> 文件——不是
+它不聪明，是没人告诉它别这么做。</p>
+<p><code>outline</code> 的贡献应该写清楚边界：「只在需要结构而不是全文时使用」。</p>
+<hr>
+<h2 id="sec-4-四-注册-两种形态-一个来源">四、注册：两种形态，一个来源</h2>
+<p><code>core/tools/index.ts</code> 里，每个工具都导出两个东西：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> {</span><span class="ln">	createReadTool,</span><span class="ln">	createReadToolDefinition,</span><span class="ln">	<span class="tok-kw">type</span> ReadToolDetails,</span><span class="ln">	<span class="tok-kw">type</span> ReadToolInput,</span><span class="ln">	<span class="tok-kw">type</span> ReadToolOptions,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"./read.ts"</span>;</span></code></pre></div>
+<ul>
+<li><code>createReadToolDefinition(cwd, options)</code> 给需要完整定义的调用方；</li>
+<li><code>createReadTool(cwd, options)</code> 给「只用执行」的场景。</li>
+</ul>
+<p>两者都从同一个 <code>read.ts</code> 出来，不存在两套逻辑。<strong>这就是「一个工具一个
+文件」的价值：</strong> 加工具只加文件，不改老文件。</p>
+<p><code>outline</code> 照做：新建 <code>outline.ts</code>，导出 <code>createOutlineTool</code> 与
+<code>createOutlineToolDefinition</code>，再在 <code>index.ts</code> 补一行导出、在工具集组装处
+补一行注册。</p>
+<hr>
+<h2 id="sec-5-五-执行-截断和队列-两个必踩的坑">五、执行：截断和队列，两个必踩的坑</h2>
+<p><code>read</code> 的返回值不是「文件全文」，而是截断后的结果。<code>truncate.ts</code> 里有两个
+默认值：<code>DEFAULT_MAX_BYTES</code> 和 <code>DEFAULT_MAX_LINES</code>。超过就截，并把截断
+信息放进 <code>details</code>。</p>
+<p>原因很直接：工具返回值下一轮就进上下文。一个 200KB 的日志能让这一轮直接
+超预算，而模型看到的东西和「文件不存在」几乎没有区别。</p>
+<p>第二个坑是写。<code>outline</code> 只读，不涉及；但你要加 <code>write</code>/<code>edit</code>，就必须走
+<code>withFileMutationQueue</code>（同目录的 <code>file-mutation-queue.ts</code>）。M05 §五 讲过
+为什么：两个并发写同一文件，锁必须加在「读-改-写」整段外面，加在函数
+入口等于没加。</p>
+<hr>
+<h2 id="sec-6-六-实验-加一个-outline">六、实验：加一个 outline</h2>
+<p>步骤固定四行格式：</p>
+<ul>
+<li><strong>改哪里</strong>：新建 <code>core/tools/outline.ts</code>（约 40 行），<code>index.ts</code> 补导出与注册。</li>
+<li><strong>预期</strong>：启动后工具列表里出现 <code>outline</code>；模型对「这个文件有哪些导出」
+这类问题会选它。</li>
+<li><strong>连带</strong>：<code>renderers/outline.ts</code> 可以先用默认渲染；提示词贡献必须补，否则
+模型不会主动用。</li>
+<li><strong>回滚</strong>：删文件 + 撤两行注册；或从 <code>.bak</code> 覆盖 <code>index.ts</code>。</li>
+</ul>
+<p>判据三条，缺一不可：</p>
+<ol>
+<li>工具列表里有它（用户可见）；</li>
+<li>模型能正确填 <code>path</code>（schema 生效）；</li>
+<li>结果在 TUI 里不是一坨 JSON（渲染生效）。</li>
+</ol>
+<p>第 2 条最容易假通过：工具被调用了，不代表参数对。看 <code>tool_call</code> 事件里的
+<code>input</code>，不要只看「有没有输出」。</p>
+<blockquote>
+<p>本章的实验未在本机跑通：<code>pi-lab</code> 的依赖没装完（见 E04 §一）。
+命令与判据来自 <code>read.ts</code> / <code>index.ts</code> 的真实结构，装好依赖后按上表验证。</p>
+</blockquote>
+<hr>
+<h2 id="sec-7-七-小结">七、小结</h2>
+<ul>
+<li>一个工具五个角色：schema、提示词贡献、定义、注册、渲染。</li>
+<li>schema 是模型唯一的说明书，字段越少越好。</li>
+<li>提示词贡献决定「会不会被用」，schema 决定「填得对不对」。</li>
+<li>读取必须截断，写入必须排队。</li>
+</ul>
+<hr>
+<h2 id="sec-8-八-概念回顾">八、概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>一句话</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>readSchema</code></td>
+<td>typebox 定义，带 description</td>
+<td><code>core/tools/read.ts</code></td>
+</tr>
+<tr>
+<td>提示词贡献</td>
+<td>snippet + guidelines</td>
+<td><code>core/tools/read.ts</code></td>
+</tr>
+<tr>
+<td>双形态导出</td>
+<td>Tool 与 ToolDefinition 同源</td>
+<td><code>core/tools/index.ts</code></td>
+</tr>
+<tr>
+<td>截断</td>
+<td>默认字节/行数上限</td>
+<td><code>core/tools/truncate.ts</code></td>
+</tr>
+<tr>
+<td>写队列</td>
+<td>锁住读-改-写整段</td>
+<td><code>core/tools/file-mutation-queue.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-9-九-练习">九、练习</h2>
+<ol>
+<li><strong>（L2）</strong> 把 <code>readSchema</code> 的 <code>limit</code> 改成必填，观察模型在没给行数时怎么填。</li>
+<li><strong>（L2）</strong> 给 <code>outline</code> 加一个 <code>depth</code> 参数（1 只列顶层，2 含嵌套），只改 schema 和实现。</li>
+<li><strong>（L3）</strong> 为什么提示词贡献要和 schema 分开存，而不是塞进 <code>description</code>？说出两个后果。</li>
+<li><strong>（L4）</strong> 你要加一个 <code>write</code> 工具。列出必须改的五个落点，并说明并发锁加在哪一层、为什么。</li>
+</ol>
+<hr>
+<h2 id="sec-10-十-三个常见误区">十、三个常见误区</h2>
+<p><strong>「工具就是个函数，注册一下就行。」</strong>
+漏了提示词贡献，模型不会用；漏了渲染，用户看不懂；漏了截断，上下文会炸。</p>
+<p><strong>「参数校验交给运行时，schema 写宽松点。」</strong>
+schema 是模型唯一的约束。写宽松，模型就会传 <code>limit: &quot;10&quot;</code> 这种字符串，
+然后你在 <code>execute</code> 里补一堆 <code>Number()</code>。</p>
+<p><strong>「失败就返回一段错误文本。」</strong>
+错误文本会被模型当成正常结果继续推理。要让它进入 <code>isError</code> 分支，模型才
+知道「这条路走不通」。</p>
+<hr>
+<h2 id="sec-11-十一-自检">十一、自检</h2>
+<ol>
+<li>说出 <code>read</code> 的五个落点，以及少一个会坏在哪。</li>
+<li><code>createReadTool</code> 和 <code>createReadToolDefinition</code> 为什么要同时存在？</li>
+<li><strong>（L3）</strong> 如果 <code>outline</code> 的提示词贡献写成「读取文件结构」，模型可能会在什么
+场景误用它？你会怎么改写这句？</li>
+</ol>
+<hr>
+<h2 id="sec-12-十二-下一步">十二、下一步</h2>
+<p>工具是「模型能做的事」，扩展是「系统在什么时候做事」。两者都能改行为，
+但扩展不改工具列表，它挂在生命周期上。</p>
+<p>E06 用三个钩子写一个能看见一切的扩展。</p>
+<h3 id="sec-13-源码索引">源码索引</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本章</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数 schema</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/tools/read.ts</code></td>
+</tr>
+<tr>
+<td>工具注册</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
+</tr>
+<tr>
+<td>截断</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/tools/truncate.ts</code></td>
+</tr>
+<tr>
+<td>写队列</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/tools/file-mutation-queue.ts</code></td>
+</tr>
+<tr>
+<td>渲染</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/tools/renderers/</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="e04-tuning.html"><span class="lbl">上一篇</span>调参 —— 先改一个数字，再谈改代码</a>
+      <a class="next" href="e06-extension.html"><span class="lbl">下一篇</span>写扩展 —— 三个钩子，一条看不见的消息</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一个工具-五个角色" class="">一、一个工具，五个角色</a><a href="#sec-2-二-schema-模型唯一的说明书" class="">二、schema：模型唯一的说明书</a><a href="#sec-3-三-提示词贡献-让模型知道-什么时候用" class="">三、提示词贡献：让模型知道「什么时候用」</a><a href="#sec-4-四-注册-两种形态-一个来源" class="">四、注册：两种形态，一个来源</a><a href="#sec-5-五-执行-截断和队列-两个必踩的坑" class="">五、执行：截断和队列，两个必踩的坑</a><a href="#sec-6-六-实验-加一个-outline" class="">六、实验：加一个 outline</a><a href="#sec-7-七-小结" class="">七、小结</a><a href="#sec-8-八-概念回顾" class="">八、概念回顾</a><a href="#sec-9-九-练习" class="">九、练习</a><a href="#sec-10-十-三个常见误区" class="">十、三个常见误区</a><a href="#sec-11-十一-自检" class="">十一、自检</a><a href="#sec-12-十二-下一步" class="">十二、下一步</a><a href="#sec-13-源码索引" class="lv3">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写扩展 —— 三个钩子，一条看不见的消息 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
+                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
+                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="active">
+                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E06</div>
+      <h1>写扩展 —— 三个钩子，一条看不见的消息</h1>
+      <div class="module-meta">1,458 字 · 含 16 行代码 · 约 10 分钟</div>
+    </header>
+    <p>E05 加的是「模型能做的事」，E06 加的是「系统在什么时候做事」。</p>
+<p>扩展不改工具列表，也不改循环。它只是注册几个函数，在特定时刻被调用：
+工具调用前、工具结果回来后、每次请求模型前。听起来很轻，但 Pi 的文档
+第一句就写清楚了：<strong>扩展跑在 Pi 进程里，权限和你一样。</strong></p>
+<p>三个问题：</p>
+<ol>
+<li>一个扩展能看见什么，能不能改？</li>
+<li><code>tool_call</code>、<code>tool_result</code>、<code>context</code> 分别在哪一刻触发？</li>
+<li>为什么「只给自己看的消息」不能靠 <code>display: false</code> 过滤掉？</li>
+</ol>
+<hr>
+<h2 id="sec-1-一-它是模块-不是插件包">一、它是模块，不是插件包</h2>
+<p>一条扩展就是一个 TypeScript 文件，默认导出函数：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> {</span><span class="ln">  <span class="tok-kw">type</span> ExtensionAPI,</span><span class="ln">  isToolCallEventType,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"@earendil-works/pi-coding-agent"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi: ExtensionAPI) {</span><span class="ln">  pi.<span class="tok-fn">on</span>(<span class="tok-str">"tool_call"</span>, <span class="tok-kw">async</span> (event, ctx) =&gt; {</span><span class="ln">    <span class="tok-kw">if</span> (<span class="tok-fn">isToolCallEventType</span>(<span class="tok-str">"bash"</span>, event)) {</span><span class="ln">      console.<span class="tok-fn">log</span>(<span class="tok-str">"bash:"</span>, event.input.command);</span><span class="ln">    }</span><span class="ln">  });</span><span class="ln">}</span></code></pre></div>
+<p>放置位置决定它什么时候被加载：项目里的 <code>.pi/extensions/</code>、全局的
+<code>~/.pi/agent/extensions/</code>，或者临时用 <code>pi -e ./path.ts</code> 跑一次。</p>
+<p>没有沙箱，没有权限声明。文档原话是它「能看提示词、工具调用、文件、凭据和
+会话历史」。所以第一条规则不是「怎么写」，是「只装你读过的扩展」。</p>
+<hr>
+<h2 id="sec-2-二-三个钩子-前-后-发之前">二、三个钩子：前、后、发之前</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>钩子</th>
+<th>触发时刻</th>
+<th>能做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tool_call</code></td>
+<td>模型要调工具、还没执行</td>
+<td>放行或 <code>{ block: true }</code></td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>执行完、消息落盘前</td>
+<td>改结果（补丁式）</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>每次请求模型前</td>
+<td>改这一轮要发的消息</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>tool_call</code> 是最常见的权限闸门：命中危险命令就问一句，用户拒绝就返回
+<code>{ block: true, reason }</code>。</p>
+<p><code>tool_result</code> 是中间件：多个扩展按加载顺序跑，每个都能返回部分补丁
+（<code>content</code>、<code>details</code>、<code>isError</code> 等），没返回的字段保持原值。注意一个
+坑：改了 <code>content</code> 却不返回 <code>structuredContent</code>，结构化数据会被丢掉。</p>
+<p><code>context</code> 最像 E02 的闸门：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi.<span class="tok-fn">on</span>(<span class="tok-str">"context"</span>, <span class="tok-kw">async</span> (event, ctx) =&gt; {</span><span class="ln">  <span class="tok-kw">const</span> filtered = event.messages.<span class="tok-fn">filter</span>((m) =&gt; !<span class="tok-fn">prune</span>(m));</span><span class="ln">  <span class="tok-kw">return</span> { messages: filtered };</span><span class="ln">});</span></code></pre></div>
+<p><code>event.messages</code> 是不含系统消息的深拷贝，随便改。但有一件事它保证不了：
+你把列表截短，Pi 仍会把当前的提示词段落和工具声明重新放到最前面。所以
+「截断时别把提示词弄丢」不需要你操心，反过来也意味着<strong>你没法用这个钩子
+删掉提示词</strong>。</p>
+<hr>
+<h2 id="sec-3-三-一条看不见的消息">三、一条看不见的消息</h2>
+<p>M06 讲过 Pi 的消息比模型能看的多四种。<code>custom</code> 是其中之一：</p>
+<ul>
+<li>它进 transcript，重启后还在；</li>
+<li>它有 <code>display</code> 字段，但那只控制「上不上屏」；</li>
+<li>它默认就不进请求。</li>
+</ul>
+<p>很多人第一次会去找「让 custom 不进上下文的开关」，然后误把
+<code>excludeFromContext</code> 当成它。那个字段属于 <code>bashExecution</code> 消息，不是
+<code>custom</code>。<code>custom</code> 的隔离靠的是类型本身：投影函数只认四种消息，第五种
+根本不在 <code>Message</code> 联合里。</p>
+<p>那如果某条 <code>bashExecution</code> 不该进上下文呢？它的 <code>excludeFromContext: true</code>
+就是干这个的。而如果你要按自己的规则剪枝，正确的位置是 <code>context</code> 钩子——
+它就是为「这一轮发什么」准备的。</p>
+<p>三个地方，三种职责，别混：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>需求</th>
+<th>用什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>这条记录只给自己看</td>
+<td><code>custom</code> 消息</td>
+</tr>
+<tr>
+<td>这条 bash 记录不进上下文</td>
+<td><code>bashExecution.excludeFromContext</code></td>
+</tr>
+<tr>
+<td>按规则裁剪这一轮消息</td>
+<td><code>context</code> 钩子</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-4-四-实验-三条日志-一次阻断">四、实验：三条日志，一次阻断</h2>
+<p>写一个 <code>probe.ts</code>，三个钩子各打一条日志：</p>
+<ul>
+<li><strong>改哪里</strong>：<code>.pi/extensions/probe.ts</code>，三个 <code>pi.on</code>，每个一行 <code>console.log</code>。</li>
+<li><strong>预期</strong>：一次工具调用会依次出现 <code>tool_call</code>、<code>tool_result</code>，下一次请求前
+出现 <code>context</code>。</li>
+<li><strong>连带</strong>：日志写 stdout 会污染 TUI 输出，调试时用 <code>ctx.ui.notify</code> 或写文件。</li>
+<li><strong>回滚</strong>：删文件，或 <code>/reload</code> 前把文件挪走。</li>
+</ul>
+<p>再加一条阻断规则：<code>bash</code> 命令含 <code>rm -rf</code> 时 <code>return { block: true }</code>。
+判据是模型收到一条「被拒绝」的工具结果，而不是命令真的执行了。</p>
+<blockquote>
+<p>本章实验未在本机跑通：<code>pi-lab</code> 依赖未装完（E04 §一）。
+钩子名与返回结构抄自 <code>docs/extensions.md</code>，装好依赖后按上表验证。</p>
+</blockquote>
+<hr>
+<h2 id="sec-5-五-小结">五、小结</h2>
+<ul>
+<li>扩展是进程内模块，权限等于 Pi，先信源后写码。</li>
+<li>三个钩子对应三个时刻：调用前、结果后、请求前。</li>
+<li><code>display</code> 只管上屏；<code>excludeFromContext</code> 只管 bash；裁剪用 <code>context</code>。</li>
+<li>日志别写 stdout，会污染 TUI。</li>
+</ul>
+<hr>
+<h2 id="sec-6-六-概念回顾">六、概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>一句话</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ExtensionAPI</code></td>
+<td>扩展拿到的句柄，<code>pi.on</code> 在它上面</td>
+<td><code>core/extensions/types.ts</code></td>
+</tr>
+<tr>
+<td><code>tool_call</code></td>
+<td>执行前，可阻断</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>tool_result</code></td>
+<td>执行后，补丁式修改</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>请求前，改消息列表</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td>第五种消息，默认不进请求</td>
+<td><code>core/messages.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-7-七-练习">七、练习</h2>
+<ol>
+<li><strong>（L2）</strong> 给 <code>probe.ts</code> 再加一条统计：一次会话里 <code>tool_call</code> 触发了几次。</li>
+<li><strong>（L2）</strong> 用 <code>tool_result</code> 把超过 2000 字符的结果截断，并记录被截掉多少。</li>
+<li><strong>（L3）</strong> 为什么 <code>context</code> 钩子里删掉的消息，不会导致提示词丢失？说出 Pi
+在钩子返回后做了什么。</li>
+<li><strong>（L4）</strong> 设计一个「写文件前必须确认」的扩展：用哪个钩子、怎么拿到路径、
+用户拒绝时返回什么。写成一页报告。</li>
+</ol>
+<hr>
+<h2 id="sec-8-八-三个常见误区">八、三个常见误区</h2>
+<p><strong>「扩展是沙箱里的，随便装。」</strong>
+它和 Pi 同权限，能读凭据和整段会话。装之前先读源码，这是文档写明的第一条。</p>
+<p><strong>「用 <code>display: false</code> 就能让消息不进上下文。」</strong>
+<code>display</code> 只影响渲染。是否进请求，取决于它的角色在不在 <code>Message</code> 联合里。</p>
+<p><strong>「<code>tool_result</code> 里改 <code>content</code> 就够了。」</strong>
+省略 <code>structuredContent</code> 会让结构化数据失效，下游可能直接报错。</p>
+<hr>
+<h2 id="sec-9-九-自检">九、自检</h2>
+<ol>
+<li>三个钩子的触发顺序是什么？哪一个是「每次请求前」？</li>
+<li><code>custom</code> 消息为什么不会进请求？是哪个开关在起作用？</li>
+<li><strong>（L3）</strong> 为什么 <code>context</code> 钩子适合做「裁剪」，而 <code>tool_call</code> 不适合？</li>
+</ol>
+<hr>
+<h2 id="sec-10-十-下一步-把六章连起来">十、下一步：把六章连起来</h2>
+<p>到这里，Part E 的两段都走完了：</p>
+<ul>
+<li>E01–E03：你自己造了一个 690 行的内核，知道每一层为什么存在；</li>
+<li>E04–E06：你在真源码上改了值、加了工具、挂了钩子。</li>
+</ul>
+<p>最后一件事不是写代码，是<strong>写一份报告</strong>：挑一个你真实的需求（比如「禁止
+写入 .env」），说明你会用哪个钩子、改哪三个文件、怎么验证、失败怎么回滚。
+报告里必须有一次真实运行记录；跑不通就写跑不通的原因，别编输出。</p>
+<p>这份报告就是 L4 的判据：不是「你会写扩展」，是「你能判断该在哪一层写」。</p>
+<h3 id="sec-11-源码索引">源码索引</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本章</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>扩展契约</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/extensions/types.ts</code></td>
+</tr>
+<tr>
+<td>事件文档</td>
+<td>—</td>
+<td><code>packages/coding-agent/docs/extensions.md</code></td>
+</tr>
+<tr>
+<td><code>custom</code> 消息</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/messages.ts</code></td>
+</tr>
+<tr>
+<td>扩展示例</td>
+<td>—</td>
+<td><code>packages/coding-agent/examples/extensions/</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="e05-tool.html"><span class="lbl">上一篇</span>加工具 —— 从契约到渲染，一个新能力</a>
+      <a class="next" href="appendix-migration.html"><span class="lbl">下一篇</span>附录 —— v0.80 → v1.4 迁移对照</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-它是模块-不是插件包" class="">一、它是模块，不是插件包</a><a href="#sec-2-二-三个钩子-前-后-发之前" class="">二、三个钩子：前、后、发之前</a><a href="#sec-3-三-一条看不见的消息" class="">三、一条看不见的消息</a><a href="#sec-4-四-实验-三条日志-一次阻断" class="">四、实验：三条日志，一次阻断</a><a href="#sec-5-五-小结" class="">五、小结</a><a href="#sec-6-六-概念回顾" class="">六、概念回顾</a><a href="#sec-7-七-练习" class="">七、练习</a><a href="#sec-8-八-三个常见误区" class="">八、三个常见误区</a><a href="#sec-9-九-自检" class="">九、自检</a><a href="#sec-10-十-下一步-把六章连起来" class="">十、下一步：把六章连起来</a><a href="#sec-11-源码索引" class="lv3">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

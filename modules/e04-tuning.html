@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>调参 —— 先改一个数字，再谈改代码 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 先用假模型，把循环跑通</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="active">
+                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
+                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
+                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E04</div>
+      <h1>调参 —— 先改一个数字，再谈改代码</h1>
+      <div class="module-meta">1,963 字 · 含 12 行代码 · 约 11 分钟</div>
+    </header>
+    <p>前半结束在 E03 的对照表上。从这一章开始，你不再写自己的内核，而是进
+<code>pi-lab/</code> 改 Pi 本身。第一个动作不是读代码，是<strong>确认你改的是能跑的那份</strong>。</p>
+<p>这一章的所有实验都只改值和配置，不动一行逻辑。目的很单纯：让你先体会
+「行为是参数决定的」这件事，再决定要不要动代码。</p>
+<p>三个问题：</p>
+<ol>
+<li>不改代码，能改变 Pi 的哪些行为？</li>
+<li>六个旋钮里，哪个最容易被忽略、后果却最大？</li>
+<li>改坏了怎么回去？没有 git 的副本怎么回滚？</li>
+</ol>
+<hr>
+<h2 id="sec-1-一-先过四道闸">一、先过四道闸</h2>
+<p><code>pi-lab/</code> 是 <code>pi-main/pi-main</code> 的副本，版本必须一致。动手前跑：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node scripts/lab-check.mjs</span></code></pre></div>
+<p>我本机的真实输出（网络受限，依赖没装完）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[PASS] node     24.12.0</span><span class="ln">[PASS] 副本版本     1.4.0（与 pi-main 一致）</span><span class="ln">[PASS] 依赖       node_modules 已就绪</span><span class="ln">[FAIL] 可启动      exit 1</span><span class="ln">[INFO] 未发现模型凭据；离线实验不需要，接真模型时再配</span></code></pre></div>
+<p>第 4 条失败的原因不是版本，是依赖树不完整：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Error: Cannot find package</span><span class="ln">  '.../pi-lab/node_modules/cross-spawn/index.js'</span></code></pre></div>
+<p><code>npm install --offline</code> 只装了一半。这不是 Pi 的问题，是网络的问题。<strong>判据
+的作用就在这里：</strong> 它不让你在「副本是坏的」情况下改配置，然后把失败归因
+给参数。</p>
+<p>一条命令修：</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd pi-lab &amp;&amp; npm install</span></code></pre></div>
+<p>装完再跑一次，第 4 条应该变成：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[PASS] 可启动   1.4.0</span></code></pre></div>
+<hr>
+<h2 id="sec-2-二-六个旋钮">二、六个旋钮</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>旋钮</th>
+<th>改哪里</th>
+<th>你会看到什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>图片进不进上下文</td>
+<td>设置项 <code>blockImages</code></td>
+<td>粘贴截图后模型还能不能描述它</td>
+</tr>
+<tr>
+<td>2</td>
+<td>思考档位</td>
+<td>设置项 <code>thinkingLevel</code>（七档）</td>
+<td>同一问题的推理长度与花费</td>
+</tr>
+<tr>
+<td>3</td>
+<td>换模型/换供应商</td>
+<td><code>models.json</code></td>
+<td>模型列表、默认模型、能力标记</td>
+</tr>
+<tr>
+<td>4</td>
+<td>系统提示词删一段</td>
+<td><code>sections</code> 里删一个 key</td>
+<td>行为变化，且能定位到哪一段</td>
+</tr>
+<tr>
+<td>5</td>
+<td>输出上限的安全边距</td>
+<td><code>simple-options.ts</code></td>
+<td>长回答被截断的时机</td>
+</tr>
+<tr>
+<td>6</td>
+<td>压缩触发点</td>
+<td>压缩阈值</td>
+<td>什么时候开始摘要、摘要几次</td>
+</tr>
+</tbody>
+</table></div>
+<p>六个别急着全改。按「改动成本」排序：1、2、3 是配置，4 是调用方，5、6
+才是源码常量。先做前三个，你会对「参数决定行为」有体感；再做后三个，
+才知道该在哪里加日志。</p>
+<hr>
+<h2 id="sec-3-三-三个配置旋钮-四行格式">三、三个配置旋钮：四行格式</h2>
+<p>每个实验固定四行：改哪里、预期、连带、回滚。</p>
+<h3 id="sec-4-旋钮-1-blockimages">旋钮 1：blockImages</h3>
+<ul>
+<li><strong>改哪里</strong>：用户设置文件里加 <code>&quot;blockImages&quot;: true</code>。</li>
+<li><strong>预期</strong>：粘贴图片后，请求里不再带 image 内容块；模型只能说「我看不到图」。</li>
+<li><strong>连带</strong>：<code>settings-schema.ts</code> 会校验类型；写成字符串会被拒绝。</li>
+<li><strong>回滚</strong>：删掉这个 key，或改回 <code>false</code>。</li>
+</ul>
+<p>Pi 有一个专门的测试文件 <code>packages/coding-agent/test/block-images.test.ts</code>。
+它证明的不是「图片能不能显示」，而是「内容块有没有被拦在请求之前」。这就是
+配置项的边界：<strong>它在消息组装之后、provider 之前生效。</strong></p>
+<h3 id="sec-5-旋钮-2-thinkinglevel">旋钮 2：thinkingLevel</h3>
+<ul>
+<li><strong>改哪里</strong>：设置里把 <code>thinkingLevel</code> 从默认档改到最高档。</li>
+<li><strong>预期</strong>：同一个问题，assistant 消息里的 reasoning 段更长，耗时和花费上升。</li>
+<li><strong>连带</strong>：不同模型支持的档位不同，<code>simple-options.ts</code> 里有 clamp 逻辑，
+超档会被压回去，而不是报错。</li>
+<li><strong>回滚</strong>：改回原档位；记下改之前的值。</li>
+</ul>
+<p>七档不是「越多越好」。它是给不同预算的人留的刻度：写代码要中档，做摘要
+要低档，解难题才用最高档。E06 的扩展里如果自己调模型，也要传这个值。</p>
+<h3 id="sec-6-旋钮-3-models-json">旋钮 3：models.json</h3>
+<ul>
+<li><strong>改哪里</strong>：换一条 provider 记录，或改默认模型的名字。</li>
+<li><strong>预期</strong>：<code>--version</code> 不变，但模型列表与默认选择变了；启动时能看到新模型。</li>
+<li><strong>连带</strong>：能力标记（上下文窗口、是否支持工具）必须跟着改，否则请求会被
+供应商拒绝，而 Pi 只报一个笼统的 400。</li>
+<li><strong>回滚</strong>：先把原文件复制成 <code>models.json.bak</code>，改坏了覆盖回去。</li>
+</ul>
+<p>这条最容易出错的地方不是 JSON 语法，是<strong>能力标记和真实模型不匹配</strong>。
+窗口写大了，压缩永远不触发；工具标记写错了，模型永远不调工具。</p>
+<hr>
+<h2 id="sec-7-四-三个源码旋钮-改常量-不改结构">四、三个源码旋钮：改常量，不改结构</h2>
+<h3 id="sec-8-旋钮-4-删一段系统提示词">旋钮 4：删一段系统提示词</h3>
+<p><code>packages/coding-agent/src/core/system-prompt.ts</code> 里，提示词是按 <code>sections</code>
+拼的：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  <span class="tok-com">/** Additional XML-wrapped prompt sections keyed by tag name. */</span></span><span class="ln">  sections?: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span>&gt;;</span></code></pre></div>
+<p>删掉一个 key，对应那一段就不进提示词。注意是<strong>删 key 或传 <code>undefined</code></strong>，
+不是传 <code>null</code>——类型是 <code>Record&lt;string, string&gt; | undefined</code>，多传一个 <code>null</code>
+只会在拼字符串时变成 <code>&quot;null&quot;</code>，看起来没坏，实际污染了提示词。</p>
+<p>判据：删掉工具说明那一段后，模型开始用错工具参数。这说明提示词和工具
+schema 是两套东西，缺一不可。</p>
+<h3 id="sec-9-旋钮-5-输出上限的安全边距">旋钮 5：输出上限的安全边距</h3>
+<p><code>packages/ai/src/api/simple-options.ts</code> 里有一层 clamp：请求的 <code>maxTokens</code>
+不能超过「上下文窗口 - 已用 - 安全边距」。把边距改小，长回答更容易被截断；
+改大，留给输入的空间更少。</p>
+<p>这条实验的价值在于让你看到 <code>stopReason: &quot;length&quot;</code> 是怎么产生的：不是模型
+不想说，是预算到了。</p>
+<h3 id="sec-10-旋钮-6-压缩阈值">旋钮 6：压缩阈值</h3>
+<p><code>packages/coding-agent/src/core/compaction/compaction.ts</code> 里，触发压缩的判断
+依赖 <code>tokensBefore</code>。把阈值往下调，你会更早看到摘要；往上调，摘要变少但
+单次请求更贵。</p>
+<p>判据不是「有没有摘要」，而是<strong>摘要之后第一轮的回答是否还接得上</strong>。接不上，
+说明阈值不重要，摘要内容才重要——这正是 M09 的主题。</p>
+<hr>
+<h2 id="sec-11-五-六组实验">五、六组实验</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>做什么</th>
+<th>判据</th>
+<th>回滚</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>跑 <code>lab-check</code></td>
+<td>四条全 PASS 才继续</td>
+<td>无</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>blockImages: true</code></td>
+<td>请求里没有 image 块</td>
+<td>删 key</td>
+</tr>
+<tr>
+<td>3</td>
+<td>思考档位调到最高</td>
+<td>reasoning 变长、耗时上升</td>
+<td>改回原值</td>
+</tr>
+<tr>
+<td>4</td>
+<td>改 models.json 的默认模型</td>
+<td>启动后默认模型变了</td>
+<td>覆盖 .bak</td>
+</tr>
+<tr>
+<td>5</td>
+<td>删 <code>sections</code> 一个 key</td>
+<td>行为变化，工具参数开始出错</td>
+<td>恢复 key</td>
+</tr>
+<tr>
+<td>6</td>
+<td>压缩阈值减半</td>
+<td>更早出现摘要</td>
+<td>改回常量</td>
+</tr>
+</tbody>
+</table></div>
+<p>第 1 组是前置条件，不是实验。<strong>没跑通第 1 组之前，后面五组的失败都没有
+解释力。</strong></p>
+<hr>
+<h2 id="sec-12-六-小结">六、小结</h2>
+<ul>
+<li>配置旋钮改的是「请求长什么样」，源码旋钮改的是「什么时候发」。</li>
+<li>六个旋钮里，<code>models.json</code> 的能力标记最危险：错了不报错，只是行为怪。</li>
+<li>回滚靠 <code>.bak</code>，不靠记忆。副本没有 git，删了就没了。</li>
+<li>判据要能一句话说清，否则你只是在「感觉不一样」。</li>
+</ul>
+<hr>
+<h2 id="sec-13-七-概念回顾">七、概念回顾</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>一句话</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>blockImages</code></td>
+<td>在组装后、请求前拦图片</td>
+<td><code>core/settings-schema.ts</code></td>
+</tr>
+<tr>
+<td><code>thinkingLevel</code></td>
+<td>七档，超出会被 clamp</td>
+<td><code>ai/src/api/simple-options.ts</code></td>
+</tr>
+<tr>
+<td><code>models.json</code></td>
+<td>模型目录与能力标记</td>
+<td><code>coding-agent/src/config.ts</code></td>
+</tr>
+<tr>
+<td><code>sections</code></td>
+<td>系统提示词按段拼</td>
+<td><code>core/system-prompt.ts</code></td>
+</tr>
+<tr>
+<td><code>tokensBefore</code></td>
+<td>压缩触发的依据</td>
+<td><code>core/compaction/compaction.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-14-八-练习">八、练习</h2>
+<ol>
+<li><strong>（L2）</strong> 把 <code>thinkingLevel</code> 改到最高档，记录同一问题的耗时与花费，和默认档对比。</li>
+<li><strong>（L2）</strong> 故意把 <code>models.json</code> 的上下文窗口写大 10 倍，观察压缩还会不会触发。</li>
+<li><strong>（L3）</strong> 为什么 <code>blockImages</code> 放在「组装后、请求前」最合适？放在 provider 里会多出什么代价？</li>
+<li><strong>（L4）</strong> 你要让 Pi 默认不加载图片，但保留「用户显式要求时能加载」。说出改哪个旋钮、加什么条件，以及为什么不该改源码。</li>
+</ol>
+<hr>
+<h2 id="sec-15-九-三个常见误区">九、三个常见误区</h2>
+<p><strong>「配置改完重启就行，不用验证。」</strong>
+<code>models.json</code> 的能力标记错了不会报错，只会让行为变得奇怪。每次改完都要跑
+一次最小请求，看 <code>stopReason</code> 和 token 用量。</p>
+<p><strong>「思考档位越高越好。」</strong>
+高档位在简单任务上只会更慢更贵，还更容易过度推理。档位是预算刻度，不是
+质量开关。</p>
+<p><strong>「副本坏了，重新复制一份就行。」</strong>
+复制一次要好几分钟，而且会把你改过的文件一起覆盖。正确做法是改前 <code>.bak</code>，
+改后一条 <code>cp</code> 回滚。</p>
+<hr>
+<h2 id="sec-16-十-自检">十、自检</h2>
+<ol>
+<li>说出六个旋钮里哪三个是配置、哪三个是源码。</li>
+<li><code>sections</code> 传 <code>null</code> 会发生什么？为什么类型系统救不了你？</li>
+<li><strong>（L3）</strong> 如果 <code>models.json</code> 把上下文窗口写小了，你会先看到什么现象？为什么
+不是「请求报错」？</li>
+</ol>
+<hr>
+<h2 id="sec-17-十一-下一步">十一、下一步</h2>
+<p>调参只能改「已有的能力」。要加一个新能力，必须动三处：工具实现、注册表、
+以及模型看到的 schema。</p>
+<p>E05 加一个 <code>outline</code> 工具：从契约到渲染，完整走一遍。</p>
+<h3 id="sec-18-源码索引">源码索引</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本章</th>
+<th>Pi v1.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>图片开关</td>
+<td>—</td>
+<td><code>coding-agent/src/core/settings-schema.ts</code></td>
+</tr>
+<tr>
+<td>思考档位</td>
+<td>—</td>
+<td><code>packages/ai/src/api/simple-options.ts</code></td>
+</tr>
+<tr>
+<td>系统提示词分段</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/core/system-prompt.ts</code></td>
+</tr>
+<tr>
+<td>压缩阈值</td>
+<td>—</td>
+<td><code>core/compaction/compaction.ts</code></td>
+</tr>
+<tr>
+<td>模型目录</td>
+<td>—</td>
+<td><code>packages/coding-agent/src/config.ts</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="e03-interface.html"><span class="lbl">上一篇</span>接口 —— 先抽出来，再换一家模型</a>
+      <a class="next" href="e05-tool.html"><span class="lbl">下一篇</span>加工具 —— 从契约到渲染，一个新能力</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先过四道闸" class="">一、先过四道闸</a><a href="#sec-2-二-六个旋钮" class="">二、六个旋钮</a><a href="#sec-3-三-三个配置旋钮-四行格式" class="">三、三个配置旋钮：四行格式</a><a href="#sec-4-旋钮-1-blockimages" class="lv3">旋钮 1：blockImages</a><a href="#sec-5-旋钮-2-thinkinglevel" class="lv3">旋钮 2：thinkingLevel</a><a href="#sec-6-旋钮-3-models-json" class="lv3">旋钮 3：models.json</a><a href="#sec-7-四-三个源码旋钮-改常量-不改结构" class="">四、三个源码旋钮：改常量，不改结构</a><a href="#sec-8-旋钮-4-删一段系统提示词" class="lv3">旋钮 4：删一段系统提示词</a><a href="#sec-9-旋钮-5-输出上限的安全边距" class="lv3">旋钮 5：输出上限的安全边距</a><a href="#sec-10-旋钮-6-压缩阈值" class="lv3">旋钮 6：压缩阈值</a><a href="#sec-11-五-六组实验" class="">五、六组实验</a><a href="#sec-12-六-小结" class="">六、小结</a><a href="#sec-13-七-概念回顾" class="">七、概念回顾</a><a href="#sec-14-八-练习" class="">八、练习</a><a href="#sec-15-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-16-十-自检" class="">十、自检</a><a href="#sec-17-十一-下一步" class="">十一、下一步</a><a href="#sec-18-源码索引" class="lv3">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>
