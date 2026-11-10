@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具 —— 注册表、校验，和一把写锁 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="active">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E04</div>
+      <h1>工具 —— 注册表、校验，和一把写锁</h1>
+      <div class="module-meta">2,029 字 · 含 228 行代码 · 约 12 分钟</div>
+    </header>
+    <p>E03 结束时 <code>tools: []</code>，模型只会说话。可是工具执行这段代码，从 E01 起就一直
+挤在 <code>loop.ts</code> 里：找工具、try/catch、拼消息，26 行，和循环的节奏缠在一起。</p>
+<p>这一章把它搬出来，顺便回答三个一直没有答案的问题：</p>
+<ol>
+<li>模型给了一个不存在的工具名，或者参数类型不对，谁来报错？</li>
+<li>一轮里有三个工具调用，为什么不能让它们排队等？</li>
+<li>既然并发，两个工具同时写同一个文件，谁赢？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  loop.ts 的职责             tools.ts 的职责</span><span class="ln">  ---------------            ----------------</span><span class="ln">  轮次、退出、消息        -&gt;  runTools()</span><span class="ln">                              |-- 找不到工具  -&gt; isError: true</span><span class="ln">                              |-- 参数不对    -&gt; isError: true</span><span class="ln">                              |-- 执行抛错    -&gt; isError: true</span><span class="ln">                              '-- write 同一路径 -&gt; withFileLock</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-本章终点-先跑起来">一、本章终点：先跑起来</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd examples/mini-agent</span><span class="ln">node src/demo-tools.ts</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">不加锁: A@47ms C@47ms B@48ms</span><span class="ln">加锁  : A@42ms B@89ms C@155ms</span><span class="ln">文件里最后留下: C</span><span class="ln">ok   c1 wrote 5 chars to tmp-e04.txt</span><span class="ln">err  c2 未知工具：nope</span><span class="ln">err  c3 text 应该是 string，收到 number</span></code></pre></div>
+<p>前两行是同一件事的两种做法：三个 30ms 的写任务同时出发，不加锁时几乎同时落地
+（47/47/48），加锁后是一个接一个（42/89/155，间隔≈45ms）。第三行是并发的代价：
+最后落地的那个决定文件内容，而「最后」在并发下是不确定的。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/tools.ts</code></td>
+<td>139</td>
+<td>新增 <code>runTools</code> / <code>validateArgs</code> / <code>withFileLock</code>（+78）</td>
+</tr>
+<tr>
+<td><code>src/loop.ts</code></td>
+<td>98</td>
+<td>工具执行那段搬走（−14）</td>
+</tr>
+<tr>
+<td><code>src/demo-tools.ts</code></td>
+<td>52</td>
+<td>新增：本章入口</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>914</td>
+<td>E03 的 737 + 本章 177</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-2-二-先把执行搬出循环">二、先把执行搬出循环</h2>
+<p>E01 的 <code>loop.ts</code> 里，这一段有 26 行。它做了四件事：查表、发事件、执行、拼消息。
+四件事里只有「拼消息」属于循环，其余三件属于工具层。所以先把 26 行换成 10 行：</p>
+<p>&lt;!-- file: examples/mini-agent/src/loop.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">    <span class="tok-kw">const</span> results = <span class="tok-kw">await</span> <span class="tok-fn">runTools</span>(calls, options.tools, emit);</span><span class="ln">    <span class="tok-kw">for</span> (<span class="tok-kw">const</span> result <span class="tok-kw">of</span> results) {</span><span class="ln">      errors = result.isError ? errors + <span class="tok-num">1</span> : <span class="tok-num">0</span>;</span><span class="ln">      messages.<span class="tok-fn">push</span>({</span><span class="ln">        role: <span class="tok-str">"tool"</span>,</span><span class="ln">        toolCallId: result.id,</span><span class="ln">        toolName: result.name,</span><span class="ln">        content: result.text,</span><span class="ln">        isError: result.isError,</span><span class="ln">      });</span><span class="ln">    }</span></code></pre></div>
+<p><code>runTools</code> 返回的是一个<strong>数组</strong>，顺序和 <code>calls</code> 一样——这一点后面解释。
+<code>errors</code> 的计数逻辑没变：连续三次失败才认输（<code>MAX_TOOL_ERRORS</code>）。</p>
+<p>搬家的直接好处是：循环不再知道「工具可能不存在」「参数可能不对」「execute 可能
+抛错」这三件事。它们是工具层的不变量，不该让每一层都记一遍。</p>
+<hr>
+<h2 id="sec-3-三-工具层-139-行">三、工具层：139 行</h2>
+<p>&lt;!-- file: examples/mini-agent/src/tools.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { readFile, writeFile } <span class="tok-kw">from</span> <span class="tok-str">"node:fs/promises"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { AgentEvent, Tool, ToolCallBlock } <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> MAX_CHARS = <span class="tok-num">4000</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> readTool: Tool = {</span><span class="ln">  name: <span class="tok-str">"read"</span>,</span><span class="ln">  description: <span class="tok-str">"读一个文本文件，返回前 4000 个字符。"</span>,</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>,</span><span class="ln">    properties: {</span><span class="ln">      path: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>, description: <span class="tok-str">"相对或绝对路径"</span> },</span><span class="ln">    },</span><span class="ln">    required: [<span class="tok-str">"path"</span>],</span><span class="ln">  },</span><span class="ln">  <span class="tok-kw">async</span> <span class="tok-fn">execute</span>(args) {</span><span class="ln">    <span class="tok-kw">const</span> file = <span class="tok-fn">String</span>(args.path ?? <span class="tok-str">""</span>);</span><span class="ln">    <span class="tok-kw">if</span> (!file) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"path 不能为空"</span>);</span><span class="ln">    <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> <span class="tok-fn">readFile</span>(file, <span class="tok-str">"utf8"</span>);</span><span class="ln">    <span class="tok-kw">const</span> body = text.length &gt; MAX_CHARS ? text.<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, MAX_CHARS) : text;</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-str">`# ${file}（${text.length} 字符）\n${body}`</span>;</span><span class="ln">  },</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> echoTool: Tool = {</span><span class="ln">  name: <span class="tok-str">"echo"</span>,</span><span class="ln">  description: <span class="tok-str">"原样返回传入的 text，用来验证工具通路。"</span>,</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>,</span><span class="ln">    properties: {</span><span class="ln">      text: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>, description: <span class="tok-str">"要回显的内容"</span> },</span><span class="ln">    },</span><span class="ln">    required: [<span class="tok-str">"text"</span>],</span><span class="ln">  },</span><span class="ln">  <span class="tok-fn">execute</span>(args) {</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-str">`echo: ${String(args.text ?? "")}`</span>;</span><span class="ln">  },</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> writeTool: Tool = {</span><span class="ln">  name: <span class="tok-str">"write"</span>,</span><span class="ln">  description: <span class="tok-str">"把 text 写入 path，返回写入的字符数。"</span>,</span><span class="ln">  parameters: {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"object"</span>,</span><span class="ln">    properties: {</span><span class="ln">      path: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>, description: <span class="tok-str">"目标路径"</span> },</span><span class="ln">      text: { <span class="tok-kw">type</span>: <span class="tok-str">"string"</span>, description: <span class="tok-str">"文件内容"</span> },</span><span class="ln">    },</span><span class="ln">    required: [<span class="tok-str">"path"</span>, <span class="tok-str">"text"</span>],</span><span class="ln">  },</span><span class="ln">  <span class="tok-kw">async</span> <span class="tok-fn">execute</span>(args) {</span><span class="ln">    <span class="tok-kw">const</span> file = <span class="tok-fn">String</span>(args.path ?? <span class="tok-str">""</span>);</span><span class="ln">    <span class="tok-kw">if</span> (!file) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"path 不能为空"</span>);</span><span class="ln">    <span class="tok-kw">const</span> text = <span class="tok-fn">String</span>(args.text ?? <span class="tok-str">""</span>);</span><span class="ln">    <span class="tok-com">/* 同一路径的写排队：并发调用时后到者等前一个落盘 */</span></span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-fn">withFileLock</span>(file, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">      <span class="tok-kw">await</span> <span class="tok-fn">writeFile</span>(file, text, <span class="tok-str">"utf8"</span>);</span><span class="ln">      <span class="tok-kw">return</span> <span class="tok-str">`wrote ${text.length} chars to ${file}`</span>;</span><span class="ln">    });</span><span class="ln">  },</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-com">/** E01/E02 只用这两个；E03 才把 write 注册进来。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> baseTools: Tool[] = [readTool, echoTool];</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> locks = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">string</span>, Promise&lt;<span class="tok-kw">unknown</span>&gt;&gt;();</span><span class="ln"></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 同一个 key 的任务排队执行：前一个不管成功失败，后一个才开始。</span></span><span class="ln"><span class="tok-com"> * 进程内锁，够挡住「同一轮里两个 write 抢一个文件」。</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> withFileLock&lt;T&gt;(</span><span class="ln">  key: <span class="tok-kw">string</span>,</span><span class="ln">  <span class="tok-kw">fn</span>: () =&gt; Promise&lt;T&gt;,</span><span class="ln">): Promise&lt;T&gt; {</span><span class="ln">  <span class="tok-kw">const</span> prev = locks.<span class="tok-kw">get</span>(key) ?? Promise.<span class="tok-fn">resolve</span>();</span><span class="ln">  <span class="tok-kw">const</span> next = prev.<span class="tok-fn">then</span>(<span class="tok-kw">fn</span>, <span class="tok-kw">fn</span>);</span><span class="ln">  locks.<span class="tok-kw">set</span>(</span><span class="ln">    key,</span><span class="ln">    next.<span class="tok-kw">catch</span>(() =&gt; {}),</span><span class="ln">  );</span><span class="ln">  <span class="tok-kw">return</span> next;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 参数校验：只查 required 与类型，不做 schema 全集。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">validateArgs</span>(</span><span class="ln">  tool: Tool,</span><span class="ln">  args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;,</span><span class="ln">): <span class="tok-kw">string</span> | <span class="tok-kw">null</span> {</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> tool.parameters.required) {</span><span class="ln">    <span class="tok-kw">if</span> (!(name <span class="tok-kw">in</span> args)) <span class="tok-kw">return</span> <span class="tok-str">`缺参数 ${name}`</span>;</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> [name, spec] <span class="tok-kw">of</span> Object.<span class="tok-fn">entries</span>(tool.parameters.properties)) {</span><span class="ln">    <span class="tok-kw">const</span> value = args[name];</span><span class="ln">    <span class="tok-kw">if</span> (value === <span class="tok-kw">undefined</span>) <span class="tok-kw">continue</span>;</span><span class="ln">    <span class="tok-kw">if</span> (<span class="tok-kw">typeof</span> value !== spec.<span class="tok-kw">type</span>) {</span><span class="ln">      <span class="tok-kw">return</span> <span class="tok-str">`${name} 应该是 ${spec.type}，收到 ${typeof value}`</span>;</span><span class="ln">    }</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-kw">null</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ToolOutcome {</span><span class="ln">  id: <span class="tok-kw">string</span>;</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  text: <span class="tok-kw">string</span>;</span><span class="ln">  isError: <span class="tok-kw">boolean</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 一轮里的所有工具调用并发跑，结果按原始顺序返回。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">runTools</span>(</span><span class="ln">  calls: ToolCallBlock[],</span><span class="ln">  tools: Tool[],</span><span class="ln">  emit: (event: AgentEvent) =&gt; <span class="tok-kw">void</span>,</span><span class="ln">): Promise&lt;ToolOutcome[]&gt; {</span><span class="ln">  <span class="tok-kw">const</span> runOne = <span class="tok-kw">async</span> (call: ToolCallBlock): Promise&lt;ToolOutcome&gt; =&gt; {</span><span class="ln">    <span class="tok-kw">const</span> miss = (text: <span class="tok-kw">string</span>): ToolOutcome =&gt; {</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"tool_end"</span>, id: call.id, isError: <span class="tok-kw">true</span> });</span><span class="ln">      <span class="tok-kw">return</span> { id: call.id, name: call.name, text, isError: <span class="tok-kw">true</span> };</span><span class="ln">    };</span><span class="ln"></span><span class="ln">    <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"tool_start"</span>, id: call.id, name: call.name });</span><span class="ln">    <span class="tok-kw">const</span> tool = tools.<span class="tok-fn">find</span>((item) =&gt; item.name === call.name);</span><span class="ln">    <span class="tok-kw">if</span> (!tool) <span class="tok-kw">return</span> <span class="tok-fn">miss</span>(<span class="tok-str">`未知工具：${call.name}`</span>);</span><span class="ln">    <span class="tok-kw">const</span> bad = <span class="tok-fn">validateArgs</span>(tool, call.args);</span><span class="ln">    <span class="tok-kw">if</span> (bad) <span class="tok-kw">return</span> <span class="tok-fn">miss</span>(bad);</span><span class="ln"></span><span class="ln">    <span class="tok-kw">try</span> {</span><span class="ln">      <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> tool.<span class="tok-fn">execute</span>(call.args);</span><span class="ln">      <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"tool_end"</span>, id: call.id, isError: <span class="tok-kw">false</span> });</span><span class="ln">      <span class="tok-kw">return</span> { id: call.id, name: call.name, text, isError: <span class="tok-kw">false</span> };</span><span class="ln">    } <span class="tok-kw">catch</span> (error) {</span><span class="ln">      <span class="tok-kw">const</span> text = error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error);</span><span class="ln">      <span class="tok-kw">return</span> <span class="tok-fn">miss</span>(text);</span><span class="ln">    }</span><span class="ln">  };</span><span class="ln"></span><span class="ln">  <span class="tok-kw">return</span> Promise.<span class="tok-fn">all</span>(calls.<span class="tok-kw">map</span>((call) =&gt; <span class="tok-fn">runOne</span>(call)));</span><span class="ln">}</span></code></pre></div>
+<p>前 60 行是工具定义，从 E01 就存在，这里只是加了锁。真正新的是后面 80 行。</p>
+<hr>
+<h2 id="sec-4-四-锁-一条-promise-链">四、锁：一条 promise 链</h2>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> prev = locks.<span class="tok-kw">get</span>(key) ?? Promise.<span class="tok-fn">resolve</span>();</span><span class="ln"><span class="tok-kw">const</span> next = prev.<span class="tok-fn">then</span>(<span class="tok-kw">fn</span>, <span class="tok-kw">fn</span>);</span><span class="ln">locks.<span class="tok-kw">set</span>(key, next.<span class="tok-kw">catch</span>(() =&gt; {}));</span><span class="ln"><span class="tok-kw">return</span> next;</span></code></pre></div>
+<p>四行，值得逐行读。</p>
+<p><strong><code>prev</code> 是「这个 key 上一次的任务」。</strong> 第一次调用时没有，就当成「已完成」。</p>
+<p><strong><code>prev.then(fn, fn)</code> 里的两个 <code>fn</code></strong>：成功也执行、失败也执行。如果写成
+<code>prev.then(fn)</code>，前一个写失败之后链就断了，后面的写永远不跑——你会看到「文件
+没生成，也没有报错」，这是最难查的一类问题。</p>
+<p><strong><code>locks.set(key, next.catch(() =&gt; {}))</code> 存的是「吞掉异常后的版本」。</strong> 目的是
+让链不断，同时不制造 unhandled rejection。<code>return next</code> 返回的才是<strong>带异常的
+原版</strong>，所以调用方仍然能拿到错误。</p>
+<p><strong>为什么要 <code>.catch</code> 而不是 <code>.finally</code>？</strong> <code>finally</code> 会把值也吞成 <code>undefined</code>，
+下一环拿不到结果；我们只需要「错误不阻断链条」，不需要改结果。</p>
+<p>再看实验数据：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">不加锁: A@47ms C@47ms B@48ms</span><span class="ln">加锁  : A@42ms B@89ms C@155ms</span><span class="ln">文件里最后留下: C</span></code></pre></div>
+<p>不加锁时三者的落地时刻几乎一样——它们真的在同时跑；加锁后间隔约 45ms（30ms 的
+sleep + 开销），说明后一个在等前一个。<strong>判据不是「代码里有锁」，而是「时间被
+拉开了」。</strong></p>
+<p>进程内锁的边界也要说清楚：它只挡同一个 Node 进程。两个 CLI 进程同时写一个文件，
+它一点用都没有。那需要文件锁或原子重命名，属于另一章的事。</p>
+<hr>
+<h2 id="sec-5-五-校验-模型给的参数永远别信">五、校验：模型给的参数永远别信</h2>
+<p><code>validateArgs</code> 只做两件事：<code>required</code> 都在、类型对得上。不做嵌套、不做枚举、
+不写完整的 JSON Schema。理由是：<strong>这一层的目标是「别把明显坏的参数喂给工具」，
+不是「实现一个校验器」</strong>。工具自己仍然要检查语义（比如路径不能为空）。</p>
+<p>真实输出里的第三行就是它：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">err  c3 text 应该是 string，收到 number</span></code></pre></div>
+<p>注意报错文案里带上了「收到什么」——这是可修的报错和不可修的报错的分界。只写
+「参数错误」，用户只能猜；写「收到 number」，他立刻知道模型把 <code>&quot;42&quot;</code> 写成了 <code>42</code>。</p>
+<p>还有一个容易漏的点：校验失败<strong>不抛异常</strong>，而是返回一条 <code>isError: true</code> 的结果。
+因为这是<strong>模型的问题，不是程序的问题</strong>。把它当异常抛，整个循环会崩；把它当消息
+回给模型，它下一轮有机会自己改。</p>
+<hr>
+<h2 id="sec-6-六-并发-promise-all-为什么还能保序">六、并发：<code>Promise.all</code> 为什么还能保序</h2>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">return</span> Promise.<span class="tok-fn">all</span>(calls.<span class="tok-kw">map</span>((call) =&gt; <span class="tok-fn">runOne</span>(call)));</span></code></pre></div>
+<p><code>Promise.all</code> 返回的数组<strong>按输入顺序</strong>排列，不按完成顺序。这是规范行为，不是
+实现巧合：下标是 promise 在数组里的位置。</p>
+<p>所以模型看到的 tool 消息顺序和它发出的 toolCall 顺序一致——这对下一轮很关键。
+多数 provider 要求 tool 结果紧跟在对应的 <code>toolCall</code> 后面，顺序错位就是 400。</p>
+<p>代价是：一个慢工具会拖住整批的<strong>返回时刻</strong>，但不拖住别人<strong>开始</strong>。要「谁先好
+谁先回」就得改成流式收集，那要动 <code>AgentEvent</code>（得有个「结果已就绪」的事件），
+留给 E07 的钩子一起做。</p>
+<hr>
+<h2 id="sec-7-七-入口-52-行看两件事">七、入口：52 行看两件事</h2>
+<p>&lt;!-- file: examples/mini-agent/src/demo-tools.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * E04 的终点：一把进程内的写锁，一次并发执行。</span></span><span class="ln"><span class="tok-com"> * 运行：cd examples/mini-agent &amp;&amp; node src/demo-tools.ts</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">import</span> { readFile, writeFile } <span class="tok-kw">from</span> <span class="tok-str">"node:fs/promises"</span>;</span><span class="ln"><span class="tok-kw">import</span> { runTools, withFileLock, writeTool, echoTool } <span class="tok-kw">from</span> <span class="tok-str">"./tools.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { ToolCallBlock } <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> file = <span class="tok-str">"tmp-e04.txt"</span>;</span><span class="ln"><span class="tok-kw">const</span> labels = [<span class="tok-str">"A"</span>, <span class="tok-str">"B"</span>, <span class="tok-str">"C"</span>];</span><span class="ln"><span class="tok-kw">const</span> sleep = (ms: <span class="tok-kw">number</span>) =&gt; <span class="tok-kw">new</span> <span class="tok-fn">Promise</span>((done) =&gt; <span class="tok-fn">setTimeout</span>(done, ms));</span><span class="ln"></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">slowWrite</span>(label: <span class="tok-kw">string</span>): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-fn">sleep</span>(<span class="tok-num">30</span>);</span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-fn">writeFile</span>(file, label, <span class="tok-str">"utf8"</span>);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 三个任务同时开跑，记录各自落地时刻。 */</span></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">race</span>(useLock: <span class="tok-kw">boolean</span>): Promise&lt;<span class="tok-kw">string</span>&gt; {</span><span class="ln">  <span class="tok-kw">const</span> t0 = performance.<span class="tok-fn">now</span>();</span><span class="ln">  <span class="tok-kw">const</span> done: <span class="tok-kw">string</span>[] = [];</span><span class="ln">  <span class="tok-kw">await</span> Promise.<span class="tok-fn">all</span>(</span><span class="ln">    labels.<span class="tok-kw">map</span>(<span class="tok-kw">async</span> (label) =&gt; {</span><span class="ln">      <span class="tok-kw">const</span> run = () =&gt; <span class="tok-fn">slowWrite</span>(label);</span><span class="ln">      <span class="tok-kw">if</span> (useLock) <span class="tok-kw">await</span> <span class="tok-fn">withFileLock</span>(file, run);</span><span class="ln">      <span class="tok-kw">else</span> <span class="tok-kw">await</span> <span class="tok-fn">run</span>();</span><span class="ln">      done.<span class="tok-fn">push</span>(<span class="tok-str">`${label}@${Math.round(performance.now() - t0)}ms`</span>);</span><span class="ln">    }),</span><span class="ln">  );</span><span class="ln">  <span class="tok-kw">return</span> done.<span class="tok-fn">join</span>(<span class="tok-str">" "</span>);</span><span class="ln">}</span><span class="ln"></span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`不加锁: ${await race(false)}`</span>);</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`加锁  : ${await race(true)}`</span>);</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`文件里最后留下: ${await readFile(file, "utf8")}`</span>);</span><span class="ln"></span><span class="ln"><span class="tok-com">/* 一轮里的三个调用：一个正常、一个没有这个工具、一个参数类型不对 */</span></span><span class="ln"><span class="tok-kw">const</span> calls: ToolCallBlock[] = [</span><span class="ln">  {</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">    id: <span class="tok-str">"c1"</span>,</span><span class="ln">    name: <span class="tok-str">"write"</span>,</span><span class="ln">    args: { path: file, text: <span class="tok-str">"final"</span> },</span><span class="ln">  },</span><span class="ln">  { <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>, id: <span class="tok-str">"c2"</span>, name: <span class="tok-str">"nope"</span>, args: {} },</span><span class="ln">  { <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>, id: <span class="tok-str">"c3"</span>, name: <span class="tok-str">"echo"</span>, args: { text: <span class="tok-num">42</span> } },</span><span class="ln">];</span><span class="ln"><span class="tok-kw">const</span> outcomes = <span class="tok-kw">await</span> <span class="tok-fn">runTools</span>(calls, [writeTool, echoTool], () =&gt; {});</span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> out <span class="tok-kw">of</span> outcomes) {</span><span class="ln">  <span class="tok-kw">const</span> flag = out.isError ? <span class="tok-str">"err "</span> : <span class="tok-str">"ok  "</span>;</span><span class="ln">  console.<span class="tok-fn">log</span>(<span class="tok-str">`${flag} ${out.id} ${out.text}`</span>);</span><span class="ln">}</span></code></pre></div>
+<p><code>race(true)</code> 和 <code>race(false)</code> 用的是同一个 <code>slowWrite</code>，唯一差别是外面套没套
+<code>withFileLock</code>。做 A/B 时保持一处差异，是能不能得出结论的关键。</p>
+<hr>
+<h2 id="sec-8-八-代码地图">八、代码地图</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>关键符号</th>
+<th>下一章怎么用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/tools.ts</code></td>
+<td><code>runTools()</code> / <code>validateArgs()</code> / <code>withFileLock()</code></td>
+<td>E08 的 CLI 用 <code>baseTools + writeTool</code></td>
+</tr>
+<tr>
+<td><code>src/loop.ts</code></td>
+<td><code>MAX_TOOL_ERRORS</code> / <code>runTools</code> 调用点</td>
+<td>E07 在两侧插钩子</td>
+</tr>
+<tr>
+<td><code>src/demo-tools.ts</code></td>
+<td><code>race()</code></td>
+<td>以后测任何「并发 vs 串行」都能照抄</td>
+</tr>
+</tbody>
+</table></div>
+<p>注意 <code>loop.ts</code> 从 112 行缩到 98 行，功能反而多了。<strong>搬家不等于加代码</strong>：把不
+属于这一层的事挪走，主流程会变短。</p>
+<h3 id="sec-9-自检">自检</h3>
+<ol>
+<li><code>prev.then(fn)</code> 和 <code>prev.then(fn, fn)</code> 差在哪？各举一个会出问题的场景。</li>
+<li><code>Promise.all</code> 保序，是指「按完成顺序」还是「按输入顺序」？如果模型要求
+tool 结果和 toolCall 一一对应，哪一处代码在保证这件事？</li>
+<li>三个工具里有一个 sleep 10 秒，另外两个 30ms。<code>runTools</code> 的返回时刻是多少？
+如果想「先好的先回」，要改哪一层的契约？</li>
+</ol>
+<p>参考答案：</p>
+<p><strong>第 1 题</strong>：<code>prev.then(fn)</code> 只在前一个成功时继续。前一个 <code>write</code> 失败（磁盘满、
+权限拒绝）后，后面的写全部不执行，而且没有报错——因为异常已经被前一条链吞在
+<code>catch</code> 里。<code>prev.then(fn, fn)</code> 两个分支都继续，失败只影响自己那一次。</p>
+<p><strong>第 2 题</strong>：按输入顺序。保证它的是 <code>calls.map(...)</code> 的顺序 + <code>Promise.all</code>
+的下标语义；<code>loop.ts</code> 拿到的 <code>results</code> 和 <code>calls</code> 一一对应，写消息时不会错位。</p>
+<p><strong>第 3 题</strong>：约 10 秒——<code>Promise.all</code> 等最慢的那个。要「先好的先回」，得把
+<code>runTools</code> 从「返回数组」改成「逐个 yield 结果」，同时给 <code>AgentEvent</code> 加一个
+<code>tool_result</code> 事件；这是协议层改动，不是调度层。</p>
+<hr>
+<h2 id="sec-10-九-与-pi-的对照-可选">九、与 Pi 的对照（可选）</h2>
+<p>Pi 的 <code>packages/agent/src/agent-loop.ts</code> 里，同一件事叫
+<code>executeToolCallsParallel</code>（:596），收尾也是 <code>Promise.all</code>（:656），并且有一个
+<code>orderedFinalizedCalls</code> 变量名——<strong>顺序是被显式维护的</strong>，不靠运气。</p>
+<p>它还有一段注释，几乎就是我们 <code>miss()</code> 的说明书（:818）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Never rejects for tool failures: unknown tools, validation errors, blocked calls,</span><span class="ln">and thrown errors come back as `isError: true`.</span></code></pre></div>
+<p>差别在于 Pi 在「执行前」还有 <code>beforeToolCall</code>（权限、审批）和 <code>afterToolCall</code>
+（结果改写），所以它需要 <code>prepare / execute / finalize</code> 三段。我们只有一段，
+E07 加钩子时会自然长出这三段。</p>
+<hr>
+<h2 id="sec-11-十-下一章">十、下一章</h2>
+<p><code>tools.ts</code> 有了锁，但上下文还在无限增长：一轮对话 20 条消息，跑到第 30 轮，
+请求体就装不下了。</p>
+<p>E05 做压缩：估算 token、设一道阈值、把前面几条换成一条 <code>note</code>——然后用 E02 那道
+闸门把它送进 prompt。<code>node src/demo-compact.ts</code> 会打印四个数字：压了没有、丢了
+几条、剩几条、第一条是不是摘要。</p>
+
+<div class="pager">
+      <a class="prev" href="e03-interface.html"><span class="lbl">上一篇</span>接口 —— 先造一条能回放的模型，再接真的</a>
+      <a class="next" href="e05-context.html"><span class="lbl">下一篇</span>上下文 —— 一道阈值，一条摘要，四个数字</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-先把执行搬出循环" class="">二、先把执行搬出循环</a><a href="#sec-3-三-工具层-139-行" class="">三、工具层：139 行</a><a href="#sec-4-四-锁-一条-promise-链" class="">四、锁：一条 promise 链</a><a href="#sec-5-五-校验-模型给的参数永远别信" class="">五、校验：模型给的参数永远别信</a><a href="#sec-6-六-并发-promise-all-为什么还能保序" class="">六、并发：Promise.all 为什么还能保序</a><a href="#sec-7-七-入口-52-行看两件事" class="">七、入口：52 行看两件事</a><a href="#sec-8-八-代码地图" class="">八、代码地图</a><a href="#sec-9-自检" class="lv3">自检</a><a href="#sec-10-九-与-pi-的对照-可选" class="">九、与 Pi 的对照（可选）</a><a href="#sec-11-十-下一章" class="">十、下一章</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

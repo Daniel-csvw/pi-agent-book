@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>接口 —— 先抽出来，再换一家模型 · Pi Agent 源码级教程</title>
+<title>接口 —— 先造一条能回放的模型，再接真的 · Pi Agent 源码级教程</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -34,10 +34,12 @@
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
                 <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
                 <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="active">
-                <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
-                <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
-                <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
-                <span class="code">E06</span><span>写扩展 —— 三个钩子，一条看不见的消息</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
@@ -46,312 +48,311 @@
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">E03</div>
-      <h1>接口 —— 先抽出来，再换一家模型</h1>
-      <div class="module-meta">1,483 字 · 含 42 行代码 · 约 10 分钟</div>
+      <h1>接口 —— 先造一条能回放的模型，再接真的</h1>
+      <div class="module-meta">2,489 字 · 含 334 行代码 · 约 14 分钟</div>
     </header>
-    <p>E02 结束时，<code>loop.ts</code> 还是写死的：<code>createMockProvider()</code>。想接真模型，按理
-只该改一行。但大多数第一版做不到——它们把「发请求」写进了循环里，于是换
-provider 等于重写循环。</p>
-<p>这一章只做一件事：<strong>把 provider 抽成接口，然后证明它真的可换。</strong></p>
+    <p>E02 结束后，<code>loop.ts</code> 还是硬绑 <code>createMockProvider()</code>。mock 有个天花板：它只会
+按三条规则说话，你没法用它验证「流式解析对不对」「工具参数分片拼没拼上」。</p>
+<p>这一章把 provider 抽成真接口，然后写两份实现：</p>
+<ul>
+<li><code>fixture</code>：把一段回复录成文本，离线回放。零凭据、零网络、可进测试。</li>
+<li><code>openai</code>：一个 POST，读 SSE，边读边翻译成同样形状的 chunk。</li>
+</ul>
 <p>三个问题：</p>
 <ol>
-<li>换一家模型，最少要改几行？</li>
-<li>没有 key、没有网络时，怎么验证「换 provider 这条路是通的」？</li>
-<li>你写的这 584 行，对应 Pi 的哪几处？</li>
+<li>回放要录什么？录原始 SSE，还是录我们自己的 chunk？</li>
+<li>网络给来的是字节流，不是一个事件一个事件——怎么把它切成完整事件？</li>
+<li>没有 API key 时，怎么证明真模型那段代码是对的？</li>
 </ol>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">             loop.ts</span><span class="ln">                |</span><span class="ln">                |  只认 Provider 这个接口</span><span class="ln">                v</span><span class="ln">          +---- Provider ----+</span><span class="ln">          |                  |</span><span class="ln">   provider/mock.ts   provider/fixture.ts   provider/openai.ts</span><span class="ln">     (假模型)          (回放 SSE)            (真 HTTP)</span></code></pre></div>
+<pre><code><span class="ln">  runAgent</span><span class="ln">     |</span><span class="ln">     |  provider.stream(messages, tools, signal)</span><span class="ln">     v</span><span class="ln">  ProviderChunk: text / toolCall / done</span><span class="ln">     ^                    ^</span><span class="ln">     |                    |</span><span class="ln">  mock（三条规则）      fixture（回放） / openai（SSE）</span></code></pre></div>
 <hr>
-<h2 id="sec-1-一-接口只有三样东西">一、接口只有三样东西</h2>
-<p>&lt;!-- file: examples/mini-agent/src/types.ts --&gt;</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> Provider {</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  <span class="tok-fn">stream</span>(</span><span class="ln">    messages: Message[],</span><span class="ln">    tools: Tool[],</span><span class="ln">    signal?: AbortSignal,</span><span class="ln">  ): AsyncIterable&lt;ProviderChunk&gt;;</span><span class="ln">}</span></code></pre></div>
-<p><code>messages</code> 是历史，<code>tools</code> 是这一轮可用的工具，<code>signal</code> 是取消。三样缺一
-不可，但也就这三样：</p>
-<ul>
-<li>没有 <code>onText</code> 回调——流式用 <code>AsyncIterable</code> 表达，调用方 <code>for await</code> 就行；</li>
-<li>没有 <code>retry</code>——重试策略属于宿主，不属于方言；</li>
-<li>没有 <code>apiKey</code>——凭据在构造 provider 时给，循环不该看见它。</li>
-</ul>
-<p>接口越小，可换的空间越大。Pi 的 <code>packages/ai/src/types.ts</code> 里 <code>Provider</code>
-也是这个形状，只是它多了一层「十种方言 → 统一事件」的翻译。</p>
-<hr>
-<h2 id="sec-2-二-先写-fixture-不联网也能跑完整条路">二、先写 fixture：不联网也能跑完整条路</h2>
-<p>真模型的问题不是难，是不可控。录一份 SSE 回复，按行重放，就能把「解析 +
-翻译 + 进循环」这条路先跑通。</p>
-<p><code>fixtures/openai-basic.jsonl</code> 四行，最后一行是 <code>[DONE]</code>：</p>
+<h2 id="sec-1-一-本章终点-先跑起来">一、本章终点：先跑起来</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd examples/mini-agent</span><span class="ln">node src/demo-model.ts</span></code></pre></div>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">data: {"choices":[{"delta":{"content":"你好"}}]}</span><span class="ln">data: {"choices":[{"delta":{"content":"，这是一份录好的回复。"}}]}</span><span class="ln">data: {"choices":[{"delta":{},"finish_reason":"stop"}]}</span><span class="ln">data: [DONE]</span></code></pre></div>
-<p>解析器要做三件事：拆掉 <code>data:</code> 前缀、跳过 <code>[DONE]</code>、把 <code>delta.content</code>
-变成 <code>text</code> chunk。工具调用稍微麻烦一点，参数是分片到达的，要按 <code>index</code>
-拼起来：</p>
+<pre><code><span class="ln">fixtures/openai-basic.jsonl</span><span class="ln">  text     你好</span><span class="ln">  text     ，这是一份录好的回复。</span><span class="ln">  done     stop</span><span class="ln"></span><span class="ln">fixtures/openai-tool.jsonl</span><span class="ln">  toolCall read {"path":"README.md"}</span><span class="ln">  done     toolUse</span><span class="ln">你好，这是一份录好的回复。</span><span class="ln">turns=1 stop=stop</span></code></pre></div>
+<p>四段输出对应四件事：两条带子被读成了 chunk、带子里的 toolCall 带着参数、同一份
+<code>loop.ts</code> 直接吃下了 fixture、整轮只跑一次就 stop。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/provider/fixture.ts</code></td>
+<td>42</td>
+<td>重写：从「解析 SSE」改成「重放 chunk」</td>
+</tr>
+<tr>
+<td><code>src/provider/openai.ts</code></td>
+<td>159</td>
+<td>新增：真模型</td>
+</tr>
+<tr>
+<td><code>fixtures/openai-basic.jsonl</code></td>
+<td>3</td>
+<td>新增</td>
+</tr>
+<tr>
+<td><code>fixtures/openai-tool.jsonl</code></td>
+<td>2</td>
+<td>新增</td>
+</tr>
+<tr>
+<td><code>src/demo-model.ts</code></td>
+<td>40</td>
+<td>新增：本章入口</td>
+</tr>
+<tr>
+<td><code>test/openai.test.ts</code></td>
+<td>48</td>
+<td>新增：离线测 SSE</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>737</td>
+<td>E02 的 443 + 本章 294</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-2-二-先定录制格式-再写解析器">二、先定录制格式，再写解析器</h2>
+<p>第一版我录的是原始 SSE，一行一个 <code>data: {...}</code>。写了两条带子之后发现一个硬
+约束：<strong>书里的代码块每行不能超过 80 列。</strong> 而 OpenAI 的 tool_calls delta 长这样
+（真实录制，一行）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_9",...</span><span class="ln">    "function":{"name":"read","arguments":"{\"path\":\"README.md\"}"}}]}}]}</span></code></pre></div>
+<p>一行 158 列。压不进书里，也就压不进「看教程就能复现」这条原则。</p>
+<p>于是我换了分工：<strong>回放不负责解析方言，只负责重放 chunk。</strong> 带子里存的就是
+<code>ProviderChunk</code>，一行一条；SSE 的方言只在 <code>openai.ts</code> 里出现一次。两个直接好处：</p>
+<ul>
+<li>带子可读、可手写、长度可控，坏一行报行号；</li>
+<li>回放器不依赖任何 provider 细节，将来接 Anthropic 也不用改它。</li>
+</ul>
+<p>代价是：fixture 不能替 <code>openai.ts</code> 测 SSE 解析。那就用一个本地 http 服务器来测
+（第七节），比录制更可靠。</p>
+<hr>
+<h2 id="sec-3-三-两条带子">三、两条带子</h2>
+<p>&lt;!-- file: examples/mini-agent/fixtures/openai-basic.jsonl --&gt;</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{"type":"text","text":"你好"}</span><span class="ln">{"type":"text","text":"，这是一份录好的回复。"}</span><span class="ln">{"type":"done","stopReason":"stop"}</span></code></pre></div>
+<p>&lt;!-- file: examples/mini-agent/fixtures/openai-tool.jsonl --&gt;</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{"type":"toolCall","id":"call_9","name":"read","args":{"path":"README.md"}}</span><span class="ln">{"type":"done","stopReason":"toolUse"}</span></code></pre></div>
+<p>三行到两行，形状就是 E01 定义的 <code>ProviderChunk</code>。没有新格式，所以回放器不需要
+任何映射表——这也是「先把契约定死」的回报。</p>
+<hr>
+<h2 id="sec-4-四-回放器-42-行-三个判断">四、回放器：42 行，三个判断</h2>
 <p>&lt;!-- file: examples/mini-agent/src/provider/fixture.ts --&gt;</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">      <span class="tok-kw">if</span> (call.id) slot.id = call.id;</span><span class="ln">      <span class="tok-kw">if</span> (call.<span class="tok-kw">function</span>?.name) slot.name += call.<span class="tok-kw">function</span>.name;</span><span class="ln">      <span class="tok-kw">if</span> (call.<span class="tok-kw">function</span>?.arguments) slot.args += call.<span class="tok-kw">function</span>.arguments;</span><span class="ln">      pending.<span class="tok-kw">set</span>(index, slot);</span></code></pre></div>
-<p>跑起来：</p>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { readFileSync } <span class="tok-kw">from</span> <span class="tok-str">"node:fs"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { Provider, ProviderChunk } <span class="tok-kw">from</span> <span class="tok-str">"../types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 把录好的一段回复重放成 chunk。</span></span><span class="ln"><span class="tok-com"> * 文件格式：一行一个 chunk（JSON），空行和 # 开头的行忽略。</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createFixtureProvider</span>(file: <span class="tok-kw">string</span>): Provider {</span><span class="ln">  <span class="tok-kw">const</span> chunks = <span class="tok-fn">loadChunks</span>(file);</span><span class="ln">  <span class="tok-kw">if</span> (chunks.<span class="tok-fn">at</span>(-<span class="tok-num">1</span>)?.<span class="tok-kw">type</span> !== <span class="tok-str">"done"</span>) {</span><span class="ln">    <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`${file} 最后一行必须是 done`</span>);</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">return</span> {</span><span class="ln">    name: <span class="tok-str">"fixture"</span>,</span><span class="ln">    <span class="tok-kw">async</span> *<span class="tok-fn">stream</span>() {</span><span class="ln">      <span class="tok-kw">for</span> (<span class="tok-kw">const</span> chunk <span class="tok-kw">of</span> chunks) <span class="tok-kw">yield</span> chunk;</span><span class="ln">    },</span><span class="ln">  };</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">loadChunks</span>(file: <span class="tok-kw">string</span>): ProviderChunk[] {</span><span class="ln">  <span class="tok-kw">const</span> raw = <span class="tok-fn">readFileSync</span>(file, <span class="tok-str">"utf8"</span>);</span><span class="ln">  <span class="tok-kw">const</span> chunks: ProviderChunk[] = [];</span><span class="ln">  <span class="tok-kw">const</span> lines = raw.<span class="tok-fn">split</span>(/\r?\n/);</span><span class="ln"></span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = <span class="tok-num">0</span>; i &lt; lines.length; i += <span class="tok-num">1</span>) {</span><span class="ln">    <span class="tok-kw">const</span> line = lines[i].<span class="tok-fn">trim</span>();</span><span class="ln">    <span class="tok-kw">if</span> (!line || line.<span class="tok-fn">startsWith</span>(<span class="tok-str">"#"</span>)) <span class="tok-kw">continue</span>;</span><span class="ln">    <span class="tok-kw">let</span> chunk: ProviderChunk;</span><span class="ln">    <span class="tok-kw">try</span> {</span><span class="ln">      chunk = JSON.<span class="tok-fn">parse</span>(line) <span class="tok-kw">as</span> ProviderChunk;</span><span class="ln">    } <span class="tok-kw">catch</span> {</span><span class="ln">      <span class="tok-kw">const</span> head = line.<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, <span class="tok-num">40</span>);</span><span class="ln">      <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`${file}:${i + 1} 不是 JSON：${head}`</span>);</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">if</span> (![<span class="tok-str">"text"</span>, <span class="tok-str">"toolCall"</span>, <span class="tok-str">"done"</span>].<span class="tok-fn">includes</span>(chunk.<span class="tok-kw">type</span>)) {</span><span class="ln">      <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`${file}:${i + 1} 未知 chunk 类型`</span>);</span><span class="ln">    }</span><span class="ln">    chunks.<span class="tok-fn">push</span>(chunk);</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">return</span> chunks;</span><span class="ln">}</span></code></pre></div>
+<p><strong>判断一：带子必须有一条 <code>done</code> 结尾。</strong> 少了它不会报错——我删掉最后一行试了，
+循环照样给出一个「正常」的结果：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node src/cli.ts --fixture "你好"</span></code></pre></div>
-<p>真实输出：</p>
+<pre><code><span class="ln">node tmp-nodone.ts</span></code></pre></div>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">[turn 1] 你好，这是一份录好的回复。</span><span class="ln">[stop]</span></code></pre></div>
-<p>关键不在「能输出」，而在<strong>它走的是和真模型完全相同的代码路径</strong>：同一个
-<code>loop.ts</code>、同一个 <code>toLlm</code>、同一套事件。fixture 不是玩具，是回归测试的底座。</p>
+<pre><code><span class="ln">turns=1 stop=stop</span></code></pre></div>
+<p>看着没问题，但这句 <code>stop</code> 是 <code>loop.ts</code> 里的<strong>初始值</strong>，不是模型报的原因。真模型
+如果是被 <code>length</code> 截断，你也会记成 <code>stop</code>，然后去查一个不存在的问题。所以
+回放器在创建时就拦：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ERR: fixtures/tmp-bad.jsonl 最后一行必须是 done</span></code></pre></div>
+<p><strong>判断二：坏行报行号。</strong> 带子是手写的，截断、少个引号都常见：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ERR: fixtures/tmp-bad2.jsonl:2 不是 JSON：not-json</span></code></pre></div>
+<p>第 2 行——有这个数字，修法就只有一种；没有它，你只能打开文件数。</p>
+<p><strong>判断三：未知类型要拦。</strong> <code>JSON.parse</code> 只保证是合法 JSON，不保证是合法 chunk。
+<code>{&quot;type&quot;:&quot;thought&quot;}</code> 能过 parse，但下游 <code>loop.ts</code> 的 <code>if/else</code> 会把它当 done
+分支吞掉（那个 <code>else</code> 就是给 done 用的）。所以这里先拦一道。</p>
+<p><code>stream()</code> 是 <code>async *</code> 但内部没有 <code>await</code>——它是异步可迭代协议的要求，不是
+为了异步而异步。<code>yield</code> 让调用方用 <code>for await</code> 拉，和真网络流完全同形。</p>
 <hr>
-<h2 id="sec-3-三-真模型只换三个值">三、真模型只换三个值</h2>
-<p><code>provider/openai.ts</code> 和 fixture 的差别，只有「数据从哪来」：</p>
-<div class="code-block" data-lang="ts">
-<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">  <span class="tok-kw">const</span> env = process.env.OPENAI_BASE_URL ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">const</span> baseUrl = (options.baseUrl ?? env).<span class="tok-fn">replace</span>(/\/$/, <span class="tok-str">""</span>);</span><span class="ln">  <span class="tok-kw">const</span> apiKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">const</span> model = options.model ?? process.env.OPENAI_MODEL ?? <span class="tok-str">"gpt-4o-mini"</span>;</span></code></pre></div>
-<p>同一个 <code>stream</code> 方法，前半段把消息转成供应商格式，后半段把 SSE 翻回
-<code>ProviderChunk</code>。转换函数里最值得看的是 assistant 消息：</p>
+<h2 id="sec-5-五-真模型-159-行-一个-post">五、真模型：159 行，一个 POST</h2>
 <p>&lt;!-- file: examples/mini-agent/src/provider/openai.ts --&gt;</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">      <span class="tok-kw">const</span> calls = message.content</span><span class="ln">        .<span class="tok-fn">filter</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>)</span><span class="ln">        .<span class="tok-kw">map</span>((block) =&gt; ({</span><span class="ln">          id: block.id,</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"function"</span>,</span><span class="ln">          <span class="tok-kw">function</span>: {</span><span class="ln">            name: block.name,</span><span class="ln">            arguments: JSON.<span class="tok-fn">stringify</span>(block.args),</span><span class="ln">          },</span><span class="ln">        }));</span></code></pre></div>
-<p>这里有一个不可协商的细节：<code>arguments</code> 必须是<strong>字符串</strong>，不是对象。你在
-自己的消息类型里存的是 <code>Record&lt;string, unknown&gt;</code>，到了线上要序列化一次；
-读回来时再 <code>JSON.parse</code> 一次。忘了任何一次，接口都会报 400，而且错误信息
-通常只说「invalid tool call」，不告诉你是哪一边。</p>
-<p>凭据缺失时，它会立刻失败，而不是等 30 秒超时：</p>
+<pre><code><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> {</span><span class="ln">  Message,</span><span class="ln">  Provider,</span><span class="ln">  ProviderChunk,</span><span class="ln">  StopReason,</span><span class="ln">  Tool,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"../types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> OpenAIOptions {</span><span class="ln">  baseUrl?: <span class="tok-kw">string</span>;</span><span class="ln">  apiKey?: <span class="tok-kw">string</span>;</span><span class="ln">  model?: <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** tool_calls 分片暂存：id 只来一次，name 与 args 可能来好几段。 */</span></span><span class="ln"><span class="tok-kw">interface</span> PendingCall {</span><span class="ln">  id: <span class="tok-kw">string</span>;</span><span class="ln">  name: <span class="tok-kw">string</span>;</span><span class="ln">  args: <span class="tok-kw">string</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">wireMessages</span>(messages: Message[]) {</span><span class="ln">  <span class="tok-kw">return</span> messages.<span class="tok-kw">map</span>((message) =&gt; {</span><span class="ln">    <span class="tok-kw">if</span> (message.role === <span class="tok-str">"system"</span> || message.role === <span class="tok-str">"user"</span>) {</span><span class="ln">      <span class="tok-kw">return</span> { role: message.role, content: message.content };</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">if</span> (message.role === <span class="tok-str">"assistant"</span>) {</span><span class="ln">      <span class="tok-kw">const</span> text = message.content</span><span class="ln">        .<span class="tok-fn">filter</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>)</span><span class="ln">        .<span class="tok-kw">map</span>((block) =&gt; block.text)</span><span class="ln">        .<span class="tok-fn">join</span>(<span class="tok-str">""</span>);</span><span class="ln">      <span class="tok-kw">const</span> calls = message.content</span><span class="ln">        .<span class="tok-fn">filter</span>((block) =&gt; block.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>)</span><span class="ln">        .<span class="tok-kw">map</span>((block) =&gt; ({</span><span class="ln">          id: block.id,</span><span class="ln">          <span class="tok-kw">type</span>: <span class="tok-str">"function"</span>,</span><span class="ln">          <span class="tok-kw">function</span>: {</span><span class="ln">            name: block.name,</span><span class="ln">            arguments: JSON.<span class="tok-fn">stringify</span>(block.args),</span><span class="ln">          },</span><span class="ln">        }));</span><span class="ln">      <span class="tok-kw">if</span> (calls.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">        <span class="tok-kw">return</span> { role: <span class="tok-str">"assistant"</span>, content: text || <span class="tok-kw">null</span>, tool_calls: calls };</span><span class="ln">      }</span><span class="ln">      <span class="tok-kw">return</span> { role: <span class="tok-str">"assistant"</span>, content: text };</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">return</span> {</span><span class="ln">      role: <span class="tok-str">"tool"</span>,</span><span class="ln">      tool_call_id: message.toolCallId,</span><span class="ln">      content: message.content,</span><span class="ln">    };</span><span class="ln">  });</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">mapReason</span>(reason: <span class="tok-kw">string</span> | <span class="tok-kw">null</span> | <span class="tok-kw">undefined</span>): StopReason {</span><span class="ln">  <span class="tok-kw">if</span> (reason === <span class="tok-str">"tool_calls"</span>) <span class="tok-kw">return</span> <span class="tok-str">"toolUse"</span>;</span><span class="ln">  <span class="tok-kw">if</span> (reason === <span class="tok-str">"length"</span>) <span class="tok-kw">return</span> <span class="tok-str">"length"</span>;</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-str">"stop"</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 真模型：只有一个 POST，流式读 SSE，边读边翻译成 chunk。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">createOpenAIProvider</span>(options: OpenAIOptions = {}): Provider {</span><span class="ln">  <span class="tok-kw">const</span> env = process.env.OPENAI_BASE_URL ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">const</span> baseUrl = (options.baseUrl ?? env).<span class="tok-fn">replace</span>(/\/$/, <span class="tok-str">""</span>);</span><span class="ln">  <span class="tok-kw">const</span> apiKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">const</span> model = options.model ?? process.env.OPENAI_MODEL ?? <span class="tok-str">"gpt-4o-mini"</span>;</span><span class="ln"></span><span class="ln">  <span class="tok-kw">return</span> {</span><span class="ln">    name: <span class="tok-str">"openai"</span>,</span><span class="ln">    <span class="tok-kw">async</span> *<span class="tok-fn">stream</span>(messages, tools, signal) {</span><span class="ln">      <span class="tok-kw">if</span> (!baseUrl || !apiKey) {</span><span class="ln">        <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"缺 OPENAI_BASE_URL 或 OPENAI_API_KEY"</span>);</span><span class="ln">      }</span><span class="ln">      <span class="tok-kw">const</span> response = <span class="tok-kw">await</span> <span class="tok-fn">fetch</span>(<span class="tok-str">`${baseUrl}/chat/completions`</span>, {</span><span class="ln">        method: <span class="tok-str">"POST"</span>,</span><span class="ln">        signal,</span><span class="ln">        headers: {</span><span class="ln">          <span class="tok-str">"content-type"</span>: <span class="tok-str">"application/json"</span>,</span><span class="ln">          authorization: <span class="tok-str">`Bearer ${apiKey}`</span>,</span><span class="ln">        },</span><span class="ln">        body: JSON.<span class="tok-fn">stringify</span>({</span><span class="ln">          model,</span><span class="ln">          stream: <span class="tok-kw">true</span>,</span><span class="ln">          messages: <span class="tok-fn">wireMessages</span>(messages),</span><span class="ln">          tools: tools.<span class="tok-kw">map</span>((tool) =&gt; ({</span><span class="ln">            <span class="tok-kw">type</span>: <span class="tok-str">"function"</span>,</span><span class="ln">            <span class="tok-kw">function</span>: {</span><span class="ln">              name: tool.name,</span><span class="ln">              description: tool.description,</span><span class="ln">              parameters: tool.parameters,</span><span class="ln">            },</span><span class="ln">          })),</span><span class="ln">        }),</span><span class="ln">      });</span><span class="ln">      <span class="tok-kw">if</span> (!response.ok || !response.body) {</span><span class="ln">        <span class="tok-kw">const</span> body = <span class="tok-kw">await</span> response.<span class="tok-fn">text</span>();</span><span class="ln">        <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`HTTP ${response.status}: ${body.slice(0, 200)}`</span>);</span><span class="ln">      }</span><span class="ln"></span><span class="ln">      <span class="tok-kw">const</span> reader = response.body.<span class="tok-fn">getReader</span>();</span><span class="ln">      <span class="tok-kw">const</span> decoder = <span class="tok-kw">new</span> <span class="tok-fn">TextDecoder</span>();</span><span class="ln">      <span class="tok-kw">const</span> pending = <span class="tok-kw">new</span> Map&lt;<span class="tok-kw">number</span>, PendingCall&gt;();</span><span class="ln">      <span class="tok-kw">let</span> buffer = <span class="tok-str">""</span>;</span><span class="ln"></span><span class="ln">      <span class="tok-kw">while</span> (<span class="tok-kw">true</span>) {</span><span class="ln">        <span class="tok-kw">const</span> { done, value } = <span class="tok-kw">await</span> reader.<span class="tok-fn">read</span>();</span><span class="ln">        <span class="tok-kw">if</span> (done) <span class="tok-kw">break</span>;</span><span class="ln">        buffer += decoder.<span class="tok-fn">decode</span>(value, { stream: <span class="tok-kw">true</span> });</span><span class="ln">        <span class="tok-kw">const</span> parts = buffer.<span class="tok-fn">split</span>(<span class="tok-str">"\n\n"</span>);</span><span class="ln">        buffer = parts.<span class="tok-fn">pop</span>() ?? <span class="tok-str">""</span>;</span><span class="ln">        <span class="tok-kw">for</span> (<span class="tok-kw">const</span> part <span class="tok-kw">of</span> parts) {</span><span class="ln">          <span class="tok-kw">for</span> (<span class="tok-kw">const</span> line <span class="tok-kw">of</span> part.<span class="tok-fn">split</span>(<span class="tok-str">"\n"</span>)) {</span><span class="ln">            <span class="tok-kw">const</span> data = line.<span class="tok-fn">startsWith</span>(<span class="tok-str">"data:"</span>) ? line.<span class="tok-fn">slice</span>(<span class="tok-num">5</span>).<span class="tok-fn">trim</span>() : <span class="tok-str">""</span>;</span><span class="ln">            <span class="tok-kw">if</span> (!data || data === <span class="tok-str">"[DONE]"</span>) <span class="tok-kw">continue</span>;</span><span class="ln">            <span class="tok-kw">const</span> event = JSON.<span class="tok-fn">parse</span>(data);</span><span class="ln">            <span class="tok-kw">const</span> choice = event.choices?.[<span class="tok-num">0</span>];</span><span class="ln">            <span class="tok-kw">if</span> (!choice) <span class="tok-kw">continue</span>;</span><span class="ln">            <span class="tok-kw">const</span> delta = choice.delta ?? {};</span><span class="ln">            <span class="tok-kw">if</span> (delta.content) {</span><span class="ln">              <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: delta.content } <span class="tok-kw">as</span> ProviderChunk;</span><span class="ln">            }</span><span class="ln">            <span class="tok-kw">for</span> (<span class="tok-kw">const</span> call <span class="tok-kw">of</span> delta.tool_calls ?? []) {</span><span class="ln">              <span class="tok-kw">const</span> index = call.index ?? <span class="tok-num">0</span>;</span><span class="ln">              <span class="tok-kw">const</span> slot =</span><span class="ln">                pending.<span class="tok-kw">get</span>(index) ?? { id: <span class="tok-str">""</span>, name: <span class="tok-str">""</span>, args: <span class="tok-str">""</span> };</span><span class="ln">              <span class="tok-kw">if</span> (call.id) slot.id = call.id;</span><span class="ln">              <span class="tok-kw">if</span> (call.<span class="tok-kw">function</span>?.name) slot.name += call.<span class="tok-kw">function</span>.name;</span><span class="ln">              <span class="tok-kw">if</span> (call.<span class="tok-kw">function</span>?.arguments) {</span><span class="ln">                slot.args += call.<span class="tok-kw">function</span>.arguments;</span><span class="ln">              }</span><span class="ln">              pending.<span class="tok-kw">set</span>(index, slot);</span><span class="ln">            }</span><span class="ln">            <span class="tok-kw">if</span> (choice.finish_reason) {</span><span class="ln">              <span class="tok-kw">for</span> (<span class="tok-kw">const</span> [index, slot] <span class="tok-kw">of</span> pending) {</span><span class="ln">                <span class="tok-kw">let</span> args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt; = {};</span><span class="ln">                <span class="tok-kw">try</span> {</span><span class="ln">                  args = JSON.<span class="tok-fn">parse</span>(slot.args) <span class="tok-kw">as</span> Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt;;</span><span class="ln">                } <span class="tok-kw">catch</span> {</span><span class="ln">                  args = { _raw: slot.args };</span><span class="ln">                }</span><span class="ln">                <span class="tok-kw">yield</span> {</span><span class="ln">                  <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">                  id: slot.id || <span class="tok-str">`call_${index}`</span>,</span><span class="ln">                  name: slot.name,</span><span class="ln">                  args,</span><span class="ln">                } <span class="tok-kw">as</span> ProviderChunk;</span><span class="ln">              }</span><span class="ln">              pending.<span class="tok-fn">clear</span>();</span><span class="ln">              <span class="tok-kw">const</span> stopReason = <span class="tok-fn">mapReason</span>(choice.finish_reason);</span><span class="ln">              <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason } <span class="tok-kw">as</span> ProviderChunk;</span><span class="ln">            }</span><span class="ln">          }</span><span class="ln">        }</span><span class="ln">      }</span><span class="ln">    },</span><span class="ln">  };</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> { Tool };</span></code></pre></div>
+<p>五段，逐个说。</p>
+<p><strong>第一段：<code>wireMessages</code>——出站翻译。</strong> 我们要发给模型的只有四种消息，但形状
+不等于 OpenAI 的形状：</p>
+<ul>
+<li><code>assistant</code> 在我的模型里是 <code>content: ContentBlock[]</code>，OpenAI 要的是
+<code>content: string | null</code> 加一个并列的 <code>tool_calls</code> 数组。所以 text 块
+<code>join(&quot;&quot;)</code>，toolCall 块折成 <code>{id, type, function:{name, arguments}}</code>。</li>
+<li><code>arguments</code> 必须是<strong>字符串</strong>，不是对象。所以这里 <code>JSON.stringify(block.args)</code>。
+反过来入库时再 <code>JSON.parse</code>——来回一趟，就是「对象 ↔ 字符串」的边界。</li>
+<li><code>content: text || null</code>：只要带了 tool_calls，text 允许为空，但不能是空字符串
+（部分严格实现会 400）。</li>
+<li><code>tool</code> 消息的字段名是 <code>tool_call_id</code>，不是我们的 <code>toolCallId</code>。</li>
+</ul>
+<p><strong>第二段：一个 POST，<code>stream: true</code>。</strong> 没有 SDK、没有重试、没有 base64 图片、
+没有 prompt cache 字段。<code>signal</code> 直接透传，取消就断。</p>
+<p><strong>第三段：错误要带状态码和响应体前 200 字符。</strong> <code>!response.ok</code> 时如果只抛
+<code>HTTP 401</code>，你会去猜是 key 错了还是模型名错了；带上 body 前 200 字符，通常
+第一句就写着原因。</p>
+<p><strong>第四段：SSE 的切分。</strong> 这是最容易写错的地方。<code>reader.read()</code> 给你的是<strong>任意
+长度的字节块</strong>，一个事件可能被劈成两半，也可能两个事件挤在一块。所以：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">buffer += decoder.<span class="tok-fn">decode</span>(value, { stream: <span class="tok-kw">true</span> });</span><span class="ln"><span class="tok-kw">const</span> parts = buffer.<span class="tok-fn">split</span>(<span class="tok-str">"\n\n"</span>);</span><span class="ln">buffer = parts.<span class="tok-fn">pop</span>() ?? <span class="tok-str">""</span>;</span></code></pre></div>
+<p><code>split(&quot;\n\n&quot;)</code> 是 SSE 的事件分隔；<code>parts.pop()</code> 取回的<strong>最后一段是不完整的</strong>，
+必须留到下一次。<code>decoder.decode(value, { stream: true })</code> 里的 <code>stream: true</code>
+也是同一个道理：一个多字节汉字可能被劈在两个字节块之间。</p>
+<p><strong>第五段：tool_calls 分片。</strong> 真模型发工具调用时是一个片段一个片段来的：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">Error: 缺 OPENAI_BASE_URL 或 OPENAI_API_KEY</span></code></pre></div>
-<p>这是把「配置错误」和「网络错误」分开的最简单办法。</p>
+<pre><code><span class="ln">{"index":0,"id":"call_9","function":{"name":"read","arguments":"{\"pa"}}</span><span class="ln">{"index":0,"function":{"arguments":"th\":\"README.md\"}"}}</span></code></pre></div>
+<p><code>id</code> 只来一次，<code>name</code> 和 <code>arguments</code> 会 <code>+=</code> 累加。所以 <code>pending</code> 是按 <code>index</code>
+索引的暂存表。等 <code>finish_reason</code> 出现，再一次性 <code>yield</code> 成完整的 <code>toolCall</code>。</p>
+<p><code>args</code> 解析失败时我塞 <code>{_raw: slot.args}</code> 而不是抛错——因为「模型给了坏 JSON」
+是模型的问题，应该作为一条 tool 结果（或一次可观测的失败）回到循环里，而不是
+让整个进程崩。</p>
 <hr>
-<h2 id="sec-4-四-毕业判据-我的-584-行对应-pi-的-9-处">四、毕业判据：我的 584 行对应 Pi 的 9 处</h2>
-<p>到这儿，mini-agent 一共有 584 行源码 + 154 行测试。它当然不是 Pi，但它把
-Pi 的骨架走了一遍。逐项对：</p>
+<h2 id="sec-6-六-跑一遍">六、跑一遍</h2>
+<p>&lt;!-- file: examples/mini-agent/src/demo-model.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * E03 的终点：同一份 loop.ts，换一个 provider 就换了一种「模型」。</span></span><span class="ln"><span class="tok-com"> * 运行：cd examples/mini-agent &amp;&amp; node src/demo-model.ts</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">import</span> { loadChunks, createFixtureProvider } <span class="tok-kw">from</span> <span class="tok-str">"./provider/fixture.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { runAgent } <span class="tok-kw">from</span> <span class="tok-str">"./loop.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { toLlm } <span class="tok-kw">from</span> <span class="tok-str">"./messages.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> basic = <span class="tok-str">"fixtures/openai-basic.jsonl"</span>;</span><span class="ln"><span class="tok-kw">const</span> tool = <span class="tok-str">"fixtures/openai-tool.jsonl"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">describe</span>(file: <span class="tok-kw">string</span>): <span class="tok-kw">void</span> {</span><span class="ln">  console.<span class="tok-fn">log</span>(<span class="tok-str">`\n${file}`</span>);</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> chunk <span class="tok-kw">of</span> <span class="tok-fn">loadChunks</span>(file)) {</span><span class="ln">    <span class="tok-kw">if</span> (chunk.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>) {</span><span class="ln">      console.<span class="tok-fn">log</span>(<span class="tok-str">`  text     ${chunk.text}`</span>);</span><span class="ln">    } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (chunk.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>) {</span><span class="ln">      <span class="tok-kw">const</span> args = JSON.<span class="tok-fn">stringify</span>(chunk.args);</span><span class="ln">      console.<span class="tok-fn">log</span>(<span class="tok-str">`  toolCall ${chunk.name} ${args}`</span>);</span><span class="ln">    } <span class="tok-kw">else</span> {</span><span class="ln">      console.<span class="tok-fn">log</span>(<span class="tok-str">`  done     ${chunk.stopReason}`</span>);</span><span class="ln">    }</span><span class="ln">  }</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-fn">describe</span>(basic);</span><span class="ln"><span class="tok-fn">describe</span>(tool);</span><span class="ln"></span><span class="ln"><span class="tok-com">/* 同一个循环，provider 换成回放：一行代码都不用改 */</span></span><span class="ln"><span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-fn">runAgent</span>({</span><span class="ln">  provider: <span class="tok-fn">createFixtureProvider</span>(basic),</span><span class="ln">  tools: [],</span><span class="ln">  messages: [{ role: <span class="tok-str">"user"</span>, content: <span class="tok-str">"你好"</span> }],</span><span class="ln">  maxTurns: <span class="tok-num">2</span>,</span><span class="ln">  project: toLlm,</span><span class="ln">  emit: (event) =&gt; {</span><span class="ln">    <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"text_delta"</span>) process.stdout.<span class="tok-fn">write</span>(event.text);</span><span class="ln">  },</span><span class="ln">});</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`\nturns=${result.turns} stop=${result.stopReason}`</span>);</span></code></pre></div>
+<p>输出里的 <code>turns=1</code> 值得停一下：带子只有一条 <code>done</code>，第二轮没有新 chunk，循环
+在第一次就判定「没有 toolCall → 停」。这是 provider 的<strong>职责边界</strong>：它只负责
+把一轮回复吐干净，轮次由循环决定。</p>
+<hr>
+<h2 id="sec-7-七-真模型那段-不联网也能测">七、真模型那段，不联网也能测</h2>
+<p><code>fixture</code> 不碰 SSE，那 <code>openai.ts</code> 谁来测？起一个本地 http 服务器，假装自己是
+OpenAI，而且<strong>故意把一个事件劈成两半</strong>：</p>
+<p>&lt;!-- file: examples/mini-agent/test/openai.test.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> test <span class="tok-kw">from</span> <span class="tok-str">"node:test"</span>;</span><span class="ln"><span class="tok-kw">import</span> assert <span class="tok-kw">from</span> <span class="tok-str">"node:assert/strict"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createServer } <span class="tok-kw">from</span> <span class="tok-str">"node:http"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createOpenAIProvider } <span class="tok-kw">from</span> <span class="tok-str">"../src/provider/openai.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { ProviderChunk } <span class="tok-kw">from</span> <span class="tok-str">"../src/types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-fn">test</span>(<span class="tok-str">"openai 解析 SSE：一个事件被劈成两半也能拼回来"</span>, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">  <span class="tok-kw">const</span> lines = [</span><span class="ln">    <span class="tok-str">'data: {"choices":[{"delta":{"content":"你"}}]}\n\n'</span>,</span><span class="ln">    <span class="tok-str">'data: {"choices":[{"delta":{"content":"好"}}]}\n\n'</span>,</span><span class="ln">    <span class="tok-str">'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'</span>,</span><span class="ln">    <span class="tok-str">"data: [DONE]\n\n"</span>,</span><span class="ln">  ];</span><span class="ln">  <span class="tok-kw">const</span> server = <span class="tok-fn">createServer</span>(<span class="tok-kw">async</span> (_req, res) =&gt; {</span><span class="ln">    res.<span class="tok-fn">writeHead</span>(<span class="tok-num">200</span>, { <span class="tok-str">"content-type"</span>: <span class="tok-str">"text/event-stream"</span> });</span><span class="ln">    <span class="tok-com">/* 故意把第一个事件从中间切开，分两次 write；</span></span><span class="ln"><span class="tok-com">       中间等 20ms，否则两个 write 会被合成一个网络块，测不到切割 */</span></span><span class="ln">    res.<span class="tok-fn">write</span>(lines[<span class="tok-num">0</span>].<span class="tok-fn">slice</span>(<span class="tok-num">0</span>, <span class="tok-num">20</span>));</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-kw">new</span> <span class="tok-fn">Promise</span>((resolve) =&gt; <span class="tok-fn">setTimeout</span>(resolve, <span class="tok-num">20</span>));</span><span class="ln">    res.<span class="tok-fn">write</span>(lines[<span class="tok-num">0</span>].<span class="tok-fn">slice</span>(<span class="tok-num">20</span>));</span><span class="ln">    <span class="tok-kw">for</span> (<span class="tok-kw">const</span> line <span class="tok-kw">of</span> lines.<span class="tok-fn">slice</span>(<span class="tok-num">1</span>)) res.<span class="tok-fn">write</span>(line);</span><span class="ln">    res.<span class="tok-fn">end</span>();</span><span class="ln">  });</span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-kw">new</span> Promise&lt;<span class="tok-kw">void</span>&gt;((resolve) =&gt; server.<span class="tok-fn">listen</span>(<span class="tok-num">0</span>, resolve));</span><span class="ln">  <span class="tok-kw">const</span> port = (server.<span class="tok-fn">address</span>() <span class="tok-kw">as</span> { port: <span class="tok-kw">number</span> }).port;</span><span class="ln"></span><span class="ln">  <span class="tok-kw">const</span> provider = <span class="tok-fn">createOpenAIProvider</span>({</span><span class="ln">    baseUrl: <span class="tok-str">`http://127.0.0.1:${port}`</span>,</span><span class="ln">    apiKey: <span class="tok-str">"test"</span>,</span><span class="ln">    model: <span class="tok-str">"test"</span>,</span><span class="ln">  });</span><span class="ln">  <span class="tok-kw">const</span> chunks: ProviderChunk[] = [];</span><span class="ln">  <span class="tok-kw">const</span> messages = [{ role: <span class="tok-str">"user"</span> <span class="tok-kw">as</span> <span class="tok-kw">const</span>, content: <span class="tok-str">"hi"</span> }];</span><span class="ln">  <span class="tok-kw">try</span> {</span><span class="ln">    <span class="tok-kw">for</span> <span class="tok-kw">await</span> (<span class="tok-kw">const</span> chunk <span class="tok-kw">of</span> provider.<span class="tok-fn">stream</span>(messages, [])) {</span><span class="ln">      chunks.<span class="tok-fn">push</span>(chunk);</span><span class="ln">    }</span><span class="ln">  } <span class="tok-kw">finally</span> {</span><span class="ln">    <span class="tok-com">/* 即使断言前就抛错，也要关服务器：否则测试会卡在不退出的状态 */</span></span><span class="ln">    server.<span class="tok-fn">close</span>();</span><span class="ln">  }</span><span class="ln"></span><span class="ln">  assert.<span class="tok-fn">deepEqual</span>(</span><span class="ln">    chunks.<span class="tok-kw">map</span>((chunk) =&gt; chunk.<span class="tok-kw">type</span>),</span><span class="ln">    [<span class="tok-str">"text"</span>, <span class="tok-str">"text"</span>, <span class="tok-str">"done"</span>],</span><span class="ln">  );</span><span class="ln">});</span></code></pre></div>
+<p>真实结果：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">✔ openai 解析 SSE：一个事件被劈成两半也能拼回来 (50.3555ms)</span><span class="ln">ℹ tests 1</span><span class="ln">ℹ pass 1</span><span class="ln">ℹ fail 0</span></code></pre></div>
+<p>这个测试写了三版，前两版都是「能过但测不到东西」，三处坑都值得记：</p>
+<p><strong>第一坑：两次 <code>res.write</code> ≠ 两个网络块。</strong> TCP 会把相邻的小写合在一起，
+所以第一版「劈两半」的测试，实际收到的是一个完整事件——我把 <code>openai.ts</code> 的
+<code>buffer</code> 复位注释掉，它照样绿。加了 <code>await setTimeout(20)</code> 之后才真劈开。
+<strong>测试如果不是红的，它可能什么都没测。</strong></p>
+<p><strong>第二坑：拆掉那行会怎么死。</strong> 把 <code>buffer = parts.pop() ?? &quot;&quot;</code> 删掉，重跑：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">SyntaxError: Unterminated string in JSON at position 14</span><span class="ln">    at Object.stream (.../src/provider/openai.ts:114:32)</span></code></pre></div>
+<p>半截事件被 <code>JSON.parse</code>，报的是「字符串没完」——它不是「缺少复位」这种话，
+所以你得自己把行号映射回那两行切割逻辑。</p>
+<p><strong>第三坑：失败后测试不退出。</strong> 第一版没有 <code>try/finally</code>，抛错时 <code>server.close()</code>
+被跳过，端口句柄悬着，<code>node --test</code> 卡到超时。测试代码也要管资源：<code>finally</code>
+里关掉的不是服务器，是「失败时要能看见失败」。</p>
+<p>顺手把回放器的测试也补齐（<code>test/provider.test.ts</code>，37 行）——它只断言类型序列
+和参数，不依赖网络。</p>
+<hr>
+<h2 id="sec-8-八-没配凭据的样子">八、没配凭据的样子</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --openai "hi"</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Error: 缺 OPENAI_BASE_URL 或 OPENAI_API_KEY</span><span class="ln">    at Object.stream (.../src/provider/openai.ts:72:15)</span><span class="ln">    at runAgent (.../src/loop.ts:48:22)</span></code></pre></div>
+<p>栈直接打穿了整个进程。这是<strong>故意的</strong>：<code>loop.ts</code> 目前不接 provider 的错误，
+<code>cli.ts</code> 也还没写 try/catch。要不要现在补？不补——这一层需要一个 <code>error</code> 事件
+和一次收尾（<code>agent_end</code> 得发两次吗？工具还没跑完时怎么收？），E08 写 CLI 时一起
+处理。现在你只需要知道：<strong>provider 抛错 = 进程崩，不是「模型回答失败」。</strong></p>
+<hr>
+<h2 id="sec-9-九-代码地图">九、代码地图</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
-<th>你的文件</th>
-<th>干什么</th>
-<th>Pi v1.4.0</th>
+<th>文件</th>
+<th>关键符号</th>
+<th>下一章怎么用</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>src/types.ts</code> 的 <code>Provider</code></td>
-<td>provider 契约</td>
-<td><code>packages/ai/src/types.ts</code></td>
+<td><code>src/provider/fixture.ts</code></td>
+<td><code>loadChunks()</code> / <code>createFixtureProvider()</code></td>
+<td>E06 会话回放会再用它</td>
 </tr>
 <tr>
-<td><code>src/loop.ts</code> 内层</td>
-<td>工具循环</td>
-<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td><code>src/provider/openai.ts</code></td>
+<td><code>wireMessages()</code> / <code>createOpenAIProvider()</code></td>
+<td>E04 加工具后，<code>tools</code> 数组直接进来</td>
 </tr>
 <tr>
-<td><code>src/loop.ts</code> 外层</td>
-<td>轮次与出口</td>
-<td><code>packages/agent/src/agent.ts</code></td>
+<td><code>src/demo-model.ts</code></td>
+<td><code>describe()</code></td>
+<td>E08 并进 CLI 的 <code>--fixture</code></td>
 </tr>
 <tr>
-<td><code>src/types.ts</code> 消息联合</td>
-<td>四类消息</td>
-<td><code>packages/agent/src/types.ts</code></td>
-</tr>
-<tr>
-<td><code>src/provider/*.ts</code></td>
-<td>流式翻译</td>
-<td><code>packages/agent/src/stream-fn.ts</code></td>
-</tr>
-<tr>
-<td><code>src/loop.ts</code> 的 emit</td>
-<td>事件出口</td>
-<td><code>packages/agent/src/proxy.ts</code></td>
-</tr>
-<tr>
-<td><code>src/cli.ts</code></td>
-<td>宿主入口</td>
-<td><code>packages/coding-agent/src/cli.ts</code></td>
-</tr>
-<tr>
-<td><code>src/tools.ts</code></td>
-<td>工具契约</td>
-<td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
-</tr>
-<tr>
-<td><code>src/messages.ts</code></td>
-<td>消息闸门</td>
-<td><code>packages/coding-agent/src/core/messages.ts</code></td>
+<td><code>fixtures/*.jsonl</code></td>
+<td>—</td>
+<td>手写或录制，坏行报行号</td>
 </tr>
 </tbody>
 </table></div>
-<p>Pi 的 <code>packages/agent/src</code> 正好六个文件：<code>agent-loop</code> / <code>agent</code> / <code>types</code> /
-<code>stream-fn</code> / <code>proxy</code> / <code>index</code>。你写的七处，落在这六个文件加一个工具目录里。</p>
-<p>「毕业」的标准不是行数，是这张表：<strong>随便指一处，你能说出它为什么在那，
-以及少了他会坏在哪。</strong> 说不出来的那一行，回去重读对应章节。</p>
+<p><code>tools: []</code> 这件事在下一章就变了。<code>openai.ts</code> 里那段
+<code>tools.map(...)</code> 已经是完整实现：E04 只要把工具塞进 <code>runAgent</code>，模型就能看见
+它们的名字、描述和参数 schema。<strong>接口先立住的好处就在这里——加能力不用回头
+改协议。</strong></p>
+<h3 id="sec-10-自检">自检</h3>
+<ol>
+<li><code>buffer.split(&quot;\n\n&quot;)</code> 之后为什么必须 <code>parts.pop()</code>，而不是丢掉最后一段？</li>
+<li>带子里没有 <code>done</code> 会怎样？错误在哪一层被拦住？</li>
+<li>provider 抛错时，<code>loop.ts</code> 的 <code>emit</code> 会发出哪些事件？为什么这不是 bug？</li>
+</ol>
+<p>参考答案：</p>
+<p><strong>第 1 题</strong>：<code>split</code> 的最后一段可能是不完整事件（网络块边界正好落在事件中间）。
+留到下一轮和新的字节拼起来，才可能凑成完整事件。丢掉它就等于丢掉模型的半句话，
+而且不报错。</p>
+<p><strong>第 2 题</strong>：不会报错。实测 <code>turns=1 stop=stop</code>，一切看起来正常。危险就在这里：
+那个 <code>stop</code> 是循环里的初始值，不是模型报的原因。真模型被 <code>length</code> 截断时，你
+也会看到 <code>stop</code>，然后去查一个不存在的问题。所以错误要在最早能识别的那一层报，
+并且报得像它真正的原因。</p>
+<p><strong>第 3 题</strong>：<code>agent_start</code>、<code>turn_start</code> 已发，<code>agent_end</code> 不会发——异常直接
+穿透 <code>runAgent</code>。这不是 bug，是「谁负责兜底」还没定：宿主（CLI / TUI）知道怎么
+告诉用户，库不该擅自吞掉异常。E08 的 CLI 会 catch 它、打一行人话、退出码 1。</p>
 <hr>
-<h2 id="sec-5-五-五组实验">五、五组实验</h2>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>#</th>
-<th>做什么</th>
-<th>判据</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>1</td>
-<td><code>--fixture &quot;你好&quot;</code></td>
-<td>输出两行，<code>[stop]</code></td>
-</tr>
-<tr>
-<td>2</td>
-<td>清空 <code>OPENAI_API_KEY</code> 再 <code>--openai</code></td>
-<td>立刻抛「缺 ...」</td>
-</tr>
-<tr>
-<td>3</td>
-<td>改 fixture 里的「你好」为「测试」</td>
-<td>输出跟着变，循环代码一行没动</td>
-</tr>
-<tr>
-<td>4</td>
-<td><code>writeTool.execute({path:&quot;tmp-w.txt&quot;,text:&quot;hi&quot;})</code></td>
-<td>返回 <code>wrote 2 chars to tmp-w.txt</code></td>
-</tr>
-<tr>
-<td>5</td>
-<td>同一命令跑两次</td>
-<td>输出逐字节相同</td>
-</tr>
-</tbody>
-</table></div>
-<p>实验 3 是这一章的核心判据：<strong>数据变了，代码不用变。</strong> 如果你改一行 fixture
-就要动循环，说明 provider 还没抽干净。</p>
-<p>实验 5 证明 fixture 是可回归的：真模型做不到逐字节相同，录制回放可以。
-这就是为什么 CI 里跑 fixture、不跑真模型。</p>
-<hr>
-<h2 id="sec-6-六-小结">六、小结</h2>
+<h2 id="sec-11-十-与-pi-的对照-可选">十、与 Pi 的对照（可选）</h2>
+<p>Pi 的 provider 在 <code>packages/ai/</code>，一个 OpenAI Chat Completions 适配器就有
+<strong>1,594 行</strong>（<code>src/api/openai-completions.ts</code>），而你刚写的是 159 行。它多出来
+的是：</p>
 <ul>
-<li>接口三样：历史、工具、取消信号；其余都别进。</li>
-<li>fixture 是为了让「换 provider」这条路离线可测，不是为了显得完整。</li>
-<li>真模型只差三个值：baseURL、key、model。</li>
-<li>毕业靠对照表，不靠行数。</li>
+<li><code>src/api/openai-completions.ts:542</code> 的 <code>for await (const chunk of ...)</code> 之外，
+还有 reasoning 明细、prompt cache、usage 计费、九家 provider 的字段兼容；</li>
+<li><code>:640</code> 起处理 <code>delta.tool_calls</code>，参数用
+<code>src/utils/streaming-json.ts</code> 的 <code>ToolCallArgumentsStream</code> 做增量解析——比
+我们的「拼成整串再 <code>JSON.parse</code>」更早发现坏 JSON；</li>
+<li><code>src/providers/openai.ts</code> 只有 34 行，因为它只列模型清单。</li>
 </ul>
+<p>结构同构：一个 POST，一个循环，一套分片。你现在这 159 行是<strong>删掉所有兼容性之后
+的骨架</strong>，出问题时知道该往哪个方向加。</p>
 <hr>
-<h2 id="sec-7-七-概念回顾">七、概念回顾</h2>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>概念</th>
-<th>一句话</th>
-<th>位置</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>Provider</code></td>
-<td>只要三样输入，吐 chunk</td>
-<td><code>src/types.ts</code></td>
-</tr>
-<tr>
-<td>fixture</td>
-<td>录制 SSE，离线回放</td>
-<td><code>src/provider/fixture.ts</code></td>
-</tr>
-<tr>
-<td><code>wireMessages</code></td>
-<td>本地消息 → 供应商格式</td>
-<td><code>src/provider/openai.ts</code></td>
-</tr>
-<tr>
-<td><code>arguments</code></td>
-<td>线上是字符串，本地是对象</td>
-<td><code>src/provider/openai.ts</code></td>
-</tr>
-<tr>
-<td>对照表</td>
-<td>九处，一处一文件</td>
-<td>本章 §四</td>
-</tr>
-</tbody>
-</table></div>
-<hr>
-<h2 id="sec-8-八-练习">八、练习</h2>
-<ol>
-<li><strong>（L2）</strong> 给 fixture 加一份带工具调用的录制，验证 <code>toolCall</code> 参数能拼完整。</li>
-<li><strong>（L2）</strong> 把 <code>OPENAI_MODEL</code> 默认值改掉，确认请求体里的 <code>model</code> 跟着变（打印 body 即可）。</li>
-<li><strong>（L3）</strong> 为什么 <code>signal</code> 要作为参数传给 <code>stream</code>，而不是在 provider 内部自己建 <code>AbortController</code>？</li>
-<li><strong>（L4）</strong> 你要接一家返回 JSON（非流式）的供应商。说出最少要改哪几个文件、哪几个函数，以及为什么循环不用动。</li>
-</ol>
-<hr>
-<h2 id="sec-9-九-三个常见误区">九、三个常见误区</h2>
-<p><strong>「fixture 是假的，测了不算。」</strong>
-它测的恰恰是最容易出错的部分：分片拼装、<code>finish_reason</code> 映射、工具参数
-序列化。真模型只会把这些错误放大，不会帮你发现。</p>
-<p><strong>「先接真模型，跑通再抽接口。」</strong>
-跑通之后你就不想抽了，因为循环里已经混进了 URL、header 和重试。抽接口的
-成本在第一周最低，之后每天都在涨。</p>
-<p><strong>「provider 应该自己处理超时和重试。」</strong>
-超时属于调用策略，重试属于产品决策（要不要让用户看到重试）。放进 provider
-之后，换个模型就得重写一遍策略。</p>
-<hr>
-<h2 id="sec-10-十-自检">十、自检</h2>
-<ol>
-<li>不看代码，说出 <code>Provider</code> 的三个参数和返回类型。</li>
-<li><code>arguments</code> 在哪两个位置各序列化/反序列化一次？漏了哪边会报什么？</li>
-<li><strong>（L3）</strong> 如果供应商的流里没有 <code>[DONE]</code>，只有 <code>finish_reason</code>，你的解析器
-还能停吗？哪一行负责这件事？</li>
-</ol>
-<hr>
-<h2 id="sec-11-十一-下一步">十一、下一步</h2>
-<p>前半到此结束。你有了一个能跑、能换真模型、能回放 fixture 的 584 行内核，
-也知道它对应 Pi 的哪 9 处。</p>
-<p>后半换战场：不再写自己的代码，改 Pi 的源码。E04 第一步教你怎么拉一份
-v1.4.0 的工作副本（书中叫 <code>pi-lab/</code>），然后只改六个数字和配置，看行为怎么变。</p>
-<h3 id="sec-12-源码索引">源码索引</h3>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>主题</th>
-<th>本章</th>
-<th>Pi v1.4.0</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>provider 契约</td>
-<td><code>src/types.ts</code></td>
-<td><code>packages/ai/src/types.ts</code></td>
-</tr>
-<tr>
-<td>流式翻译</td>
-<td><code>src/provider/fixture.ts</code></td>
-<td><code>packages/agent/src/stream-fn.ts</code></td>
-</tr>
-<tr>
-<td>消息序列化</td>
-<td><code>src/provider/openai.ts</code></td>
-<td><code>packages/ai/src/api/*</code></td>
-</tr>
-<tr>
-<td>循环</td>
-<td><code>src/loop.ts</code></td>
-<td><code>packages/agent/src/agent-loop.ts</code></td>
-</tr>
-<tr>
-<td>宿主</td>
-<td><code>src/cli.ts</code></td>
-<td><code>packages/coding-agent/src/cli.ts</code></td>
-</tr>
-</tbody>
-</table></div>
+<h2 id="sec-12-十一-下一章">十一、下一章</h2>
+<p>现在 <code>tools: []</code>，模型永远只能说话。E04 把工具接回来：注册表、参数校验、并发
+执行，以及一个真问题——两个工具同时写同一个文件，谁先写？</p>
+<p>E04 结束时，<code>node src/demo-tools.ts</code> 会打印出一份「谁在等谁」的依赖图。</p>
 
 <div class="pager">
       <a class="prev" href="e02-memory.html"><span class="lbl">上一篇</span>记忆 —— 第五种消息，和唯一一道闸</a>
-      <a class="next" href="e04-tuning.html"><span class="lbl">下一篇</span>调参 —— 先改一个数字，再谈改代码</a>
+      <a class="next" href="e04-tools.html"><span class="lbl">下一篇</span>工具 —— 注册表、校验，和一把写锁</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-接口只有三样东西" class="">一、接口只有三样东西</a><a href="#sec-2-二-先写-fixture-不联网也能跑完整条路" class="">二、先写 fixture：不联网也能跑完整条路</a><a href="#sec-3-三-真模型只换三个值" class="">三、真模型只换三个值</a><a href="#sec-4-四-毕业判据-我的-584-行对应-pi-的-9-处" class="">四、毕业判据：我的 584 行对应 Pi 的 9 处</a><a href="#sec-5-五-五组实验" class="">五、五组实验</a><a href="#sec-6-六-小结" class="">六、小结</a><a href="#sec-7-七-概念回顾" class="">七、概念回顾</a><a href="#sec-8-八-练习" class="">八、练习</a><a href="#sec-9-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-10-十-自检" class="">十、自检</a><a href="#sec-11-十一-下一步" class="">十一、下一步</a><a href="#sec-12-源码索引" class="lv3">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-先定录制格式-再写解析器" class="">二、先定录制格式，再写解析器</a><a href="#sec-3-三-两条带子" class="">三、两条带子</a><a href="#sec-4-四-回放器-42-行-三个判断" class="">四、回放器：42 行，三个判断</a><a href="#sec-5-五-真模型-159-行-一个-post" class="">五、真模型：159 行，一个 POST</a><a href="#sec-6-六-跑一遍" class="">六、跑一遍</a><a href="#sec-7-七-真模型那段-不联网也能测" class="">七、真模型那段，不联网也能测</a><a href="#sec-8-八-没配凭据的样子" class="">八、没配凭据的样子</a><a href="#sec-9-九-代码地图" class="">九、代码地图</a><a href="#sec-10-自检" class="lv3">自检</a><a href="#sec-11-十-与-pi-的对照-可选" class="">十、与 Pi 的对照（可选）</a><a href="#sec-12-十一-下一章" class="">十一、下一章</a></nav>
 </div>
 </div>
 <script>

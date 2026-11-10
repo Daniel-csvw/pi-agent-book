@@ -4,7 +4,7 @@ import type { AgentMessage } from "./types.ts";
 
 /**
  * 追加写、逐行读。一行一条消息，坏行直接报行号。
- * 没有数据库、没有迁移：这类文件的全部协议就是“别改格式”。
+ * 没有数据库、没有迁移：这类文件的全部协议就是「别改格式」。
  */
 export class Session {
   file: string;

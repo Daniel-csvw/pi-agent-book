@@ -7,6 +7,7 @@ import type {
   StopReason,
   Tool,
 } from "./types.ts";
+import { runTools } from "./tools.ts";
 
 const MAX_TOOL_ERRORS = 3;
 
@@ -69,30 +70,15 @@ export async function runAgent(options: RunOptions): Promise<RunResult> {
       break;
     }
 
-    for (const call of calls) {
-      const tool = options.tools.find((t) => t.name === call.name);
-      emit({ type: "tool_start", id: call.id, name: call.name });
-      let text = "";
-      let isError = false;
-      if (!tool) {
-        isError = true;
-        text = `未知工具：${call.name}`;
-      } else {
-        try {
-          text = await tool.execute(call.args);
-        } catch (error) {
-          isError = true;
-          text = error instanceof Error ? error.message : String(error);
-        }
-      }
-      errors = isError ? errors + 1 : 0;
-      emit({ type: "tool_end", id: call.id, isError });
+    const results = await runTools(calls, options.tools, emit);
+    for (const result of results) {
+      errors = result.isError ? errors + 1 : 0;
       messages.push({
         role: "tool",
-        toolCallId: call.id,
-        toolName: call.name,
-        content: text,
-        isError,
+        toolCallId: result.id,
+        toolName: result.name,
+        content: result.text,
+        isError: result.isError,
       });
     }
 

@@ -12,6 +12,13 @@ export interface OpenAIOptions {
   model?: string;
 }
 
+/** tool_calls 分片暂存：id 只来一次，name 与 args 可能来好几段。 */
+interface PendingCall {
+  id: string;
+  name: string;
+  args: string;
+}
+
 function wireMessages(messages: Message[]) {
   return messages.map((message) => {
     if (message.role === "system" || message.role === "user") {
@@ -92,7 +99,7 @@ export function createOpenAIProvider(options: OpenAIOptions = {}): Provider {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      const pending = new Map<number, { id: string; name: string; args: string }>();
+      const pending = new Map<number, PendingCall>();
       let buffer = "";
 
       while (true) {
@@ -114,10 +121,13 @@ export function createOpenAIProvider(options: OpenAIOptions = {}): Provider {
             }
             for (const call of delta.tool_calls ?? []) {
               const index = call.index ?? 0;
-              const slot = pending.get(index) ?? { id: "", name: "", args: "" };
+              const slot =
+                pending.get(index) ?? { id: "", name: "", args: "" };
               if (call.id) slot.id = call.id;
               if (call.function?.name) slot.name += call.function.name;
-              if (call.function?.arguments) slot.args += call.function.arguments;
+              if (call.function?.arguments) {
+                slot.args += call.function.arguments;
+              }
               pending.set(index, slot);
             }
             if (choice.finish_reason) {
@@ -136,7 +146,8 @@ export function createOpenAIProvider(options: OpenAIOptions = {}): Provider {
                 } as ProviderChunk;
               }
               pending.clear();
-              yield { type: "done", stopReason: mapReason(choice.finish_reason) } as ProviderChunk;
+              const stopReason = mapReason(choice.finish_reason);
+              yield { type: "done", stopReason } as ProviderChunk;
             }
           }
         }

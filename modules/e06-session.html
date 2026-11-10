@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>会话 —— 一行一条，坏行报行号 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="active">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E06</div>
+      <h1>会话 —— 一行一条，坏行报行号</h1>
+      <div class="module-meta">1,584 字 · 含 95 行代码 · 约 9 分钟</div>
+    </header>
+    <p>E05 的历史压得动，但还在内存里。关掉终端就归零——这不是小问题，它意味着
+<strong>「记忆」和「进程」被绑死了</strong>。</p>
+<p>这一章把历史挪到文件里。最小的做法是 JSONL：一行一条消息，追加写，从头读。</p>
+<p>三个问题：</p>
+<ol>
+<li>为什么是追加写，不是每次覆盖整份？</li>
+<li>文件坏了，怎么让错误自带修复入口？</li>
+<li>存下来的东西，凭什么保证下次能读回同样的形状？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  Session.append(msg) --&gt; 文件末行 +1</span><span class="ln">                       |</span><span class="ln">  Session.load(file) --&gt; 逐行 JSON.parse --&gt; messages[]</span><span class="ln">                            |</span><span class="ln">                            '-- 坏行: 抛 `${file}:${行号} 不是合法 JSON`</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-本章终点-先跑起来">一、本章终点：先跑起来</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd examples/mini-agent</span><span class="ln">node src/demo-session.ts</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">本轮结束 6 条</span><span class="ln">重载 6 条</span><span class="ln">roles: user &gt; assistant &gt; tool &gt; assistant &gt; user &gt; assistant</span><span class="ln">ERR: tmp-e06.jsonl:7 不是合法 JSON</span></code></pre></div>
+<p>三行说明三件事：两轮对话落下 6 条；重新从文件读回来还是 6 条、顺序一致；第 7 行
+被人塞了一句 <code>not-json</code>，读的时候直接报行号。</p>
+<p><code>roles</code> 那一行是这一章最重要的证据：<strong>第一轮是完整的四条
+（user → assistant → tool → assistant），第二轮是两条</strong>。工具调用和它的结果都
+在文件里，不是「只存用户说了什么」。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/session.ts</code></td>
+<td>38</td>
+<td>新增：追加写 + 逐行读</td>
+</tr>
+<tr>
+<td><code>src/demo-session.ts</code></td>
+<td>47</td>
+<td>新增：本章入口</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>1,087</td>
+<td>E05 的 1,002 + 本章 85</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-2-二-38-行">二、38 行</h2>
+<p>&lt;!-- file: examples/mini-agent/src/session.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { appendFileSync, existsSync, mkdirSync, readFileSync } <span class="tok-kw">from</span> <span class="tok-str">"node:fs"</span>;</span><span class="ln"><span class="tok-kw">import</span> { dirname } <span class="tok-kw">from</span> <span class="tok-str">"node:path"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { AgentMessage } <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 追加写、逐行读。一行一条消息，坏行直接报行号。</span></span><span class="ln"><span class="tok-com"> * 没有数据库、没有迁移：这类文件的全部协议就是「别改格式」。</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">class</span> Session {</span><span class="ln">  file: <span class="tok-kw">string</span>;</span><span class="ln">  messages: AgentMessage[] = [];</span><span class="ln"></span><span class="ln">  <span class="tok-fn">constructor</span>(file: <span class="tok-kw">string</span>) {</span><span class="ln">    <span class="tok-kw">this</span>.file = file;</span><span class="ln">  }</span><span class="ln"></span><span class="ln">  <span class="tok-kw">static</span> <span class="tok-fn">load</span>(file: <span class="tok-kw">string</span>): Session {</span><span class="ln">    <span class="tok-kw">const</span> session = <span class="tok-kw">new</span> <span class="tok-fn">Session</span>(file);</span><span class="ln">    <span class="tok-kw">if</span> (!<span class="tok-fn">existsSync</span>(file)) <span class="tok-kw">return</span> session;</span><span class="ln">    <span class="tok-kw">const</span> lines = <span class="tok-fn">readFileSync</span>(file, <span class="tok-str">"utf8"</span>).<span class="tok-fn">split</span>(/\r?\n/);</span><span class="ln">    lines.<span class="tok-fn">forEach</span>((line, index) =&gt; {</span><span class="ln">      <span class="tok-kw">if</span> (!line.<span class="tok-fn">trim</span>()) <span class="tok-kw">return</span>;</span><span class="ln">      <span class="tok-kw">try</span> {</span><span class="ln">        session.messages.<span class="tok-fn">push</span>(JSON.<span class="tok-fn">parse</span>(line) <span class="tok-kw">as</span> AgentMessage);</span><span class="ln">      } <span class="tok-kw">catch</span> {</span><span class="ln">        <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">`${file}:${index + 1} 不是合法 JSON`</span>);</span><span class="ln">      }</span><span class="ln">    });</span><span class="ln">    <span class="tok-kw">return</span> session;</span><span class="ln">  }</span><span class="ln"></span><span class="ln">  <span class="tok-fn">append</span>(message: AgentMessage): <span class="tok-kw">void</span> {</span><span class="ln">    <span class="tok-fn">mkdirSync</span>(<span class="tok-fn">dirname</span>(<span class="tok-kw">this</span>.file), { recursive: <span class="tok-kw">true</span> });</span><span class="ln">    <span class="tok-fn">appendFileSync</span>(<span class="tok-kw">this</span>.file, JSON.<span class="tok-fn">stringify</span>(message) + <span class="tok-str">"\n"</span>, <span class="tok-str">"utf8"</span>);</span><span class="ln">    <span class="tok-kw">this</span>.messages.<span class="tok-fn">push</span>(message);</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p><strong><code>load</code> 里两个 <code>if</code> 各有分工。</strong> <code>!existsSync</code> 是「第一次用」——不是错误，
+返回空会话。<code>!line.trim()</code> 是「末尾的空行」——<code>split</code> 之后最后总会多一个空串，
+不跳过它就会报「第 N 行不是合法 JSON」。</p>
+<p><strong><code>append</code> 之前先 <code>mkdirSync</code>。</strong> 路径可能是 <code>sessions/2026-11-10/a.jsonl</code>，
+目录不存在时 <code>appendFileSync</code> 报 <code>ENOENT</code>，而且报的是文件路径，很容易误判成权限
+问题。</p>
+<p><strong>行号从 <code>index + 1</code> 来。</strong> 数组下标 0 对应文件第 1 行。少了这个 <code>+1</code>，你会去改
+错的下一行，然后发现「怎么改都不行」——因为差了一行。</p>
+<p><strong><code>JSON.stringify(message)</code> 不挑字段。</strong> 它把整个对象写进去，包括 <code>kind</code>、
+<code>display</code>、<code>isError</code>。这就是 E02 说「note 必须留在 <code>AgentMessage</code> 层」的原因：
+一旦你在存盘前把它拍成 user 消息，<code>kind</code> 就永远丢了。</p>
+<hr>
+<h2 id="sec-3-三-为什么不直接上-sqlite">三、为什么不直接上 SQLite</h2>
+<p>三个理由，按重要性排：</p>
+<ol>
+<li><strong>协议只有一句话。</strong> 「一行一条 JSON」不需要 schema、不需要迁移脚本、不需要
+驱动。出问题时 <code>Get-Content</code> 就能看，<code>Select-String</code> 就能查。</li>
+<li><strong>坏行是局部的。</strong> 第 7 行坏了，前 6 行还能读（如果你把「抛错」改成「跳过并
+记录」）。数据库文件坏了，通常是整库打不开。</li>
+<li><strong>追加写天然可审计。</strong> 谁在什么时候写了什么，文件本身就是日志。</li>
+</ol>
+<p>什么时候该换？同时满足两条就该换：<strong>需要按内容检索</strong>（「上周那次会话里提过
+<code>compact.ts</code> 吗」）和<strong>会话数量上百</strong>。在那之前，SQLite 只让你多一个部署依赖。</p>
+<hr>
+<h2 id="sec-4-四-入口-两轮-一次重载">四、入口：两轮 + 一次重载</h2>
+<p>&lt;!-- file: examples/mini-agent/src/demo-session.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * E06 的终点：跑两轮 → 关掉进程 → 重新加载，历史还在。</span></span><span class="ln"><span class="tok-com"> * 运行：cd examples/mini-agent &amp;&amp; node src/demo-session.ts</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">import</span> { appendFileSync, rmSync } <span class="tok-kw">from</span> <span class="tok-str">"node:fs"</span>;</span><span class="ln"><span class="tok-kw">import</span> { Session } <span class="tok-kw">from</span> <span class="tok-str">"./session.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { runAgent } <span class="tok-kw">from</span> <span class="tok-str">"./loop.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { toLlm } <span class="tok-kw">from</span> <span class="tok-str">"./messages.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { readTool } <span class="tok-kw">from</span> <span class="tok-str">"./tools.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createMockProvider } <span class="tok-kw">from</span> <span class="tok-str">"./provider/mock.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> file = <span class="tok-str">"tmp-e06.jsonl"</span>;</span><span class="ln"><span class="tok-fn">rmSync</span>(file, { force: <span class="tok-kw">true</span> });</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> session = Session.<span class="tok-fn">load</span>(file);</span><span class="ln"></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">turn</span>(input: <span class="tok-kw">string</span>): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">  session.<span class="tok-fn">append</span>({ role: <span class="tok-str">"user"</span>, content: input });</span><span class="ln">  <span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-fn">runAgent</span>({</span><span class="ln">    provider: <span class="tok-fn">createMockProvider</span>(),</span><span class="ln">    tools: [readTool],</span><span class="ln">    messages: [...session.messages],</span><span class="ln">    maxTurns: <span class="tok-num">2</span>,</span><span class="ln">    project: toLlm,</span><span class="ln">  });</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> result.messages.<span class="tok-fn">slice</span>(session.messages.length)) {</span><span class="ln">    session.<span class="tok-fn">append</span>(message);</span><span class="ln">  }</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">await</span> <span class="tok-fn">turn</span>(<span class="tok-str">"读一下 README.md"</span>);</span><span class="ln"><span class="tok-kw">await</span> <span class="tok-fn">turn</span>(<span class="tok-str">"再说一句"</span>);</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`本轮结束 ${session.messages.length} 条`</span>);</span><span class="ln"></span><span class="ln"><span class="tok-com">/* 换个「进程」：只从文件读，不碰内存 */</span></span><span class="ln"><span class="tok-kw">const</span> reloaded = Session.<span class="tok-fn">load</span>(file);</span><span class="ln"><span class="tok-kw">const</span> roles = reloaded.messages.<span class="tok-kw">map</span>((m) =&gt; m.role).<span class="tok-fn">join</span>(<span class="tok-str">" &gt; "</span>);</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`重载 ${reloaded.messages.length} 条`</span>);</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`roles: ${roles}`</span>);</span><span class="ln"></span><span class="ln"><span class="tok-com">/* 坏行：文件第 7 行手动塞一句非 JSON */</span></span><span class="ln"><span class="tok-fn">appendFileSync</span>(file, <span class="tok-str">"not-json\n"</span>, <span class="tok-str">"utf8"</span>);</span><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">  Session.<span class="tok-fn">load</span>(file);</span><span class="ln">} <span class="tok-kw">catch</span> (error) {</span><span class="ln">  console.<span class="tok-fn">log</span>(<span class="tok-str">`ERR: ${(error as Error).message}`</span>);</span><span class="ln">}</span></code></pre></div>
+<p><code>turn()</code> 里那个 <code>slice(session.messages.length)</code> 是这一章的隐蔽坑：<code>runAgent</code>
+返回的是<strong>整个</strong>历史数组（包括你传进去的），不是「新增部分」。不切就 append，
+每轮都会把旧消息重复写一遍，文件长度指数增长。</p>
+<p><code>[...session.messages]</code> 的拷贝也有原因：<code>runAgent</code> 内部会 <code>push</code> 新消息，直接传
+<code>session.messages</code> 会让「跑模型」和「改会话」共用一个数组，<code>length</code> 就再也算不出
+「新增部分」了。</p>
+<hr>
+<h2 id="sec-5-五-这一版的三个洞">五、这一版的三个洞</h2>
+<p><strong>洞一：文件无限长。</strong> 会话跑一个月，<code>load</code> 每次都要读完整份文件。至少要有
+「按行数截断」或「压缩时重写文件」（把已压掉的早期消息从磁盘上删掉）。注意：<strong>重写
+就是覆盖写，和追加写的原子性不在一个量级</strong>，得先写临时文件再 rename。</p>
+<p><strong>洞二：并发写只有一个进程能赢。</strong> 两个 <code>mini-agent</code> 同时 append 到同一个文件，
+小写入通常不会撕裂（内核保证 append 的原子性），但<strong>顺序不可预期</strong>——你会得到
+一段交错的历史。真正的多进程会话需要「每会话一个锁文件」或「按会话分目录」。</p>
+<p><strong>洞三：没有版本号。</strong> 今天写的 <code>{role:&quot;note&quot;, kind:&quot;summary&quot;}</code>，明天你把 <code>kind</code>
+改名成 <code>type</code>，旧文件就读不回来了。标准做法是第一行写一条 header：
+<code>{&quot;type&quot;:&quot;session&quot;,&quot;version&quot;:1}</code>，读到不认识的版本就拒绝而不是硬解。Pi 就是这么
+做的（<code>session-manager.ts:43</code> 的 <code>SessionHeader</code>）。</p>
+<hr>
+<h2 id="sec-6-六-代码地图">六、代码地图</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>关键符号</th>
+<th>下一章怎么用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/session.ts</code></td>
+<td><code>Session.load()</code> / <code>append()</code></td>
+<td>E08 的 <code>--session</code> 参数</td>
+</tr>
+<tr>
+<td><code>src/demo-session.ts</code></td>
+<td><code>turn()</code> 的 slice</td>
+<td>任何「跑完存盘」的循环都照抄</td>
+</tr>
+<tr>
+<td><code>tmp-e06.jsonl</code></td>
+<td>6 行 + 1 行坏数据</td>
+<td>看完就可以删</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="sec-7-自检">自检</h3>
+<ol>
+<li><code>load</code> 里如果去掉 <code>if (!line.trim()) return</code>，第一次读一个正常文件会怎样？</li>
+<li><code>turn()</code> 里的 <code>slice(session.messages.length)</code> 去掉，跑两轮后文件有几行？</li>
+<li>想让「第 7 行坏掉」时前 6 行仍然可用，<code>load</code> 要改成什么样？这算不算更好的
+默认行为？</li>
+</ol>
+<p>参考答案：</p>
+<p><strong>第 1 题</strong>：会报 <code>第 N+1 行不是合法 JSON</code>——因为文件末尾的换行让 <code>split</code> 多出
+一个空串。这个错误只在「文件以换行结尾」时出现，也就是几乎总是出现。</p>
+<p><strong>第 2 题</strong>：第 1 轮写 4 条（user/assistant/tool/assistant），第 2 轮如果整段
+重写就是 4 + 6 = 10 条，且历史里出现重复的 user——模型会看到自己说过两遍同样的
+话。轮数越多，重复越离谱。</p>
+<p><strong>第 3 题</strong>：把 <code>throw</code> 换成「记录 <code>{line, error}</code> 到 <code>session.warnings</code>，然后
+continue」。这<strong>不一定是更好的默认</strong>：静默跳过会让「历史缺了一段」变得不可见；
+更好的做法是默认抛（强制用户处理），另给一个 <code>load(file, { skipBad: true })</code>
+的显式开关。</p>
+<hr>
+<h2 id="sec-8-七-与-pi-的对照-可选">七、与 Pi 的对照（可选）</h2>
+<p>Pi 的会话在 <code>packages/coding-agent/src/core/session-manager.ts</code>，<strong>1,836 行</strong>，
+而你是 38 行。多出来的部分主要不是存储，而是<strong>形状</strong>：</p>
+<ul>
+<li>文件第一行是 header（<code>type: &quot;session&quot;</code>），带版本与元信息；</li>
+<li>每条 entry 有 id 和 parent，可以还原<strong>分支树</strong>——<code>leafId</code> 决定「当前在哪个
+分支上」；</li>
+<li>同一份文件既能投影出「给模型看的 messages」，也能投影出「给 UI 看的树」。</li>
+</ul>
+<p>你的 JSONL 是线性的：一个文件一条时间线。这是有意的——先有线性，才谈得上分支。</p>
+<hr>
+<h2 id="sec-9-八-下一章">八、下一章</h2>
+<p>工具、压缩、会话，三块都齐了。但它们只能在代码里改：想给 <code>read</code> 加一行审计日志、
+想在每次工具调用前加权限检查，你都得动 <code>tools.ts</code> 和 <code>loop.ts</code>。</p>
+<p>E07 做钩子：在「工具调用前 / 后」「每轮结束」这几个点上开孔，让扩展代码不改内核
+也能插进去。<code>node src/demo-hooks.ts</code> 会打印一条被钩子改写过的工具结果。</p>
+
+<div class="pager">
+      <a class="prev" href="e05-context.html"><span class="lbl">上一篇</span>上下文 —— 一道阈值，一条摘要，四个数字</a>
+      <a class="next" href="e07-extension.html"><span class="lbl">下一篇</span>扩展 —— 钩子挂在工具表上，内核不动</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-38-行" class="">二、38 行</a><a href="#sec-3-三-为什么不直接上-sqlite" class="">三、为什么不直接上 SQLite</a><a href="#sec-4-四-入口-两轮-一次重载" class="">四、入口：两轮 + 一次重载</a><a href="#sec-5-五-这一版的三个洞" class="">五、这一版的三个洞</a><a href="#sec-6-六-代码地图" class="">六、代码地图</a><a href="#sec-7-自检" class="lv3">自检</a><a href="#sec-8-七-与-pi-的对照-可选" class="">七、与 Pi 的对照（可选）</a><a href="#sec-9-八-下一章" class="">八、下一章</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

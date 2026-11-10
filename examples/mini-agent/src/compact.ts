@@ -12,7 +12,7 @@ export interface CompactResult {
   dropped: number;
 }
 
-/** 粗估：JSON 字符数 / 4。不追求准，只追求“先有一道闸”。 */
+/** 粗估：JSON 字符数 / 4。不追求准，只追求「先有一道闸」。 */
 export function estimateTokens(messages: AgentMessage[]): number {
   return Math.ceil(JSON.stringify(messages).length / 4);
 }
@@ -41,7 +41,12 @@ export function compactIfNeeded(
     timestamp: Date.now(),
     text: `<summary>${summarize(head)}</summary>`,
   };
-  return { messages: [note, ...tail], compacted: true, tokensBefore, dropped: cut };
+  return {
+    messages: [note, ...tail],
+    compacted: true,
+    tokensBefore,
+    dropped: cut,
+  };
 }
 
 function summarize(messages: AgentMessage[]): string {

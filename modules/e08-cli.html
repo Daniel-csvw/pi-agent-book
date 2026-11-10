@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>命令行 —— 七块零件，一条命令 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="active">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E08</div>
+      <h1>命令行 —— 七块零件，一条命令</h1>
+      <div class="module-meta">1,519 字 · 含 150 行代码 · 约 10 分钟</div>
+    </header>
+    <p>前七章攒下七个入口：<code>demo.ts</code>、<code>demo-memory.ts</code>、<code>demo-model.ts</code>、<code>demo-tools.ts</code>、
+<code>demo-compact.ts</code>、<code>demo-session.ts</code>、<code>demo-hooks.ts</code>。每个都只能演示一件事。
+用户要的不是七个 demo，是一条命令。</p>
+<p>这一章把零件装起来：选 provider、拼工具表、接会话、顺手挂压缩、最后把事件流
+打到屏幕上。</p>
+<p>三个问题：</p>
+<ol>
+<li>参数怎么解析？手写 <code>for</code> 还是上库？</li>
+<li>一条命令跑完，怎么告诉外界「成功还是失败」？</li>
+<li>接上 <code>--session</code> 以后，「续聊」到底发生了什么？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  argv --&gt; parse --&gt; provider / tools / session / maxTurns</span><span class="ln">                          |</span><span class="ln">                          v</span><span class="ln">                     handle(input)</span><span class="ln">                          |</span><span class="ln">      remember(user) --&gt; runAgent(--&gt; provider --&gt; tools)</span><span class="ln">                          |            |</span><span class="ln">                          |            '-- project = 压缩 + 投影</span><span class="ln">                          v</span><span class="ln">      result.messages.slice(len) --&gt; remember() --&gt; session.append()</span><span class="ln">                          |</span><span class="ln">                   printEvent() 打到 stdout</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-本章终点-先跑起来">一、本章终点：先跑起来</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd examples/mini-agent</span><span class="ln">node src/cli.ts --mock "读 README"</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"></span><span class="ln">[turn 1] 先看看文件。</span><span class="ln">-&gt; read [ok]</span><span class="ln">[turn 2] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop]</span></code></pre></div>
+<p>四行输出，全部来自 E01 的事件流：<code>turn_start</code> 打 <code>[turn n]</code>、
+<code>text_delta</code> 直接写、<code>tool_start</code> 打 <code>-&gt; name</code>、<code>agent_end</code> 打 <code>[stop]</code> 再换行。</p>
+<p>这就是「事件驱动的回报」：换 UI 不用改循环。终端是它的第一个消费者，不是唯一一个。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/cli.ts</code></td>
+<td>106</td>
+<td>新增：参数 + 装配 + 两种模式</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>1,337</td>
+<td>E07 的 1,231 + 本章 106</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-2-二-106-行">二、106 行</h2>
+<p>&lt;!-- file: examples/mini-agent/src/cli.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { createInterface } <span class="tok-kw">from</span> <span class="tok-str">"node:readline/promises"</span>;</span><span class="ln"><span class="tok-kw">import</span> { stdin, stdout } <span class="tok-kw">from</span> <span class="tok-str">"node:process"</span>;</span><span class="ln"><span class="tok-kw">import</span> { runAgent } <span class="tok-kw">from</span> <span class="tok-str">"./loop.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { toLlm } <span class="tok-kw">from</span> <span class="tok-str">"./messages.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { compactIfNeeded } <span class="tok-kw">from</span> <span class="tok-str">"./compact.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { Session } <span class="tok-kw">from</span> <span class="tok-str">"./session.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { baseTools, writeTool } <span class="tok-kw">from</span> <span class="tok-str">"./tools.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createMockProvider } <span class="tok-kw">from</span> <span class="tok-str">"./provider/mock.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createFixtureProvider } <span class="tok-kw">from</span> <span class="tok-str">"./provider/fixture.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { createOpenAIProvider } <span class="tok-kw">from</span> <span class="tok-str">"./provider/openai.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> {</span><span class="ln">  AgentEvent,</span><span class="ln">  AgentMessage,</span><span class="ln">  Provider,</span><span class="ln">  StopReason,</span><span class="ln">} <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> argv = process.argv.<span class="tok-fn">slice</span>(<span class="tok-num">2</span>);</span><span class="ln"><span class="tok-kw">let</span> providerName = <span class="tok-str">"mock"</span>;</span><span class="ln"><span class="tok-kw">let</span> sessionFile = <span class="tok-str">""</span>;</span><span class="ln"><span class="tok-kw">let</span> prompt = <span class="tok-str">""</span>;</span><span class="ln"><span class="tok-kw">let</span> maxTurns = <span class="tok-num">3</span>;</span><span class="ln"><span class="tok-kw">let</span> withWrite = <span class="tok-kw">false</span>;</span><span class="ln"><span class="tok-kw">let</span> print = <span class="tok-kw">false</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">let</span> i = <span class="tok-num">0</span>; i &lt; argv.length; i += <span class="tok-num">1</span>) {</span><span class="ln">  <span class="tok-kw">const</span> arg = argv[i];</span><span class="ln">  <span class="tok-kw">if</span> (arg === <span class="tok-str">"--mock"</span>) providerName = <span class="tok-str">"mock"</span>;</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (arg === <span class="tok-str">"--fixture"</span>) providerName = <span class="tok-str">"fixture"</span>;</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (arg === <span class="tok-str">"--openai"</span>) providerName = <span class="tok-str">"openai"</span>;</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (arg === <span class="tok-str">"--session"</span>) sessionFile = argv[++i] ?? <span class="tok-str">""</span>;</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (arg === <span class="tok-str">"--max-turns"</span>) maxTurns = <span class="tok-fn">Number</span>(argv[++i] ?? <span class="tok-num">3</span>);</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (arg === <span class="tok-str">"--tools"</span>) withWrite = <span class="tok-kw">true</span>;</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (arg === <span class="tok-str">"--print"</span>) print = <span class="tok-kw">true</span>;</span><span class="ln">  <span class="tok-kw">else</span> prompt = [prompt, arg].<span class="tok-fn">filter</span>(Boolean).<span class="tok-fn">join</span>(<span class="tok-str">" "</span>);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">pickProvider</span>(): Provider {</span><span class="ln">  <span class="tok-kw">if</span> (providerName === <span class="tok-str">"openai"</span>) <span class="tok-kw">return</span> <span class="tok-fn">createOpenAIProvider</span>();</span><span class="ln">  <span class="tok-kw">if</span> (providerName === <span class="tok-str">"fixture"</span>) {</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-fn">createFixtureProvider</span>(<span class="tok-str">"fixtures/openai-basic.jsonl"</span>);</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-fn">createMockProvider</span>();</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> provider = <span class="tok-fn">pickProvider</span>();</span><span class="ln"><span class="tok-kw">const</span> tools = withWrite ? [...baseTools, writeTool] : baseTools;</span><span class="ln"><span class="tok-kw">const</span> session = sessionFile ? Session.<span class="tok-fn">load</span>(sessionFile) : <span class="tok-kw">null</span>;</span><span class="ln"><span class="tok-kw">const</span> history: AgentMessage[] = session ? [...session.messages] : [];</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">remember</span>(message: AgentMessage): <span class="tok-kw">void</span> {</span><span class="ln">  history.<span class="tok-fn">push</span>(message);</span><span class="ln">  session?.<span class="tok-fn">append</span>(message);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">printEvent</span>(event: AgentEvent): <span class="tok-kw">void</span> {</span><span class="ln">  <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"text_delta"</span>) stdout.<span class="tok-fn">write</span>(event.text);</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"turn_start"</span>) {</span><span class="ln">    stdout.<span class="tok-fn">write</span>(<span class="tok-str">`\n[turn ${event.turn}] `</span>);</span><span class="ln">  } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"tool_start"</span>) stdout.<span class="tok-fn">write</span>(<span class="tok-str">`\n-&gt; ${event.name} `</span>);</span><span class="ln">  <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"tool_end"</span>) {</span><span class="ln">    stdout.<span class="tok-fn">write</span>(event.isError ? <span class="tok-str">"[err]"</span> : <span class="tok-str">"[ok]"</span>);</span><span class="ln">  } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"agent_end"</span>) {</span><span class="ln">    stdout.<span class="tok-fn">write</span>(<span class="tok-str">`\n[${event.stopReason}]\n`</span>);</span><span class="ln">  }</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">project</span>(all: AgentMessage[]) {</span><span class="ln">  <span class="tok-kw">const</span> compacted = <span class="tok-fn">compactIfNeeded</span>(all, { threshold: <span class="tok-num">900</span>, keep: <span class="tok-num">4</span> });</span><span class="ln">  <span class="tok-kw">if</span> (compacted.compacted) {</span><span class="ln">    console.<span class="tok-fn">log</span>(<span class="tok-str">`\n[compact] ${compacted.dropped} 条 → 1 条摘要`</span>);</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-fn">toLlm</span>(compacted.messages);</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">handle</span>(input: <span class="tok-kw">string</span>): Promise&lt;StopReason&gt; {</span><span class="ln">  <span class="tok-kw">const</span> user: AgentMessage = { role: <span class="tok-str">"user"</span>, content: input };</span><span class="ln">  <span class="tok-fn">remember</span>(user);</span><span class="ln">  <span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-fn">runAgent</span>({</span><span class="ln">    provider,</span><span class="ln">    tools,</span><span class="ln">    messages: history,</span><span class="ln">    maxTurns,</span><span class="ln">    project,</span><span class="ln">    emit: printEvent,</span><span class="ln">  });</span><span class="ln">  <span class="tok-kw">const</span> fresh = result.messages.<span class="tok-fn">slice</span>(history.length);</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> fresh) <span class="tok-fn">remember</span>(message);</span><span class="ln">  <span class="tok-kw">return</span> result.stopReason;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-kw">if</span> (prompt) {</span><span class="ln">  <span class="tok-kw">const</span> reason = <span class="tok-kw">await</span> <span class="tok-fn">handle</span>(prompt);</span><span class="ln">  <span class="tok-kw">if</span> (print) console.<span class="tok-fn">log</span>(JSON.<span class="tok-fn">stringify</span>(history.<span class="tok-fn">slice</span>(-<span class="tok-num">4</span>), <span class="tok-kw">null</span>, <span class="tok-num">2</span>));</span><span class="ln">  process.exitCode = reason === <span class="tok-str">"error"</span> ? <span class="tok-num">1</span> : <span class="tok-num">0</span>;</span><span class="ln">} <span class="tok-kw">else</span> {</span><span class="ln">  <span class="tok-kw">const</span> rl = <span class="tok-fn">createInterface</span>({ input: stdin, output: stdout });</span><span class="ln">  console.<span class="tok-fn">log</span>(<span class="tok-str">`mini-agent · provider=${provider.name} · /exit 退出`</span>);</span><span class="ln">  <span class="tok-kw">for</span> (;;) {</span><span class="ln">    <span class="tok-kw">const</span> line = (<span class="tok-kw">await</span> rl.<span class="tok-fn">question</span>(<span class="tok-str">"&gt; "</span>)).<span class="tok-fn">trim</span>();</span><span class="ln">    <span class="tok-kw">if</span> (!line) <span class="tok-kw">continue</span>;</span><span class="ln">    <span class="tok-kw">if</span> (line === <span class="tok-str">"/exit"</span>) <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-fn">handle</span>(line);</span><span class="ln">  }</span><span class="ln">  rl.<span class="tok-fn">close</span>();</span><span class="ln">}</span></code></pre></div>
+<hr>
+<h2 id="sec-3-三-五个决定">三、五个决定</h2>
+<p><strong>决定一：手写 <code>for</code>，不上库。</strong> 七个参数，<code>for</code> + <code>++i</code> 二十行就够。
+<code>argv[++i]</code> 是这一段的全部技巧：先自增再取值，把 <code>--session a.json</code> 的值吃掉，
+顺带跳过它，免得它再被当一次 <code>arg</code> 落进 <code>prompt</code>。</p>
+<p><strong>决定二：三个 provider 都在，靠一个字符串选。</strong> <code>pickProvider()</code> 是唯一知道
+「有几种模型」的地方，<code>handle()</code> 只认 <code>Provider</code> 接口（E01 的孔）。
+加第四个 provider，改这一个函数。</p>
+<p><strong>决定三：压缩挂在 <code>project</code> 里。</strong> 这是 E05 说过的顺序——压缩在 <code>AgentMessage</code>
+层、投影在后面，所以 <code>compactIfNeeded(...)</code> 套在 <code>toLlm(...)</code> 里面。
+<code>threshold: 900</code> 是给演示调的：默认 8000 在这条命令里永远不触发，<code>[compact]</code>
+那行你就永远看不到（E05 的 <code>threshold: 60</code> 是同一个道理）。</p>
+<p><strong>决定四：<code>remember()</code> 双写。</strong> 内存 <code>history</code> 和磁盘 <code>session</code> 各写一份。
+看起来重复，但两者职责不同：<code>history</code> 是这一轮的上下文，<code>session</code> 是下次启动的
+上下文。任何一边漏了，都会出现「这轮记得、下轮失忆」或者反过来。</p>
+<p><strong>决定五：<code>process.exitCode</code>，不是 <code>process.exit()</code>。</strong> <code>exitCode</code> 只是给进程
+留一个数字，让它自己跑完、把 stdout 排空。<code>exit()</code> 是当场切断，管道里
+（<code>| Select-Object</code>、<code>| tee</code>）最后几行经常丢——你会以为是打印逻辑写错了。</p>
+<hr>
+<h2 id="sec-4-四-三组真实输出">四、三组真实输出</h2>
+<p><strong>回放模式</strong>：<code>--fixture</code> 不需要网络，也不看你的 prompt 内容。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --fixture "你好"</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"></span><span class="ln">[turn 1] 你好，这是一份录好的回复。</span><span class="ln">[stop]</span></code></pre></div>
+<p><strong>看结构</strong>：<code>--print</code> 把最后四条消息原样打出来（下面重排过，原样是每字段一行）。</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[</span><span class="ln">  { "role": "user", "content": "hi" },</span><span class="ln">  {</span><span class="ln">    "role": "assistant",</span><span class="ln">    "content": [{ "type": "text", "text": "（mock）收到：hi" }],</span><span class="ln">    "stopReason": "stop"</span><span class="ln">  }</span><span class="ln">]</span></code></pre></div>
+<p><code>slice(-4)</code> 是「只看最近一段」的意思。别指望它打出完整历史——要完整就把
+<code>slice(-4)</code> 删掉。</p>
+<p><strong>续聊</strong>：同一个文件跑两次。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --mock --session tmp-e08.jsonl "读 README"</span><span class="ln">node src/cli.ts --mock --session tmp-e08.jsonl "再说一句"</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[turn 1] 先看看文件。</span><span class="ln">-&gt; read [ok]</span><span class="ln">[turn 2] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop]</span><span class="ln"></span><span class="ln">[turn 1] （mock）读完了，文件已经在上下文里。</span><span class="ln">[stop]</span></code></pre></div>
+<p>第二次只跑了一轮，而且直接说「读完了」——因为它从文件里读到一条 <code>tool</code> 消息，
+mock 的规则二立刻命中（<code>provider/mock.ts</code>：只要历史里有 tool 结果就收尾）。</p>
+<p><strong>这不是会话的 bug，是 mock 太笨</strong>：它没法区分「上辈子读过」和「这一轮读过」。
+真模型会看你的新问题再决定要不要再读一遍。文件本身是对的：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">6 行：user &gt; assistant &gt; tool &gt; assistant &gt; user &gt; assistant</span></code></pre></div>
+<hr>
+<h2 id="sec-5-五-三个坑-都实测过">五、三个坑（都实测过）</h2>
+<p><strong>坑一：<code>--max-turns abc</code> 静默成功。</strong></p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node src/cli.ts --mock --max-turns abc "hi"</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[maxTurns]</span></code></pre></div>
+<p>一行，零轮，<strong>退出码 0</strong>。<code>Number(&quot;abc&quot;)</code> 是 <code>NaN</code>，而 <code>while (turns &lt; NaN)</code>
+永远是假——循环一次都没进。CI 会绿，因为它只看退出码。</p>
+<p><strong>坑二：拼错的参数变成 prompt。</strong> 把 <code>--session</code> 打成 <code>--sessoin</code>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">[turn 1] （mock）收到：--sessoin tmp-x.json hi</span></code></pre></div>
+<p><code>for</code> 最后一行的 <code>else</code> 什么 <code>--</code> 都收。手写解析器的默认行为是「不认识就当输入」，
+这在「随便聊两句」时很顺手，在「参数写错」时很致命。</p>
+<p><strong>坑三：<code>text_delta</code> 不换行，输出全靠别人补 <code>\n</code>。</strong>
+<code>[turn 1] 先看看文件。</code> 后面能接上 <code>-&gt; read</code>，是因为 <code>tool_start</code> 自己带了
+<code>\n</code>；<code>[stop]</code> 能独占一行，是因为 <code>agent_end</code> 前面有 <code>\n</code>、后面也有。
+少一个，两行就粘在一起——<strong>流式输出里，换行是最容易漏的那一半协议</strong>。</p>
+<hr>
+<h2 id="sec-6-六-与-pi-的对照-可选">六、与 Pi 的对照（可选）</h2>
+<p>Pi 的入口只有一行：<code>cli.ts</code> 里 <code>main(process.argv.slice(2))</code>。真正的解析在
+<code>packages/coding-agent/src/cli/args.ts</code>，<strong>480 行</strong>，<code>parseArgs(args: string[]): Args</code>
+（<code>:72</code>）。它比我们多的不是参数数量，是<strong>三条分类规则</strong>：</p>
+<ul>
+<li>已知的 <code>--flag</code> 各自落到 <code>Args</code> 的字段；</li>
+<li>不认识的 <code>--flag</code> 进 <code>unknownFlags</code>（<code>:56</code>），留给扩展自己认领（<code>:249-262</code>）；</li>
+<li>以 <code>-</code> 开头但不认识、又不是 <code>--</code> 的，压一条诊断
+<code>Unknown option: ${arg}</code>（<code>:264</code>），由调用方决定是否打 usage。</li>
+</ul>
+<p>注意第三条：<strong>未知参数是诊断，不是 prompt</strong>。我们的 <code>else</code> 分支正好相反，
+这就是坑二的来源。</p>
+<hr>
+<h2 id="sec-7-七-全部零件盘点">七、全部零件盘点</h2>
+<p>到这里 Part E 结束。<code>examples/mini-agent/src</code> 一共 18 个文件、1,252 行：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>文件</th>
+<th>行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>契约</td>
+<td><code>types.ts</code></td>
+<td>106</td>
+</tr>
+<tr>
+<td>消息</td>
+<td><code>messages.ts</code></td>
+<td>33</td>
+</tr>
+<tr>
+<td>循环</td>
+<td><code>loop.ts</code></td>
+<td>98</td>
+</tr>
+<tr>
+<td>工具</td>
+<td><code>tools.ts</code></td>
+<td>139</td>
+</tr>
+<tr>
+<td>压缩</td>
+<td><code>compact.ts</code></td>
+<td>56</td>
+</tr>
+<tr>
+<td>会话</td>
+<td><code>session.ts</code></td>
+<td>37</td>
+</tr>
+<tr>
+<td>钩子</td>
+<td><code>hooks.ts</code></td>
+<td>46</td>
+</tr>
+<tr>
+<td>入口</td>
+<td><code>cli.ts</code></td>
+<td>106</td>
+</tr>
+<tr>
+<td>provider</td>
+<td><code>provider/mock.ts</code></td>
+<td>40</td>
+</tr>
+<tr>
+<td>provider</td>
+<td><code>provider/fixture.ts</code></td>
+<td>42</td>
+</tr>
+<tr>
+<td>provider</td>
+<td><code>provider/openai.ts</code></td>
+<td>159</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo.ts</code></td>
+<td>60</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo-memory.ts</code></td>
+<td>92</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo-model.ts</code></td>
+<td>40</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo-tools.ts</code></td>
+<td>52</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo-compact.ts</code></td>
+<td>31</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo-session.ts</code></td>
+<td>47</td>
+</tr>
+<tr>
+<td>demo</td>
+<td><code>demo-hooks.ts</code></td>
+<td>68</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>18 个文件</td>
+<td>1,252</td>
+</tr>
+</tbody>
+</table></div>
+<p>外加 <code>test/</code> 下 5 个文件、249 行、14 个测试，全绿。</p>
+<h3 id="sec-8-自检">自检</h3>
+<ol>
+<li>把 <code>--session</code> 那行的 <code>argv[++i]</code> 改成 <code>argv[i + 1]</code>，会发生什么？</li>
+<li>第二次 <code>--session</code> 为什么没再读文件？换成 <code>--openai</code> 会怎样？</li>
+<li><code>project</code> 里的 <code>threshold: 900</code> 如果改回 E05 的默认值 <code>8000</code>，会出现什么现象？</li>
+</ol>
+<p>参考答案：</p>
+<p><strong>第 1 题</strong>：值照样取到，但 <code>i</code> 没跳过，<code>a.json</code> 会再被当成一次 <code>arg</code>，落进
+<code>prompt</code>——于是文件续上了，用户的话里却多了一个文件名。<code>++i</code> 的副作用就是
+「消费掉这个参数」。</p>
+<p><strong>第 2 题</strong>：mock 的规则二只看「历史里有没有 <code>tool</code> 消息」，有就直接收尾。
+换成 <code>--openai</code>，模型看到的是完整的六条历史，会按新问题决定要不要再调工具。
+<strong>同一份会话，两种 provider 的行为完全不同</strong>——这才是「接口统一、实现各异」的
+正常状态。</p>
+<p><strong>第 3 题</strong>：<code>[compact]</code> 那行永远不出现。因为这条命令聊十轮也就一两千 token，
+到不了 8000。演示用的阈值必须调到「必过」，否则你分不清「没触发」和「触发坏了」。</p>
+<hr>
+<h2 id="sec-9-八-part-e-之后">八、Part E 之后</h2>
+<p>七个零件、一万两千字，换来一个能跑、能存、能扩展、能上真实模型的 mini-agent。
+它和 Pi 的差距不在行数，在下面这些地方——也就是 M 系列十篇的内容：</p>
+<ul>
+<li>模型调用：重试、流式增量的合并、toolCall 的多个 index（M04）；</li>
+<li>工具：并发上限、超时、AbortSignal 穿透、结果截断（M05）；</li>
+<li>消息：图片、thinking 块、不同 provider 的方言（M06）；</li>
+<li>上下文：按模型预算算、按消息边界切、摘要用模型生成（M08/M09）；</li>
+<li>会话：分支树、header 版本、跨进程锁（M10）；</li>
+<li>还有 durable、chord、mcp、tui、telemetry——每一块都是「你这个洞，别人填了
+一千行」。</li>
+</ul>
+<p>先把这一条命令跑通，再去读他们。顺序反过来，你会以为那些代码是凭空长出来的。</p>
+
+<div class="pager">
+      <a class="prev" href="e07-extension.html"><span class="lbl">上一篇</span>扩展 —— 钩子挂在工具表上，内核不动</a>
+      <a class="next" href="appendix-migration.html"><span class="lbl">下一篇</span>附录 —— v0.80 → v1.4 迁移对照</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-106-行" class="">二、106 行</a><a href="#sec-3-三-五个决定" class="">三、五个决定</a><a href="#sec-4-四-三组真实输出" class="">四、三组真实输出</a><a href="#sec-5-五-三个坑-都实测过" class="">五、三个坑（都实测过）</a><a href="#sec-6-六-与-pi-的对照-可选" class="">六、与 Pi 的对照（可选）</a><a href="#sec-7-七-全部零件盘点" class="">七、全部零件盘点</a><a href="#sec-8-自检" class="lv3">自检</a><a href="#sec-9-八-part-e-之后" class="">八、Part E 之后</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

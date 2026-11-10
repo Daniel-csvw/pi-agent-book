@@ -1,19 +1,15 @@
 import { readFileSync } from "node:fs";
-import type { Provider, ProviderChunk, StopReason } from "../types.ts";
-
-/** finish_reason 的四种值 → 我们的五种 stopReason。 */
-function mapReason(reason: string | null | undefined): StopReason {
-  if (reason === "tool_calls") return "toolUse";
-  if (reason === "length") return "length";
-  return "stop";
-}
+import type { Provider, ProviderChunk } from "../types.ts";
 
 /**
- * 把录下来的一份 OpenAI SSE 回复重放成 chunk。
- * 录制文件一行一个 data:，最后一行 data: [DONE]。
+ * 把录好的一段回复重放成 chunk。
+ * 文件格式：一行一个 chunk（JSON），空行和 # 开头的行忽略。
  */
 export function createFixtureProvider(file: string): Provider {
   const chunks = loadChunks(file);
+  if (chunks.at(-1)?.type !== "done") {
+    throw new Error(`${file} 最后一行必须是 done`);
+  }
   return {
     name: "fixture",
     async *stream() {
@@ -25,61 +21,22 @@ export function createFixtureProvider(file: string): Provider {
 export function loadChunks(file: string): ProviderChunk[] {
   const raw = readFileSync(file, "utf8");
   const chunks: ProviderChunk[] = [];
-  const pending = new Map<number, { id: string; name: string; args: string }>();
+  const lines = raw.split(/\r?\n/);
 
-  for (const line of raw.split(/\r?\n/)) {
-    const data = line.startsWith("data:") ? line.slice(5).trim() : line.trim();
-    if (!data || data === "[DONE]") continue;
-    let event: {
-      choices?: Array<{
-        delta?: {
-          content?: string | null;
-          tool_calls?: Array<{
-            index?: number;
-            id?: string;
-            function?: { name?: string; arguments?: string };
-          }>;
-        };
-        finish_reason?: string | null;
-      }>;
-    };
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) continue;
+    let chunk: ProviderChunk;
     try {
-      event = JSON.parse(data);
+      chunk = JSON.parse(line) as ProviderChunk;
     } catch {
-      throw new Error(`${file} 里有一行不是 JSON：${data.slice(0, 40)}`);
+      const head = line.slice(0, 40);
+      throw new Error(`${file}:${i + 1} 不是 JSON：${head}`);
     }
-    const choice = event.choices?.[0];
-    if (!choice) continue;
-    const delta = choice.delta ?? {};
-    if (delta.content) chunks.push({ type: "text", text: delta.content });
-    for (const call of delta.tool_calls ?? []) {
-      const index = call.index ?? 0;
-      const slot = pending.get(index) ?? { id: "", name: "", args: "" };
-      if (call.id) slot.id = call.id;
-      if (call.function?.name) slot.name += call.function.name;
-      if (call.function?.arguments) slot.args += call.function.arguments;
-      pending.set(index, slot);
+    if (!["text", "toolCall", "done"].includes(chunk.type)) {
+      throw new Error(`${file}:${i + 1} 未知 chunk 类型`);
     }
-    if (choice.finish_reason) {
-      for (const [index, slot] of [...pending.entries()].sort((a, b) => a[0] - b[0])) {
-        chunks.push({
-          type: "toolCall",
-          id: slot.id || `call_${index}`,
-          name: slot.name,
-          args: parseArgs(slot.args),
-        });
-      }
-      pending.clear();
-      chunks.push({ type: "done", stopReason: mapReason(choice.finish_reason) });
-    }
+    chunks.push(chunk);
   }
   return chunks;
-}
-
-function parseArgs(text: string): Record<string, unknown> {
-  try {
-    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
-  } catch {
-    return { _raw: text };
-  }
 }

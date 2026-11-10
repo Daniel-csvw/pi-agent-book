@@ -8,7 +8,12 @@ import { baseTools, writeTool } from "./tools.ts";
 import { createMockProvider } from "./provider/mock.ts";
 import { createFixtureProvider } from "./provider/fixture.ts";
 import { createOpenAIProvider } from "./provider/openai.ts";
-import type { AgentEvent, AgentMessage, Provider, StopReason } from "./types.ts";
+import type {
+  AgentEvent,
+  AgentMessage,
+  Provider,
+  StopReason,
+} from "./types.ts";
 
 const argv = process.argv.slice(2);
 let providerName = "mock";
@@ -50,10 +55,14 @@ function remember(message: AgentMessage): void {
 
 function printEvent(event: AgentEvent): void {
   if (event.type === "text_delta") stdout.write(event.text);
-  else if (event.type === "turn_start") stdout.write(`\n[turn ${event.turn}] `);
-  else if (event.type === "tool_start") stdout.write(`\n-> ${event.name} `);
-  else if (event.type === "tool_end") stdout.write(event.isError ? "[err]" : "[ok]");
-  else if (event.type === "agent_end") stdout.write(`\n[${event.stopReason}]\n`);
+  else if (event.type === "turn_start") {
+    stdout.write(`\n[turn ${event.turn}] `);
+  } else if (event.type === "tool_start") stdout.write(`\n-> ${event.name} `);
+  else if (event.type === "tool_end") {
+    stdout.write(event.isError ? "[err]" : "[ok]");
+  } else if (event.type === "agent_end") {
+    stdout.write(`\n[${event.stopReason}]\n`);
+  }
 }
 
 function project(all: AgentMessage[]) {

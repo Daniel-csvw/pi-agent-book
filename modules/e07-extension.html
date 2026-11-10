@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>扩展 —— 钩子挂在工具表上，内核不动 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="active">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">E07</div>
+      <h1>扩展 —— 钩子挂在工具表上，内核不动</h1>
+      <div class="module-meta">1,901 字 · 含 163 行代码 · 约 9 分钟</div>
+    </header>
+    <p>E06 之后，会话能存了。可你想加一样东西——「写文件前要人工确认」「每次工具结果
+记一笔审计」——还是只能去改 <code>tools.ts</code> 和 <code>loop.ts</code>。第一次改很爽，第二次就变成
+冲突：你在 <code>runTools</code> 里插的三行，E04 的锁一改，三行就飘了。</p>
+<p>这一章不写新机制。先把内核已经开过的孔数清楚，再把钩子挂到其中一个上：
+<strong>工具就是一组对象，包一层就行。</strong></p>
+<p>三个问题：</p>
+<ol>
+<li>内核已经开了哪几个孔？为什么钩子不必是第四个？</li>
+<li>想拦下一次调用，为什么「让工具抛错」就够了？</li>
+<li>包装层的代价是什么，什么时候必须回去改内核？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">   loop.ts</span><span class="ln">     |  tools: Tool[]        &lt;-- 孔一：工具是数据</span><span class="ln">     |  emit(event)          &lt;-- 孔二：事件流（只读）</span><span class="ln">     |  project(messages)    &lt;-- 孔三：投影</span><span class="ln">     v</span><span class="ln">  withHooks(tools, hooks)   &lt;-- 本章：只包孔一</span><span class="ln">     |</span><span class="ln">     +-- before(call)                -&gt; block | args | undefined</span><span class="ln">     +-- execute(args)               -&gt; text</span><span class="ln">     +-- after(call, text, isError)  -&gt; text</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-本章终点-先跑起来">一、本章终点：先跑起来</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">cd examples/mini-agent</span><span class="ln">node src/demo-hooks.ts</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">turn 1 end toolUse</span><span class="ln">turn 2 end stop</span><span class="ln">ok  c1 echo: 被钩子改写 [审计]</span><span class="ln">err c2 不许写 secret</span><span class="ln">secret 文件被写了吗: false</span></code></pre></div>
+<p>五行四件事：</p>
+<ul>
+<li>两个 <code>turn_end</code>：钩子只是旁听，循环照常跑完两轮。</li>
+<li><code>c1</code> 的参数被 before 从 <code>原始</code> 改成了 <code>被钩子改写</code>——输出里找不到「原始」。</li>
+<li><code>c2</code> 被拦下，模型收到的是一条错误文本。</li>
+<li>最后一行 <code>false</code> 是最硬的证据：<strong>工具根本没执行</strong>，不是执行完再把结果丢掉。</li>
+</ul>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/hooks.ts</code></td>
+<td>46</td>
+<td>新增：钩子接口 + 包装器</td>
+</tr>
+<tr>
+<td><code>src/demo-hooks.ts</code></td>
+<td>68</td>
+<td>新增：本章入口</td>
+</tr>
+<tr>
+<td><code>test/hooks.test.ts</code></td>
+<td>30</td>
+<td>新增：2 个测试</td>
+</tr>
+<tr>
+<td>合计</td>
+<td>1,231</td>
+<td>E06 的 1,087 + 本章 144</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-2-二-先数孔-再决定要不要打洞">二、先数孔，再决定要不要打洞</h2>
+<p><code>loop.ts</code> 只有 98 行，但它对外开了三个孔：</p>
+<ul>
+<li><strong>孔一 <code>Tool[]</code>。</strong> E04 把工具做成「名字 + 描述 + 参数 + <code>execute</code>」的对象，
+循环只认这张表。换表不用动循环——<strong>钩子要的就是这个口子</strong>。</li>
+<li><strong>孔二 <code>emit</code>。</strong> E01 的事件流里已经有 <code>turn_end</code>，转发一次就有了「每轮结束」
+钩子，内核不用加一行。</li>
+<li><strong>孔三 <code>project</code>。</strong> E02 的投影，决定模型看到什么。改上下文去包它，不归本章。</li>
+</ul>
+<p>所以本章只有两个新增文件，<code>loop.ts</code> 和 <code>tools.ts</code> <strong>一个字符都没改</strong>。这不是克制，
+是判据：<strong>如果你的扩展非得改内核，先问一句「哪个孔没开够」，而不是直接加 <code>if</code>。</strong></p>
+<hr>
+<h2 id="sec-3-三-包装器-46-行">三、包装器：46 行</h2>
+<p>&lt;!-- file: examples/mini-agent/src/hooks.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { AgentEvent, Tool, ToolCallBlock } <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-com">/** 调用前的裁决：拦下、改参数，或放行（undefined）。 */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">type</span> BeforeVerdict =</span><span class="ln">  | { block: <span class="tok-kw">string</span> }</span><span class="ln">  | { args: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">unknown</span>&gt; }</span><span class="ln">  | <span class="tok-kw">undefined</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">interface</span> ToolHooks {</span><span class="ln">  <span class="tok-com">/** 校验之后、执行之前。 */</span></span><span class="ln">  before?(call: ToolCallBlock): BeforeVerdict;</span><span class="ln">  <span class="tok-com">/** 执行之后（失败也算）。返回值就是模型看到的文本。 */</span></span><span class="ln">  after?(call: ToolCallBlock, text: <span class="tok-kw">string</span>, isError: <span class="tok-kw">boolean</span>): <span class="tok-kw">string</span>;</span><span class="ln">  <span class="tok-com">/** 第三道孔：事件流只读，改不了流程。 */</span></span><span class="ln">  onEvent?(event: AgentEvent): <span class="tok-kw">void</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * 把钩子包成一层工具表。内核（loop.ts / tools.ts）一行都不用改，</span></span><span class="ln"><span class="tok-com"> * 因为「工具就是一个带 execute 的对象」是 E04 定下的契约。</span></span><span class="ln"><span class="tok-com"> * 代价：包装层看不到 loop 分配的 call.id，也接不到 validateArgs。</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">function</span> <span class="tok-fn">withHooks</span>(tools: Tool[], hooks: ToolHooks): Tool[] {</span><span class="ln">  <span class="tok-kw">return</span> tools.<span class="tok-kw">map</span>((tool) =&gt; ({</span><span class="ln">    ...tool,</span><span class="ln">    <span class="tok-kw">async</span> <span class="tok-fn">execute</span>(args) {</span><span class="ln">      <span class="tok-com">/* 借用工具名占位：这一层没有真 id */</span></span><span class="ln">      <span class="tok-kw">const</span> call: ToolCallBlock = {</span><span class="ln">        <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">        id: tool.name,</span><span class="ln">        name: tool.name,</span><span class="ln">        args,</span><span class="ln">      };</span><span class="ln">      <span class="tok-kw">const</span> verdict = hooks.before?.(call);</span><span class="ln">      <span class="tok-kw">if</span> (verdict &amp;&amp; <span class="tok-str">"block"</span> <span class="tok-kw">in</span> verdict) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(verdict.block);</span><span class="ln">      <span class="tok-kw">const</span> realArgs = verdict &amp;&amp; <span class="tok-str">"args"</span> <span class="tok-kw">in</span> verdict ? verdict.args : args;</span><span class="ln">      <span class="tok-kw">try</span> {</span><span class="ln">        <span class="tok-kw">const</span> text = <span class="tok-kw">await</span> tool.<span class="tok-fn">execute</span>(realArgs);</span><span class="ln">        <span class="tok-kw">return</span> hooks.after?.(call, text, <span class="tok-kw">false</span>) ?? text;</span><span class="ln">      } <span class="tok-kw">catch</span> (error) {</span><span class="ln">        <span class="tok-kw">const</span> text = error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error);</span><span class="ln">        <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(hooks.after?.(call, text, <span class="tok-kw">true</span>) ?? text);</span><span class="ln">      }</span><span class="ln">    },</span><span class="ln">  }));</span><span class="ln">}</span></code></pre></div>
+<p>六处值得停一下：</p>
+<p><strong><code>BeforeVerdict</code> 是三态。</strong> 返回 <code>undefined</code> 是放行，<code>{ args }</code> 是改参数，
+<code>{ block }</code> 是拦下。三种意图三种形状，比 <code>{ ok: boolean, args?, reason? }</code>
+少一堆 <code>if</code>，也不会出现「既 block 又给 args」的矛盾值。</p>
+<p><strong>拦下用 <code>throw</code>，不是返回错误对象。</strong> E04 的 <code>runTools</code> 早就有一条
+「工具抛错 → <code>isError: true</code> → 结果进历史」的通路（<code>tools.ts:132</code>），复用它是
+零改动；而且模型看到的和「工具自己失败了」一模一样——它不需要知道是权限还是 bug。</p>
+<p><strong>代价当场出现：<code>after</code> 看不到被拦的那次。</strong> <code>throw</code> 在 <code>try</code> 外面，
+所以输出里 <code>err c2 不许写 secret</code> 没有 <code>[审计]</code> 后缀。要审计「被拦下的尝试」，
+只能在 <code>throw</code> 之前自己记一笔。</p>
+<p><strong><code>?? text</code> 只挡 <code>null</code> / <code>undefined</code>。</strong> 钩子返回空串是「改成空」，不是「没改」。
+这两个语义差得很远，别用 <code>||</code>。</p>
+<p><strong>内层 <code>try/catch</code> 里再 <code>throw</code>。</strong> <code>after</code> 返回的文本要重新包成 <code>Error</code> 抛出去，
+否则一次失败的调用会被改写成「成功返回一段文本」。</p>
+<p><strong><code>id: tool.name</code> 是妥协。</strong> loop 分配的 <code>call_1</code> 在 <code>execute</code> 这一层根本拿不到。
+要真 id，就得改 <code>runTools</code> 的签名——那就是「回去改内核」。</p>
+<hr>
+<h2 id="sec-4-四-入口-68-行">四、入口：68 行</h2>
+<p>&lt;!-- file: examples/mini-agent/src/demo-hooks.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">/**</span></span><span class="ln"><span class="tok-com"> * E07 的终点：拦一个、改一个、记一笔，内核一行没改。</span></span><span class="ln"><span class="tok-com"> * 运行：cd examples/mini-agent &amp;&amp; node src/demo-hooks.ts</span></span><span class="ln"><span class="tok-com"> */</span></span><span class="ln"><span class="tok-kw">import</span> { existsSync, rmSync } <span class="tok-kw">from</span> <span class="tok-str">"node:fs"</span>;</span><span class="ln"><span class="tok-kw">import</span> { withHooks } <span class="tok-kw">from</span> <span class="tok-str">"./hooks.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { ToolHooks } <span class="tok-kw">from</span> <span class="tok-str">"./hooks.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { runAgent } <span class="tok-kw">from</span> <span class="tok-str">"./loop.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { toLlm } <span class="tok-kw">from</span> <span class="tok-str">"./messages.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { echoTool, writeTool } <span class="tok-kw">from</span> <span class="tok-str">"./tools.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> <span class="tok-kw">type</span> { Provider } <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> target = <span class="tok-str">"tmp-e07-secret.txt"</span>;</span><span class="ln"><span class="tok-fn">rmSync</span>(target, { force: <span class="tok-kw">true</span> });</span><span class="ln"></span><span class="ln"><span class="tok-com">/* 剧本模型：第一轮发两个调用，第二轮收尾。真模型做不到这么可控。 */</span></span><span class="ln"><span class="tok-kw">const</span> scripted: Provider = {</span><span class="ln">  name: <span class="tok-str">"scripted"</span>,</span><span class="ln">  <span class="tok-kw">async</span> *<span class="tok-fn">stream</span>(messages) {</span><span class="ln">    <span class="tok-kw">if</span> (messages.<span class="tok-fn">some</span>((m) =&gt; m.role === <span class="tok-str">"tool"</span>)) {</span><span class="ln">      <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"text"</span>, text: <span class="tok-str">"两个都试过了。"</span> };</span><span class="ln">      <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"stop"</span> };</span><span class="ln">      <span class="tok-kw">return</span>;</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>, id: <span class="tok-str">"c1"</span>, name: <span class="tok-str">"echo"</span>, args: { text: <span class="tok-str">"原始"</span> } };</span><span class="ln">    <span class="tok-kw">yield</span> {</span><span class="ln">      <span class="tok-kw">type</span>: <span class="tok-str">"toolCall"</span>,</span><span class="ln">      id: <span class="tok-str">"c2"</span>,</span><span class="ln">      name: <span class="tok-str">"write"</span>,</span><span class="ln">      args: { path: target, text: <span class="tok-str">"x"</span> },</span><span class="ln">    };</span><span class="ln">    <span class="tok-kw">yield</span> { <span class="tok-kw">type</span>: <span class="tok-str">"done"</span>, stopReason: <span class="tok-str">"toolUse"</span> };</span><span class="ln">  },</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> hooks: ToolHooks = {</span><span class="ln">  <span class="tok-fn">before</span>(call) {</span><span class="ln">    <span class="tok-kw">if</span> (call.name === <span class="tok-str">"write"</span> &amp;&amp; <span class="tok-fn">String</span>(call.args.path).<span class="tok-fn">includes</span>(<span class="tok-str">"secret"</span>)) {</span><span class="ln">      <span class="tok-kw">return</span> { block: <span class="tok-str">"不许写 secret"</span> };</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">if</span> (call.name === <span class="tok-str">"echo"</span>) <span class="tok-kw">return</span> { args: { text: <span class="tok-str">"被钩子改写"</span> } };</span><span class="ln">    <span class="tok-kw">return</span> <span class="tok-kw">undefined</span>;</span><span class="ln">  },</span><span class="ln">  <span class="tok-fn">after</span>(_call, text, isError) {</span><span class="ln">    <span class="tok-kw">return</span> isError ? text : <span class="tok-str">`${text} [审计]`</span>;</span><span class="ln">  },</span><span class="ln">  <span class="tok-fn">onEvent</span>(event) {</span><span class="ln">    <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"turn_end"</span>) {</span><span class="ln">      console.<span class="tok-fn">log</span>(<span class="tok-str">`turn ${event.turn} end ${event.stopReason}`</span>);</span><span class="ln">    }</span><span class="ln">  },</span><span class="ln">};</span><span class="ln"></span><span class="ln"><span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-fn">runAgent</span>({</span><span class="ln">  provider: scripted,</span><span class="ln">  tools: <span class="tok-fn">withHooks</span>([echoTool, writeTool], hooks),</span><span class="ln">  messages: [{ role: <span class="tok-str">"user"</span>, content: <span class="tok-str">"试试工具"</span> }],</span><span class="ln">  maxTurns: <span class="tok-num">3</span>,</span><span class="ln">  project: toLlm,</span><span class="ln">  emit: (event) =&gt; hooks.onEvent?.(event),</span><span class="ln">});</span><span class="ln"></span><span class="ln"><span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> result.messages) {</span><span class="ln">  <span class="tok-kw">if</span> (message.role !== <span class="tok-str">"tool"</span>) <span class="tok-kw">continue</span>;</span><span class="ln">  <span class="tok-kw">const</span> flag = message.isError ? <span class="tok-str">"err "</span> : <span class="tok-str">"ok  "</span>;</span><span class="ln">  console.<span class="tok-fn">log</span>(<span class="tok-str">`${flag}${message.toolCallId} ${message.content}`</span>);</span><span class="ln">}</span><span class="ln">console.<span class="tok-fn">log</span>(<span class="tok-str">`secret 文件被写了吗: ${existsSync(target)}`</span>);</span></code></pre></div>
+<p><code>scripted</code> 是这一章唯一「作弊」的地方：真模型不会稳定地在同一轮发两个调用。
+要可控，要么写剧本 provider（这里），要么用 E03 的 fixture 回放。<strong>测钩子测的是
+工具表，不是模型</strong>——把模型换成脚本，测试才不抖。</p>
+<p><code>after(_call, ...)</code> 的下划线是故意的：参数没用上，但位置不能省——签名是三个。</p>
+<hr>
+<h2 id="sec-5-五-三个代价">五、三个代价</h2>
+<p><strong>代价一：接不到 <code>validateArgs</code>。</strong> <code>runTools</code> 的顺序是「查参数 → <code>execute</code>」
+（<code>tools.ts:125</code>），包装层在 <code>execute</code> 里面，所以钩子改出来的参数<strong>不会再被查一遍</strong>。
+<code>echo</code> 拿数字也能跑（它自己 <code>String()</code> 了）；<code>write</code> 少了 <code>path</code> 则靠工具自己的
+<code>if (!file) throw</code> 兜底（<code>tools.ts:53</code>）。
+Pi 也一样：<code>agent-loop.ts:737</code> 校验、<code>:738</code> 才调钩子。</p>
+<p><strong>代价二：拦下 = 一次工具失败。</strong> E01 的循环有连续失败计数（<code>loop.ts:86</code>，
+<code>MAX_TOOL_ERRORS = 3</code>），连续三次被拦会以 <code>stopReason: &quot;error&quot;</code> 结束。
+「权限拒绝」和「工具坏了」在这里是一个东西。</p>
+<p><strong>代价三：没有顺序，也没有优先级。</strong> 两个扩展各自 <code>withHooks</code>，谁先跑取决于你
+包的顺序；被外层拦下的调用根本到不了内层。真正的扩展系统要排序，还要能声明
+「我只观察，不裁决」。</p>
+<p>什么时候必须回去改内核？三条任一成立：</p>
+<ol>
+<li>钩子要真 <code>call.id</code>，或者要改 <code>messages</code>；</li>
+<li>要「拦下但不计入失败」；</li>
+<li>要多个扩展按优先级组合。</li>
+</ol>
+<hr>
+<h2 id="sec-6-六-测试-2-个-断言-真的没跑">六、测试：2 个，断言「真的没跑」</h2>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">node --test "test/*.test.ts"</span><span class="ln"># tests 14 / pass 14</span></code></pre></div>
+<p>&lt;!-- file: examples/mini-agent/test/hooks.test.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">import</span> { test } <span class="tok-kw">from</span> <span class="tok-str">"node:test"</span>;</span><span class="ln"><span class="tok-kw">import</span> assert <span class="tok-kw">from</span> <span class="tok-str">"node:assert/strict"</span>;</span><span class="ln"><span class="tok-kw">import</span> { withHooks } <span class="tok-kw">from</span> <span class="tok-str">"../src/hooks.ts"</span>;</span><span class="ln"><span class="tok-kw">import</span> { echoTool } <span class="tok-kw">from</span> <span class="tok-str">"../src/tools.ts"</span>;</span><span class="ln"></span><span class="ln"><span class="tok-fn">test</span>(<span class="tok-str">"block 之后工具根本不执行，错误文本回到模型"</span>, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">  <span class="tok-kw">let</span> ran = <span class="tok-num">0</span>;</span><span class="ln">  <span class="tok-kw">const</span> tool = {</span><span class="ln">    ...echoTool,</span><span class="ln">    <span class="tok-fn">execute</span>() {</span><span class="ln">      ran += <span class="tok-num">1</span>;</span><span class="ln">      <span class="tok-kw">return</span> <span class="tok-str">"不该出现"</span>;</span><span class="ln">    },</span><span class="ln">  };</span><span class="ln">  <span class="tok-kw">const</span> hooked = <span class="tok-fn">withHooks</span>([tool], {</span><span class="ln">    before: () =&gt; ({ block: <span class="tok-str">"拒绝"</span> }),</span><span class="ln">  })[<span class="tok-num">0</span>];</span><span class="ln">  assert.<span class="tok-fn">ok</span>(hooked);</span><span class="ln">  <span class="tok-kw">await</span> assert.<span class="tok-fn">rejects</span>(() =&gt; hooked.<span class="tok-fn">execute</span>({ text: <span class="tok-str">"x"</span> }), /拒绝/);</span><span class="ln">  assert.<span class="tok-fn">equal</span>(ran, <span class="tok-num">0</span>);</span><span class="ln">});</span><span class="ln"></span><span class="ln"><span class="tok-fn">test</span>(<span class="tok-str">"before 改参数、after 改返回值，各一层"</span>, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">  <span class="tok-kw">const</span> hooked = <span class="tok-fn">withHooks</span>([echoTool], {</span><span class="ln">    before: () =&gt; ({ args: { text: <span class="tok-str">"改写"</span> } }),</span><span class="ln">    after: (_call, text) =&gt; <span class="tok-str">`${text}!`</span>,</span><span class="ln">  })[<span class="tok-num">0</span>];</span><span class="ln">  assert.<span class="tok-fn">ok</span>(hooked);</span><span class="ln">  assert.<span class="tok-fn">equal</span>(<span class="tok-kw">await</span> hooked.<span class="tok-fn">execute</span>({ text: <span class="tok-str">"原始"</span> }), <span class="tok-str">"echo: 改写!"</span>);</span><span class="ln">});</span></code></pre></div>
+<p>第一个测试的 <code>assert.equal(ran, 0)</code> 才是重点。只断言 <code>rejects</code> 通过，你分不清
+「拦住了」和「跑完了才报错」——这是拦截类功能最常写假的地方。</p>
+<hr>
+<h2 id="sec-7-七-与-pi-的对照-可选">七、与 Pi 的对照（可选）</h2>
+<p>Pi 没有把钩子藏在工具表里，而是写进内核参数（<code>agent-loop.ts:693</code>）：</p>
+<p><code>Pick&lt;AgentLoopConfig, &quot;beforeToolCall&quot; | &quot;afterToolCall&quot;&gt;</code></p>
+<p>两个钩子名字直接挂在循环配置上，不经过任何包装。<code>prepareToolCall</code> 在 <code>:737</code>
+校验参数、<code>:738</code> 调 <code>beforeToolCall</code>，<code>:755</code> 看 <code>block</code>，没给原因就填
+<code>&quot;Tool execution was blocked&quot;</code>（<code>:756</code>）。钩子拿到
+<code>assistantMessage</code> / <code>toolCall</code> / <code>args</code> / <code>context</code>，比我们的 <code>args</code> 富裕得多。</p>
+<p>外面还有一层扩展事件：<code>extensions/types.ts:1474</code> 的 <code>ToolCallEventResult</code> 有
+<code>block</code> / <code>reason</code> / <code>terminate</code> 三个字段，注册在 <code>:1685</code> 的 <code>on(&quot;tool_call&quot;, ...)</code>。
+那个 <code>terminate</code>（<code>:1478</code>）正是我们缺的「拦下并停下」。</p>
+<p>Pi 分两层：内核钩子（工具嵌套调用也走它，<code>agent-loop.ts:812</code> 的注释写的就是
+「hook 例如权限检查」）+ 扩展事件（第三方插件）。我们压成一层——够用，但说不清
+「插件」和「内核自己的权限检查」的先后。</p>
+<hr>
+<h2 id="sec-8-八-代码地图">八、代码地图</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>关键符号</th>
+<th>下一章怎么用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/hooks.ts</code></td>
+<td><code>withHooks()</code></td>
+<td>E08 的 CLI 里包工具表</td>
+</tr>
+<tr>
+<td><code>src/demo-hooks.ts</code></td>
+<td><code>scripted</code> 剧本</td>
+<td>任何「要精确复现一轮」的调试</td>
+</tr>
+<tr>
+<td><code>test/hooks.test.ts</code></td>
+<td><code>ran === 0</code></td>
+<td>拦截功能的验收断言</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="sec-9-自检">自检</h3>
+<ol>
+<li>删掉 <code>if (verdict &amp;&amp; &quot;block&quot; in verdict) throw ...</code> 这一行，输出会变成什么样？</li>
+<li>把 <code>after</code> 改成对 <code>isError</code> 也加 <code>[审计]</code>，<code>c2</code> 会有这个后缀吗？</li>
+<li>钩子把 <code>echo</code> 的 <code>text</code> 改成数字 <code>42</code>，谁会报错？</li>
+</ol>
+<p>参考答案：</p>
+<p><strong>第 1 题</strong>：<code>c2</code> 变成 <code>ok</code>，最后一行变成 <code>true</code>——<code>write</code> 真的把 secret 文件写了，
+模型还会以为成功。这就是「钩子被删掉了但没人发现」的样子，所以要有第 1 个测试。</p>
+<p><strong>第 2 题</strong>：不会有。<code>throw</code> 在 <code>try</code> 外面，<code>after</code> 根本没被调用。要记被拦下的
+尝试，只能在 <code>throw</code> 之前自己调一次；把 <code>throw</code> 挪进 <code>try</code> 也行，但 <code>after</code> 抛错
+会再被 <code>catch</code> 接住，容易套娃。</p>
+<p><strong>第 3 题</strong>：没人报错。<code>validateArgs</code> 已经在包装层外面跑完了，<code>echo</code> 里
+<code>String(args.text)</code> 把 <code>42</code> 变成 <code>&quot;42&quot;</code>，一路成功。拦得住的地方只有钩子自己。</p>
+<hr>
+<h2 id="sec-10-九-下一章">九、下一章</h2>
+<p>工具、压缩、会话、钩子，四块都齐了，但它们各自待在自己的 <code>demo-*.ts</code> 里。
+真正交付要给用户一个入口：一个命令行、一串参数、一个能一直聊下去的终端。</p>
+<p>E08 拼 <code>cli.ts</code>：<code>--mock</code> / <code>--fixture</code> / <code>--openai</code> 选 provider，<code>--session</code> 接
+会话，<code>--tools</code> 打开写权限，<code>project</code> 里顺手接上 E05 的压缩。最省事的验收是
+<code>node src/cli.ts &quot;你好&quot;</code>：一条命令走完 provider → 循环 → 投影 → 输出。</p>
+
+<div class="pager">
+      <a class="prev" href="e06-session.html"><span class="lbl">上一篇</span>会话 —— 一行一条，坏行报行号</a>
+      <a class="next" href="e08-cli.html"><span class="lbl">下一篇</span>命令行 —— 七块零件，一条命令</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-先数孔-再决定要不要打洞" class="">二、先数孔，再决定要不要打洞</a><a href="#sec-3-三-包装器-46-行" class="">三、包装器：46 行</a><a href="#sec-4-四-入口-68-行" class="">四、入口：68 行</a><a href="#sec-5-五-三个代价" class="">五、三个代价</a><a href="#sec-6-六-测试-2-个-断言-真的没跑" class="">六、测试：2 个，断言「真的没跑」</a><a href="#sec-7-七-与-pi-的对照-可选" class="">七、与 Pi 的对照（可选）</a><a href="#sec-8-八-代码地图" class="">八、代码地图</a><a href="#sec-9-自检" class="lv3">自检</a><a href="#sec-10-九-下一章" class="">九、下一章</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>
