@@ -1,11 +1,17 @@
 # mini-agent
 
-Part E 的示例：830 行复刻 Pi 的循环、消息与工具形状。
+Part E 的示例：922 行复刻 Pi 的循环、消息与工具形状。
 
 `E01` 只需要前四个文件（`types.ts` / `provider/mock.ts` / `loop.ts` / `demo.ts`）：
 
 ```bash
 node src/demo.ts
+```
+
+`E02` 加一道投影闸门（`messages.ts` + `demo-memory.ts`）：
+
+```bash
+node src/demo-memory.ts
 ```
 
 后面几章才会用到完整入口：

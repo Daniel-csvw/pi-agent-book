@@ -33,7 +33,7 @@
                 <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
                 <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="active">
                 <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
-                <span class="code">E02</span><span>记忆 —— 四种给模型，多一种给自己</span></a><a href="e03-interface.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
                 <span class="code">E03</span><span>接口 —— 先抽出来，再换一家模型</span></a><a href="e04-tuning.html" class="">
                 <span class="code">E04</span><span>调参 —— 先改一个数字，再谈改代码</span></a><a href="e05-tool.html" class="">
                 <span class="code">E05</span><span>加工具 —— 从契约到渲染，一个新能力</span></a><a href="e06-extension.html" class="">
@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E01</div>
       <h1>骨架 —— 从空目录，到跑通第一个循环</h1>
-      <div class="module-meta">3,285 字 · 含 352 行代码 · 约 20 分钟</div>
+      <div class="module-meta">3,307 字 · 含 352 行代码 · 约 20 分钟</div>
     </header>
     <p>前面的 Part A–D 都在读别人写的 Pi。从这一章起换成另一种姿势：<strong>你自己写</strong>。</p>
 <p>目标很具体：从空目录开始，敲四个文件、318 行，<code>node src/demo.ts</code> 打印出一次
@@ -378,9 +378,10 @@ agent 的全部记忆</strong>，没有别的隐藏状态</li>
 </tr>
 </tbody>
 </table></div>
-<p>整包 830 行，本章只做了 318 行——剩下 512 行是后四章要补的肉：真模型（148）、
-工具与写锁（61）、压缩（51）、会话（37）、消息投影（33）、fixture 回放（85）
-和命令行（97）。</p>
+<p>本章 318 行跑通；到 Part E 结束大约 1,200 行，剩下的按章摊开：
+E02 消息投影（125）、E03 真模型与 fixture（233）、E04 工具注册表与写锁、
+E05 压缩（51）、E06 会话落盘（37）、E07 扩展钩子、E08 命令行（97）。
+每章末尾都有一个能直接跑的入口文件。</p>
 <h3 id="sec-24-自检">自检</h3>
 <ol>
 <li>把 <code>mock.ts</code> 里 <code>stopReason: &quot;toolUse&quot;</code> 改成 <code>&quot;stop&quot;</code>，输出哪一行会变？
@@ -419,7 +420,7 @@ agent 的全部记忆</strong>，没有别的隐藏状态</li>
 
 <div class="pager">
       <a class="prev" href="m15-schema-telemetry.html"><span class="lbl">上一篇</span>契约与遥测 —— 一份声明，五种解释</a>
-      <a class="next" href="e02-memory.html"><span class="lbl">下一篇</span>记忆 —— 四种给模型，多一种给自己</a>
+      <a class="next" href="e02-memory.html"><span class="lbl">下一篇</span>记忆 —— 第五种消息，和唯一一道闸</a>
     </div>
 </main>
 <nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先定契约-再写逻辑" class="">一、先定契约，再写逻辑</a><a href="#sec-2-1-stopreason-先把-怎么停-定死" class="lv3">1. StopReason：先把「怎么停」定死</a><a href="#sec-3-2-contentblock-一条消息里能装什么" class="lv3">2. ContentBlock：一条消息里能装什么</a><a href="#sec-4-3-message-四种-vs-agentmessage-五种" class="lv3">3. Message 四种 vs AgentMessage 五种</a><a href="#sec-5-4-tool-描述是给模型看的" class="lv3">4. Tool：描述是给模型看的</a><a href="#sec-6-5-provider-为什么返回-chunk-流-而不是一条消息" class="lv3">5. Provider：为什么返回 chunk 流，而不是一条消息</a><a href="#sec-7-五个契约怎么串起来" class="lv3">五个契约怎么串起来</a><a href="#sec-8-二-先写假模型" class="">二、先写假模型</a><a href="#sec-9-换成真模型-要改几行" class="lv3">换成真模型，要改几行</a><a href="#sec-10-三-循环本体" class="">三、循环本体</a><a href="#sec-11-1-参数为什么同时有-agentmessage-和-message" class="lv3">1. 参数为什么同时有 AgentMessage[] 和 Message[]</a><a href="#sec-12-2-内层-for-await-三个分支" class="lv3">2. 内层 for await：三个分支</a><a href="#sec-13-3-reason-只有一个来源" class="lv3">3. reason 只有一个来源</a><a href="#sec-14-4-assistant-消息必须在执行工具之前入栈" class="lv3">4. assistant 消息必须在执行工具之前入栈</a><a href="#sec-15-5-errors-是连续计数-不是总数" class="lv3">5. errors 是连续计数，不是总数</a><a href="#sec-16-6-三个出口-一张表" class="lv3">6. 三个出口，一张表</a><a href="#sec-17-为什么外层是-while-内层是-for-await" class="lv3">为什么外层是 while，内层是 for await</a><a href="#sec-18-一个反直觉的细节-工具失败也是消息" class="lv3">一个反直觉的细节：工具失败也是消息</a><a href="#sec-19-四-60-行入口" class="">四、60 行入口</a><a href="#sec-20-五-跑一遍" class="">五、跑一遍</a><a href="#sec-21-两个故意做坏的实验" class="lv3">两个故意做坏的实验</a><a href="#sec-22-跑不通时先查这三处" class="lv3">跑不通时先查这三处</a><a href="#sec-23-六-本章代码地图" class="">六、本章代码地图</a><a href="#sec-24-自检" class="lv3">自检</a><a href="#sec-25-与-pi-的对照-可选-不需要打开源码" class="lv3">与 Pi 的对照（可选，不需要打开源码）</a><a href="#sec-26-七-下一章" class="">七、下一章</a></nav>

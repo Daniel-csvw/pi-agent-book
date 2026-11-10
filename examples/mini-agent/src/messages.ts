@@ -3,7 +3,7 @@ import type { AgentMessage, Message, NoteMessage } from "./types.ts";
 /**
  * 唯一出口：AgentMessage → Message。
  * 多出来的 note 在这里翻译成 user 消息；缺一条 case 就抛错，
- * 所以“忘了一个角色”会在开发时立刻暴露，而不是悄悄丢历史。
+ * 所以「忘了一个角色」会在开发时立刻暴露，而不是悄悄丢历史。
  */
 export function toLlm(messages: AgentMessage[]): Message[] {
   const out: Message[] = [];

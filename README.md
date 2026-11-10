@@ -6,7 +6,7 @@
 
 <sub>上游已发布 v1.5.x；本书钉在 `v1.4.0` 这个 tag 上，文中行号与数字只对这一份有效</sub>
 
-<sub>25 篇 · 168,654 字 · 7,771 行代码 · 约 14 小时读完</sub>
+<sub>25 篇 · 169,366 字 · 7,923 行代码 · 约 14 小时读完</sub>
 
 <br>
 
@@ -115,8 +115,8 @@
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| E01 | [骨架 —— 从空目录，到跑通第一个循环](https://daniel-csvw.github.io/pi-agent-book/modules/e01-skeleton.html) | 3,285 字 · 352 行 |
-| E02 | [记忆 —— 四种给模型，多一种给自己](https://daniel-csvw.github.io/pi-agent-book/modules/e02-memory.html) | 1,869 字 · 44 行 |
+| E01 | [骨架 —— 从空目录，到跑通第一个循环](https://daniel-csvw.github.io/pi-agent-book/modules/e01-skeleton.html) | 3,307 字 · 352 行 |
+| E02 | [记忆 —— 第五种消息，和唯一一道闸](https://daniel-csvw.github.io/pi-agent-book/modules/e02-memory.html) | 2,559 字 · 196 行 |
 | E03 | [接口 —— 先抽出来，再换一家模型](https://daniel-csvw.github.io/pi-agent-book/modules/e03-interface.html) | 1,483 字 · 42 行 |
 | E04 | [调参 —— 先改一个数字，再谈改代码](https://daniel-csvw.github.io/pi-agent-book/modules/e04-tuning.html) | 2,302 字 · 24 行 |
 | E05 | [加工具 —— 从契约到渲染，一个新能力](https://daniel-csvw.github.io/pi-agent-book/modules/e05-tool.html) | 1,564 字 · 17 行 |
