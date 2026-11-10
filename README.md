@@ -66,7 +66,7 @@
 | 依赖与发布 | `save-exact` 加两天冷静期，一条供应链是怎么被钉住的 |
 | TypeScript 语法（附录 B） | `#` 私有字段、`<const T>`、重载、映射类型：源码为什么非得这么写 |
 | 合龙（附录 D） | 一条请求依次落过二十五个落点，每站都标了出处章节 |
-| 造物（Part E） | 690 行自造一个零依赖内核，再进 `pi-lab/` 调参、加工具、写扩展 |
+| 造物（Part E） | 690 行自造一个零依赖内核；再拉一份 v1.4.0 工作副本改 Pi 本体：调参、加工具、写扩展 |
 
 ---
 
@@ -120,7 +120,7 @@
 | E05 | [加工具 —— 从契约到渲染，一个新能力](https://daniel-csvw.github.io/pi-agent-book/modules/e05-tool.html) | 1,564 字 · 17 行 |
 | E06 | [写扩展 —— 三个钩子，一条看不见的消息](https://daniel-csvw.github.io/pi-agent-book/modules/e06-extension.html) | 1,493 字 · 16 行 |
 
-> E01–E03 零依赖、零凭据，`node` 直接跑；E04–E06 进实验副本改真源码，每条实验按「改哪里 / 预期 / 连带 / 回滚」四行交付。
+> E01–E03 零依赖、零凭据，`node` 直接跑；E04–E06 先按 E04 §一 拉一份 v1.4.0 副本（书中叫 `pi-lab/`，自检脚本在 [`examples/lab/`](https://daniel-csvw.github.io/pi-agent-book/examples/lab/lab-check.mjs)），再改真源码，每条实验按「改哪里 / 预期 / 连带 / 回滚」四行交付。
 
 ### 附录
 

@@ -47,29 +47,36 @@
 <header class="module-header">
       <div class="module-eyebrow">E04</div>
       <h1>调参 —— 先改一个数字，再谈改代码</h1>
-      <div class="module-meta">2,176 字 · 含 21 行代码 · 约 11 分钟</div>
+      <div class="module-meta">2,302 字 · 含 24 行代码 · 约 11 分钟</div>
     </header>
-    <p>前半结束在 E03 的对照表上。从这一章开始，你不再写自己的内核，而是进
-<code>pi-lab/</code> 改 Pi 本身。第一个动作不是读代码，是<strong>确认你改的是能跑的那份</strong>。</p>
+    <p>前半结束在 E03 的对照表上。从这一章开始，你不再写自己的内核，而是进一份
+Pi 源码副本改 Pi 本身——书中管这份副本叫 <code>pi-lab/</code>。它<strong>不在本书仓库里</strong>，
+是你自己 clone 出来的（本书仓库只有构建产物和 <code>examples/mini-agent</code>）。
+第一个动作不是读代码，是<strong>确认你改的是能跑的那份</strong>。</p>
 <p>这一章的所有实验都只改值和配置，不动一行逻辑。目的很单纯：让你先体会
 「行为是参数决定的」这件事，再决定要不要动代码。</p>
 <p>三个问题：</p>
 <ol>
 <li>不改代码，能改变 Pi 的哪些行为？</li>
 <li>六个旋钮里，哪个最容易被忽略、后果却最大？</li>
-<li>改坏了怎么回去？没有 git 的副本怎么回滚？</li>
+<li>改坏了怎么回去？</li>
 </ol>
 <hr>
-<h2 id="sec-1-一-先过四道闸">一、先过四道闸</h2>
-<p><code>pi-lab/</code> 是 <code>pi-main/pi-main</code> 的副本，版本必须一致。动手前跑：</p>
+<h2 id="sec-1-一-先把副本建起来">一、先把副本建起来</h2>
+<p>不要直接改 <code>npm i -g</code> 装的那份：改坏了没法回滚，也没法说「我改的是
+v1.4.0」。先拉一份对齐 tag 的工作副本，三条命令：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">node scripts/lab-check.mjs</span></code></pre></div>
-<p>我本机的真实输出：</p>
+<pre><code><span class="ln">git clone --depth 1 --branch v1.4.0 \</span><span class="ln">  https://github.com/earendil-works/pi.git pi-lab</span><span class="ln">cd pi-lab &amp;&amp; npm install</span><span class="ln">node lab-check.mjs      # 自检脚本，随书发布</span></code></pre></div>
+<p>自检脚本不在 Pi 仓里，也不在本书仓库根目录，而是随站发给你的：
+<code>examples/lab/lab-check.mjs</code>（在线：<code>pi-agent-book/examples/lab/</code>）。
+先把它下载到 <code>pi-lab/</code> 根目录，再跑最后那一条。</p>
+<p>四道闸，缺一不可：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">[PASS] node     24.12.0</span><span class="ln">[PASS] 副本版本     1.4.0（与 pi-main 一致）</span><span class="ln">[PASS] 依赖       node_modules 已就绪</span><span class="ln">[PASS] 可启动     1.4.0</span><span class="ln">[INFO] 未发现模型凭据；离线实验不需要，接真模型时再配</span></code></pre></div>
-<p>四条全绿之前，第 3、4 条曾经是红的。当时的原因不是版本，是依赖树不完整：</p>
+<pre><code><span class="ln">[PASS] node     24.12.0</span><span class="ln">[PASS] 副本版本     1.4.0（与书中 tag 一致）</span><span class="ln">[PASS] 依赖       node_modules 可解析（cross-spawn）</span><span class="ln">[PASS] 可启动     1.4.0</span><span class="ln">[INFO] 未发现模型凭据；离线实验不需要，接真模型时再配</span></code></pre></div>
+<p>这是我本机的真实输出。最早跑的时候，第 3、4 条是红的，原因不是版本，是依
+赖树不完整：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">Error: Cannot find package</span><span class="ln">  '.../pi-lab/node_modules/cross-spawn/index.js'</span></code></pre></div>
@@ -169,7 +176,7 @@
 <li><strong>预期</strong>：<code>--version</code> 不变，但模型列表与默认选择变了；启动时能看到新模型。</li>
 <li><strong>连带</strong>：能力标记（上下文窗口、是否支持工具）必须跟着改，否则请求会被
 供应商拒绝，而 Pi 只报一个笼统的 400。</li>
-<li><strong>回滚</strong>：先把原文件复制成 <code>models.json.bak</code>，改坏了覆盖回去。</li>
+<li><strong>回滚</strong>：先把原文件复制成 <code>models.json.bak</code>；改乱了还有 <code>git checkout -- .</code>。</li>
 </ul>
 <p>这条最容易出错的地方不是 JSON 语法，是<strong>能力标记和真实模型不匹配</strong>。
 窗口写大了，压缩永远不触发；工具标记写错了，模型永远不调工具。</p>
@@ -266,7 +273,8 @@ schema 是两套东西，缺一不可。</p>
 <ul>
 <li>配置旋钮改的是「请求长什么样」，源码旋钮改的是「什么时候发」。</li>
 <li>六个旋钮里，<code>models.json</code> 的能力标记最危险：错了不报错，只是行为怪。</li>
-<li>回滚靠 <code>.bak</code>，不靠记忆。副本没有 git，删了就没了。</li>
+<li>回滚靠 git，不靠记忆。副本就是 v1.4.0 的 clone，<code>git checkout -- .</code>
+一句回到出厂状态；改配置前再留 <code>.bak</code> 是双保险。</li>
 <li>判据要能一句话说清，否则你只是在「感觉不一样」。</li>
 </ul>
 <hr>
@@ -323,9 +331,9 @@ schema 是两套东西，缺一不可。</p>
 <p><strong>「思考档位越高越好。」</strong>
 高档位在简单任务上只会更慢更贵，还更容易过度推理。档位是预算刻度，不是
 质量开关。</p>
-<p><strong>「副本坏了，重新复制一份就行。」</strong>
-复制一次要好几分钟，而且会把你改过的文件一起覆盖。正确做法是改前 <code>.bak</code>，
-改后一条 <code>cp</code> 回滚。</p>
+<p><strong>「改乱了就重 clone 一份。」</strong>
+重 clone 只需一条命令，但你得重新 <code>npm install</code>（十几分钟，还可能再遇
+网络问题）。先试 <code>git checkout -- .</code>：它是瞬时的，只动被改的文件。</p>
 <hr>
 <h2 id="sec-16-十-自检">十、自检</h2>
 <ol>
@@ -382,7 +390,7 @@ schema 是两套东西，缺一不可。</p>
       <a class="next" href="e05-tool.html"><span class="lbl">下一篇</span>加工具 —— 从契约到渲染，一个新能力</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先过四道闸" class="">一、先过四道闸</a><a href="#sec-2-二-六个旋钮" class="">二、六个旋钮</a><a href="#sec-3-三-三个配置旋钮-四行格式" class="">三、三个配置旋钮：四行格式</a><a href="#sec-4-旋钮-1-blockimages" class="lv3">旋钮 1：blockImages</a><a href="#sec-5-旋钮-2-thinkinglevel" class="lv3">旋钮 2：thinkingLevel</a><a href="#sec-6-旋钮-3-models-json" class="lv3">旋钮 3：models.json</a><a href="#sec-7-四-三个源码旋钮-改常量-不改结构" class="">四、三个源码旋钮：改常量，不改结构</a><a href="#sec-8-旋钮-4-删一段系统提示词" class="lv3">旋钮 4：删一段系统提示词</a><a href="#sec-9-旋钮-5-输出上限的安全边距" class="lv3">旋钮 5：输出上限的安全边距</a><a href="#sec-10-旋钮-6-压缩阈值" class="lv3">旋钮 6：压缩阈值</a><a href="#sec-11-五-六组实验" class="">五、六组实验</a><a href="#sec-12-六-小结" class="">六、小结</a><a href="#sec-13-七-概念回顾" class="">七、概念回顾</a><a href="#sec-14-八-练习" class="">八、练习</a><a href="#sec-15-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-16-十-自检" class="">十、自检</a><a href="#sec-17-十一-下一步" class="">十一、下一步</a><a href="#sec-18-源码索引" class="lv3">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-先把副本建起来" class="">一、先把副本建起来</a><a href="#sec-2-二-六个旋钮" class="">二、六个旋钮</a><a href="#sec-3-三-三个配置旋钮-四行格式" class="">三、三个配置旋钮：四行格式</a><a href="#sec-4-旋钮-1-blockimages" class="lv3">旋钮 1：blockImages</a><a href="#sec-5-旋钮-2-thinkinglevel" class="lv3">旋钮 2：thinkingLevel</a><a href="#sec-6-旋钮-3-models-json" class="lv3">旋钮 3：models.json</a><a href="#sec-7-四-三个源码旋钮-改常量-不改结构" class="">四、三个源码旋钮：改常量，不改结构</a><a href="#sec-8-旋钮-4-删一段系统提示词" class="lv3">旋钮 4：删一段系统提示词</a><a href="#sec-9-旋钮-5-输出上限的安全边距" class="lv3">旋钮 5：输出上限的安全边距</a><a href="#sec-10-旋钮-6-压缩阈值" class="lv3">旋钮 6：压缩阈值</a><a href="#sec-11-五-六组实验" class="">五、六组实验</a><a href="#sec-12-六-小结" class="">六、小结</a><a href="#sec-13-七-概念回顾" class="">七、概念回顾</a><a href="#sec-14-八-练习" class="">八、练习</a><a href="#sec-15-九-三个常见误区" class="">九、三个常见误区</a><a href="#sec-16-十-自检" class="">十、自检</a><a href="#sec-17-十一-下一步" class="">十一、下一步</a><a href="#sec-18-源码索引" class="lv3">源码索引</a></nav>
 </div>
 </div>
 <script>

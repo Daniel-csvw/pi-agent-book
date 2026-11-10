@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E03</div>
       <h1>接口 —— 先抽出来，再换一家模型</h1>
-      <div class="module-meta">1,472 字 · 含 42 行代码 · 约 10 分钟</div>
+      <div class="module-meta">1,486 字 · 含 42 行代码 · 约 10 分钟</div>
     </header>
     <p>E02 结束时，<code>loop.ts</code> 还是写死的：<code>createMockProvider()</code>。想接真模型，按理
 只该改一行。但大多数第一版做不到——它们把「发请求」写进了循环里，于是换
@@ -306,8 +306,8 @@ Pi 的骨架走了一遍。逐项对：</p>
 <h2 id="sec-11-十一-下一步">十一、下一步</h2>
 <p>前半到此结束。你有了一个能跑、能换模型、能存会话、能压缩的 690 行内核，
 也知道它对应 Pi 的哪 9 处。</p>
-<p>后半换战场：不再写自己的代码，进 <code>pi-lab/</code> 改真源码。E04 先不改代码——
-只改六个数字和配置，看行为怎么变。</p>
+<p>后半换战场：不再写自己的代码，改 Pi 的源码。E04 第一步教你怎么拉一份
+v1.4.0 的工作副本（书中叫 <code>pi-lab/</code>），然后只改六个数字和配置，看行为怎么变。</p>
 <h3 id="sec-12-源码索引">源码索引</h3>
 <div class="table-wrap"><table>
 <thead>
