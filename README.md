@@ -4,6 +4,8 @@
 
 **对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent**
 
+<sub>上游已发布 v1.5.x；本书钉在 `v1.4.0` 这个 tag 上，文中行号与数字只对这一份有效</sub>
+
 <sub>25 篇 · 167,362 字 · 7,486 行代码 · 约 14 小时读完</sub>
 
 <br>
@@ -184,6 +186,13 @@ python -m http.server 8000
 ## 版本与范围
 
 - 阅读对象：**Pi-Agent v1.4.0**（[earendil-works/pi](https://github.com/earendil-works/pi)），约 23 万行
+- **钉在 tag 上，别用默认分支**：上游已经走到 v1.5.x，`HEAD` 与书中的行号、目录结构都不一致。对齐版本用：
+
+  ```bash
+  git clone --depth 1 --branch v1.4.0 \
+    https://github.com/earendil-works/pi.git
+  ```
+
 - 覆盖范围内核 12 个包与主要运行时路径；未覆盖的部分会在章节里注明"这里没展开"
 - 源码版本变动后，行号可能漂移，结论以文中标注的 tag 为准
 - 内容为个人学习笔记，源码与设计版权归原作者；文中引用仅用于教学

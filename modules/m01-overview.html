@@ -47,7 +47,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M01</div>
       <h1>开篇 —— 为什么 Pi-Agent 值得你花时间</h1>
-      <div class="module-meta">9,341 字 · 含 183 行代码 · 约 44 分钟</div>
+      <div class="module-meta">9,383 字 · 含 186 行代码 · 约 44 分钟</div>
     </header>
     <p>先看 README 的第一句话：</p>
 <blockquote>
@@ -109,7 +109,12 @@
 <p><strong>本书哪里用到</strong>：§四 那张三层图里有它，M03 全章都在拆这个循环。</p>
 <hr>
 <h2 id="sec-3-一-仓库自报的数字-互相打架">一、仓库自报的数字，互相打架</h2>
-<p>把 v1.4.0 的仓库 clone 下来，进到仓库根目录，数一遍：</p>
+<p>把源码 clone 到本地，<strong>钉在 v1.4.0 这个 tag 上</strong>：本书所有行号、文件数、代码行数
+都是这一份快照里数的，上游后来已发到 v1.5.x，默认分支对不上。</p>
+<div class="code-block" data-lang="bash">
+<div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">git clone --depth 1 --branch v1.4.0 \</span><span class="ln">  https://github.com/earendil-works/pi.git</span><span class="ln">cd pi</span></code></pre></div>
+<p>进到仓库根目录，数一遍：</p>
 <div class="code-block" data-lang="bash">
 <div class="code-head"><span class="lang">bash</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"># 只数 packages/*/src 下的 .ts，排除 test / dist</span><span class="ln">find packages -path '*/src/*' -name '*.ts' | wc -l        # 920</span><span class="ln">find packages -path '*/src/*' -name '*.ts' -exec cat {} + | wc -l   # 228,895</span></code></pre></div>
