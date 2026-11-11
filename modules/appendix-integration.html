@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="active">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,16 +49,17 @@
 <header class="module-header">
       <div class="module-eyebrow">APX</div>
       <h1>附录 D —— 合龙：一次请求，二十五个落点</h1>
-      <div class="module-meta">1,696 字 · 含 7 行代码 · 约 8 分钟</div>
+      <div class="module-meta">1,711 字 · 含 7 行代码 · 约 8 分钟</div>
     </header>
-    <p>前十五页是<strong>纵向</strong>的：一章一个包，一段一段往下钻。这一页横着走一遍——
+    <p>Part A–D 那十五章是<strong>纵向</strong>的：一章一个包，一段一段往下钻。这一页横着走一遍——
 一条用户输入，从敲下回车到看见回复，中途在哪些地方换了手。</p>
 <p>每一站都标了它在哪一章讲过。如果某一站你读不出&quot;为什么必须在这儿换手&quot;，
 说明那一章还差一点；回去补，比继续往前读有效。</p>
 <p>前提：<code>pi &quot;找出所有 TODO&quot;</code>，模型 <code>anthropic/claude-sonnet-4-5</code>，
 工作目录里有 <code>AGENTS.md</code>，装了 <code>read</code> / <code>grep</code> / <code>edit</code> 三个工具。</p>
-<p><strong>本篇怎么用</strong>：当验收清单用——读完正文后拿 §一 那 25 行逐行自问
-&quot;这步为什么必须在这儿换手&quot;，卡住的就去对应章重读；不配练习。</p>
+<p><strong>本篇怎么用</strong>：当验收清单用——进 Part B 前先花几分钟扫一遍 §一 那 25 行当地图；
+每个 Part 读完回来重扫，逐行自问&quot;这步为什么必须在这儿换手&quot;，卡住的就去对应章
+重读；不配练习。</p>
 <hr>
 <h2 id="sec-1-一-一条链路-二十五个落点">一、一条链路，二十五个落点</h2>
 <div class="table-wrap"><table>

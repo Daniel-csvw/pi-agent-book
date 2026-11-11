@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M06</div>
       <h1>消息系统 —— 四种给模型看，八种给系统记</h1>
-      <div class="module-meta">6,744 字 · 含 170 行代码 · 约 32 分钟</div>
+      <div class="module-meta">6,782 字 · 含 170 行代码 · 约 32 分钟</div>
     </header>
     <p>M05 里工具执行完了，产出变成一条 <code>ToolResultMessage</code>。它进了 transcript，然后在下一轮被发给模型。</p>
 <p>问题来了：用户在 TUI 里敲 <code>!ls -la</code>，这条 bash 执行记录是什么消息？它<strong>不是</strong>用户说的话，也<strong>不是</strong>模型说的话，更<strong>不是</strong>工具调用结果。可是它必须留在 transcript 里——下次打开会话还能看到&quot;我当时跑了什么&quot;。</p>
@@ -898,6 +898,9 @@ so this should never happen</em>——<strong>收到一个&quot;不可能发生&
 <p>消息有了，工具有了，循环有了。但这些东西怎么跟外面说话？</p>
 <p>用户按了 Esc，循环怎么知道要停？工具跑了 3 秒，进度怎么到 UI？扩展想在&quot;工具调用之前&quot;插一脚，它挂在哪？</p>
 <p>下一章打开事件系统。</p>
+<blockquote>
+<p>想亲手写那道「八种收窄成四种」的闸门？Part E 的 E02 用 33 行造了同构的一道，还演示了忘改 case 时怎么当场炸。</p>
+</blockquote>
 <hr>
 <h2 id="sec-45-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>

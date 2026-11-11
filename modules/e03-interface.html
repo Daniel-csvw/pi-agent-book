@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E03</div>
       <h1>接口 —— 先造一条能回放的模型，再接真的</h1>
-      <div class="module-meta">2,489 字 · 含 334 行代码 · 约 14 分钟</div>
+      <div class="module-meta">2,515 字 · 含 334 行代码 · 约 14 分钟</div>
     </header>
     <p>E02 结束后，<code>loop.ts</code> 还是硬绑 <code>createMockProvider()</code>。mock 有个天花板：它只会
 按三条规则说话，你没法用它验证「流式解析对不对」「工具参数分片拼没拼上」。</p>
@@ -97,32 +97,19 @@
 <td>新增：真模型</td>
 </tr>
 <tr>
-<td><code>fixtures/openai-basic.jsonl</code></td>
-<td>3</td>
-<td>新增</td>
-</tr>
-<tr>
-<td><code>fixtures/openai-tool.jsonl</code></td>
-<td>2</td>
-<td>新增</td>
-</tr>
-<tr>
 <td><code>src/demo-model.ts</code></td>
 <td>40</td>
 <td>新增：本章入口</td>
 </tr>
 <tr>
-<td><code>test/openai.test.ts</code></td>
-<td>48</td>
-<td>新增：离线测 SSE</td>
-</tr>
-<tr>
 <td>合计</td>
-<td>737</td>
-<td>E02 的 443 + 本章 294</td>
+<td>684</td>
+<td>E02 的 443 + 本章 241</td>
 </tr>
 </tbody>
 </table></div>
+<p>另有两类不计入行数链的配角：<code>fixtures/</code> 下两条录好的带子（共 5 行），和
+<code>test/openai.test.ts</code>（47 行，离线测 SSE）。行数链只计 <code>src/</code>，下同。</p>
 <hr>
 <h2 id="sec-2-二-先定录制格式-再写解析器">二、先定录制格式，再写解析器</h2>
 <p>第一版我录的是原始 SSE，一行一个 <code>data: {...}</code>。写了两条带子之后发现一个硬

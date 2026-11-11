@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -86,7 +86,7 @@
 <tbody>
 <tr>
 <td><code>src/compact.ts</code></td>
-<td>57</td>
+<td>56</td>
 <td>新增：估算 + 两道闸</td>
 </tr>
 <tr>
@@ -96,8 +96,8 @@
 </tr>
 <tr>
 <td>合计</td>
-<td>1,002</td>
-<td>E04 的 914 + 本章 88</td>
+<td>948</td>
+<td>E04 的 861 + 本章 87</td>
 </tr>
 </tbody>
 </table></div>
@@ -114,7 +114,7 @@
 <p>真实请求里，准确的 token 数只有两个来源：接口返回的 <code>usage</code>，或者本地跑一个
 tokenizer（多一个依赖、多一份模型词表）。我们两个都不用。</p>
 <hr>
-<h2 id="sec-3-三-压缩器-57-行">三、压缩器：57 行</h2>
+<h2 id="sec-3-三-压缩器-56-行">三、压缩器：56 行</h2>
 <p>&lt;!-- file: examples/mini-agent/src/compact.ts --&gt;</p>
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -234,7 +234,7 @@ E02 设计的形状。<strong>压缩只改 <code>AgentMessage</code>，投影层
       <a class="next" href="e06-session.html"><span class="lbl">下一篇</span>会话 —— 一行一条，坏行报行号</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-估算-json-字符数-4" class="">二、估算：JSON 字符数 / 4</a><a href="#sec-3-三-压缩器-57-行" class="">三、压缩器：57 行</a><a href="#sec-4-四-四个数字怎么读" class="">四、四个数字怎么读</a><a href="#sec-5-五-这一版故意留的三个错" class="">五、这一版故意留的三个错</a><a href="#sec-6-六-入口-31-行" class="">六、入口：31 行</a><a href="#sec-7-七-代码地图" class="">七、代码地图</a><a href="#sec-8-自检" class="lv3">自检</a><a href="#sec-9-八-与-pi-的对照-可选" class="">八、与 Pi 的对照（可选）</a><a href="#sec-10-九-下一章" class="">九、下一章</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-估算-json-字符数-4" class="">二、估算：JSON 字符数 / 4</a><a href="#sec-3-三-压缩器-56-行" class="">三、压缩器：56 行</a><a href="#sec-4-四-四个数字怎么读" class="">四、四个数字怎么读</a><a href="#sec-5-五-这一版故意留的三个错" class="">五、这一版故意留的三个错</a><a href="#sec-6-六-入口-31-行" class="">六、入口：31 行</a><a href="#sec-7-七-代码地图" class="">七、代码地图</a><a href="#sec-8-自检" class="lv3">自检</a><a href="#sec-9-八-与-pi-的对照-可选" class="">八、与 Pi 的对照（可选）</a><a href="#sec-10-九-下一章" class="">九、下一章</a></nav>
 </div>
 </div>
 <script>

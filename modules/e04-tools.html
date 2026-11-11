@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E04</div>
       <h1>工具 —— 注册表、校验，和一把写锁</h1>
-      <div class="module-meta">2,029 字 · 含 228 行代码 · 约 12 分钟</div>
+      <div class="module-meta">2,040 字 · 含 228 行代码 · 约 12 分钟</div>
     </header>
     <p>E03 结束时 <code>tools: []</code>，模型只会说话。可是工具执行这段代码，从 E01 起就一直
 挤在 <code>loop.ts</code> 里：找工具、try/catch、拼消息，26 行，和循环的节奏缠在一起。</p>
@@ -85,7 +85,7 @@
 <tr>
 <td><code>src/tools.ts</code></td>
 <td>139</td>
-<td>新增 <code>runTools</code> / <code>validateArgs</code> / <code>withFileLock</code>（+78）</td>
+<td>新增：注册表 + 校验 + 写锁 + 并发调度</td>
 </tr>
 <tr>
 <td><code>src/loop.ts</code></td>
@@ -99,8 +99,8 @@
 </tr>
 <tr>
 <td>合计</td>
-<td>914</td>
-<td>E03 的 737 + 本章 177</td>
+<td>861</td>
+<td>E03 的 684 + 本章 177</td>
 </tr>
 </tbody>
 </table></div>

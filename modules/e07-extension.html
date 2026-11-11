@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="active">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">E07</div>
       <h1>扩展 —— 钩子挂在工具表上，内核不动</h1>
-      <div class="module-meta">1,901 字 · 含 163 行代码 · 约 9 分钟</div>
+      <div class="module-meta">1,908 字 · 含 163 行代码 · 约 9 分钟</div>
     </header>
     <p>E06 之后，会话能存了。可你想加一样东西——「写文件前要人工确认」「每次工具结果
 记一笔审计」——还是只能去改 <code>tools.ts</code> 和 <code>loop.ts</code>。第一次改很爽，第二次就变成
@@ -100,17 +100,13 @@
 <td>新增：本章入口</td>
 </tr>
 <tr>
-<td><code>test/hooks.test.ts</code></td>
-<td>30</td>
-<td>新增：2 个测试</td>
-</tr>
-<tr>
 <td>合计</td>
-<td>1,231</td>
-<td>E06 的 1,087 + 本章 144</td>
+<td>1,146</td>
+<td>E06 的 1,032 + 本章 114</td>
 </tr>
 </tbody>
 </table></div>
+<p>另有 <code>test/hooks.test.ts</code>（30 行，2 个测试），不计入行数链。</p>
 <hr>
 <h2 id="sec-2-二-先数孔-再决定要不要打洞">二、先数孔，再决定要不要打洞</h2>
 <p><code>loop.ts</code> 只有 98 行，但它对外开了三个孔：</p>

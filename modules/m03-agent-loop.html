@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M03</div>
       <h1>Agent Loop —— 两层循环，三条出路</h1>
-      <div class="module-meta">13,059 字 · 含 626 行代码 · 约 64 分钟</div>
+      <div class="module-meta">13,089 字 · 含 626 行代码 · 约 64 分钟</div>
     </header>
     <p>上一章我们把 12 个包摊在桌上，看清了分层：<code>coding-agent</code> 管业务，<code>agent</code> 是无状态内核，<code>ai</code> 统一各家模型。</p>
 <p>但架构图是静态的。Agent 之所以是 Agent，靠的是 <code>packages/agent/src/agent-loop.ts</code> 里那个 <code>while (true)</code>。</p>
@@ -1489,6 +1489,9 @@
 <p>现在我们知道了循环怎么转、什么时候停、消息怎么流动。但有一块被当成黑盒跳过了：<code>streamAssistantResponse</code> 里那句 <code>await streamFunction(...)</code>。</p>
 <p><code>StreamFn</code> 的契约到底是什么？一个 provider 实现要处理多少种流事件？工具调用的参数是怎么一个字一个字吐出来的？为什么 <code>pi-ai</code> 要在 7 家 provider 之上再盖一层归一？</p>
 <p>下一章拆 <code>packages/ai</code>——那 28,551 行里的统一层。</p>
+<blockquote>
+<p>想亲手把这个循环造一遍？Part E 的 E01 用 112 行复刻了同构的两层骨架，零依赖直接跑。</p>
+</blockquote>
 <hr>
 <h2 id="sec-55-源码索引">源码索引</h2>
 <div class="table-wrap"><table>

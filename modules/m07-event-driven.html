@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M07</div>
       <h1>事件驱动 —— 十颗钉子，四十一个挂钩</h1>
-      <div class="module-meta">6,927 字 · 含 284 行代码 · 约 34 分钟</div>
+      <div class="module-meta">6,955 字 · 含 284 行代码 · 约 34 分钟</div>
     </header>
     <p>M03 讲循环时反复出现一个动作：<code>await emit({ type: &quot;tool_execution_start&quot;, ... })</code>。
 M05 讲工具批处理时，也是先 <code>emit</code> 再执行。</p>
@@ -1073,6 +1073,9 @@ promise，agent 就永久卡住。</p>
 <p>下一章开始往上走。模型每次请求都要带上&quot;系统提示词&quot;——那段几千字的、
 告诉模型它是谁的文本，是怎么拼出来的？谁往里加东西？顺序能不能改？</p>
 <p>打开上下文装配。</p>
+<blockquote>
+<p>想亲手给工具表挂一层钩子？Part E 的 E07 用 46 行造了同构的 before/after 包装器，内核零改动。</p>
+</blockquote>
 <hr>
 <h2 id="sec-48-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>

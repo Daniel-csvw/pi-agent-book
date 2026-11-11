@@ -40,7 +40,7 @@
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
                 <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
                 <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
@@ -49,7 +49,7 @@
 <header class="module-header">
       <div class="module-eyebrow">M10</div>
       <h1>会话 —— 从会话树到持久运行时</h1>
-      <div class="module-meta">11,449 字 · 含 513 行代码 · 约 56 分钟</div>
+      <div class="module-meta">11,480 字 · 含 513 行代码 · 约 56 分钟</div>
     </header>
     <p>M09 讲压缩时，一句话带过：压缩结果是挂在 Session Tree 上的一条 entry。</p>
 <p>这一章把那个词拆开。会话到底怎么存、怎么读回来、怎么分叉？</p>
@@ -1525,6 +1525,9 @@ use SQLite for long-running agents.&quot; 数据量一大就换 SQLite，别等 
 <p>那个答案叫 <strong>task</strong>：一个带阶段和检查点的状态机。
 它才是&quot;崩溃之后能接着跑&quot;的真正原因——存储只是把它的状态记下来。</p>
 <p><strong>下一章：M11 <code>durable</code>——把&quot;崩溃后接着跑&quot;拆成三层：状态机、调度器、generation 交接。</strong></p>
+<blockquote>
+<p>想亲手写一份最简 JSONL 会话存储？Part E 的 E06 用 37 行造了同构的追加写 + 逐行读，坏行报行号。</p>
+</blockquote>
 <hr>
 <h2 id="sec-73-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
