@@ -59,7 +59,7 @@
 <header class="module-header">
       <div class="module-eyebrow">F09</div>
       <h1>五种接口 —— 从终端到 SDK 的五个入口</h1>
-      <div class="module-meta">2,289 字 · 含 36 行代码 · 约 16 分钟</div>
+      <div class="module-meta">2,351 字 · 含 36 行代码 · 约 16 分钟</div>
     </header>
     <p>前面的章节都在讲「Pi 内部怎么配」。这一章换视角：
 <strong>外面的人怎么把 Pi 接进去</strong>。</p>
@@ -557,6 +557,9 @@ SDK 不加载内置扩展。要用就自己塞扩展工厂，并记得 <code>bin
 Pi 在哪些地方<strong>不会</strong>问你、哪些路径默认就能写、哪些环境变量会改变行为。
 F10 给三张清单——信任边界、可写边界、环境边界，
 以及一份上线前的自检表。</p>
+<p>真要把它装成一个对外服务，附录 C 把 §六 这条路走完了：
+四十行 HTTP + SSE 服务、前端读流、以及四个实跑过的上线坑。
+入口选型是你在这里定的，服务形态在那里落地。</p>
 
 <div class="pager">
       <a class="prev" href="f08-packages.html"><span class="lbl">上一篇</span>打包分发 —— package.json 里的 pi 清单</a>

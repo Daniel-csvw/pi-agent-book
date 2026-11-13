@@ -59,7 +59,7 @@
 <header class="module-header">
       <div class="module-eyebrow">APX</div>
       <h1>附录 C —— 把 Agent 装进你的服务</h1>
-      <div class="module-meta">3,353 字 · 含 220 行代码 · 约 19 分钟</div>
+      <div class="module-meta">3,428 字 · 含 220 行代码 · 约 19 分钟</div>
     </header>
     <p>Part A–D 讲的是「里面怎么转」。这一页讲另一件事：<strong>怎么把它装进一个
 能对外服务的进程</strong>，让浏览器、Java、Python 都能用。</p>
@@ -127,6 +127,8 @@
 扩展里注册的钩子（<code>extensions/types.ts</code> 一族），<code>session.subscribe</code>
 是宿主进程的监听器。服务端用后者。</p>
 </blockquote>
+<p>五个入口什么时候选哪个（<code>-p</code> 的退出码、JSON 的 <code>stopReason</code>、RPC 的
+<code>disposition</code>、SDK 怎么换边界），在 F09；这一页只走 SDK + HTTP 这一条。</p>
 <hr>
 <h2 id="sec-2-二-前置条件-先有凭据">二、前置条件：先有凭据</h2>
 <p><code>createAgentSession()</code> 允许零参数调用，但<strong>不允许零配置跑起来</strong>。
@@ -595,6 +597,8 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
 <hr>
 <h2 id="sec-24-九-这一页没讲的">九、这一页没讲的</h2>
 <ul>
+<li><strong>入口选型</strong>：为什么这里选 SDK 而不是 RPC、<code>-p</code> 和 JSON 各适合什么场景，
+F09 给了五个入口的六维对照表，包括「SDK 不带内置扩展」这个坑。</li>
 <li><strong>多用户会话隔离</strong>：每人一个 <code>SessionManager</code> 加一个 session，见坑 2。</li>
 <li><strong>鉴权与限流</strong>：服务层的事，和 Pi 无关。</li>
 <li><strong>优雅退出</strong>：<code>dispose()</code> 要挂在 <code>SIGTERM</code> 上，否则正在跑的
