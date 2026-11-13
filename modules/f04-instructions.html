@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>指令四层 —— 从 AGENTS.md 到 SKILL.md · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="active">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">F04</div>
+      <h1>指令四层 —— 从 AGENTS.md 到 SKILL.md</h1>
+      <div class="module-meta">2,740 字 · 含 40 行代码 · 约 18 分钟</div>
+    </header>
+    <p>前三章都在配「Pi 能做什么」。这一章配的是「Pi 怎么想」。</p>
+<p>大多数人只会用一个地方：往 <code>AGENTS.md</code> 里堆规则。堆到两百行之后发现
+——模型开始忽略后半段，而且每次请求都白白付着这两百行的 token。
+Pi 给了四层不同代价的入口，选对层比写得好更重要。</p>
+<p>三个问题：</p>
+<ol>
+<li>我在子目录里放一个 <code>AGENTS.md</code>，它会覆盖根目录那个吗？</li>
+<li><code>SYSTEM.md</code> 和 <code>APPEND_SYSTEM.md</code> 差一个字，行为差多远？</li>
+<li>一个技能有两百行说明，怎么才能只在用到时才付出这部分 token？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  第 1 层  SYSTEM.md          整段替换系统提示词    最贵，也最横</span><span class="ln">  第 2 层  APPEND_SYSTEM.md   追加到系统提示词      与上一层不合并，二选一</span><span class="ln">  第 3 层  AGENTS.md          作为「项目指令」注入   按目录链叠加，不覆盖</span><span class="ln">  第 4 层  SKILL.md           只注入名字和描述      用到才读全文</span><span class="ln">  ───────  F04 的四层，代价从上到下递减 ───────</span><span class="ln">  另有      prompts/*.md      不是注入，是你手动敲 /name 才展开</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-探索链-agents-md-从哪几个目录找">一、探索链：<code>AGENTS.md</code> 从哪几个目录找</h2>
+<p><code>loadContextFileFromDir</code>（<code>resource-loader.ts:212-231</code>）定义了同目录下的优先级，
+就是一个长度 5 的候选名数组（<code>:213</code>），按顺序试，命中即返回：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>文件名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>AGENTS.override.md</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>AGENTS.md</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>AGENTS.MD</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>CLAUDE.md</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>CLAUDE.MD</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>同一个目录里只取第一个存在的</strong>，五个名字是同义词，不是累加。
+<code>AGENTS.MD</code> 和 <code>CLAUDE.MD</code> 那两个全大写版本是给文件系统大小写敏感的
+场景准备的（macOS 上 <code>Agents.md</code> 和 <code>AGENTS.md</code> 是两个文件）。</p>
+<p>跨目录的部分在 <code>loadProjectContextFiles</code>（<code>:260-302</code>）。它分两段走：</p>
+<p><strong>先放全局，再放祖先链。</strong> 第一步读 <code>&lt;agent-dir&gt;</code> 里那个
+（<code>:270-274</code>），第二步从 <code>cwd</code> 一路往上走到根，
+每层找到一个就 <code>unshift</code> 进数组（<code>:290</code>）。</p>
+<p><code>unshift</code> 这个词是关键：从当前目录往上走，越往上越靠前插入，
+所以最终顺序是<strong>全局 → 最外层祖先 → … → 当前目录</strong>。
+近的在后，也就是近的<strong>更靠后、更容易被模型重视</strong>。
+配置文档的说法是「a context file applies whenever Pi runs in its directory
+or anywhere below it」（<code>configuration.md:43</code>）——它们是<strong>叠加</strong>关系。</p>
+<p>三件事顺带说明白：</p>
+<p><strong>子目录的 <code>AGENTS.md</code> 不会覆盖父目录的。</strong> 两份都进提示词，
+按从外到内的顺序排列。</p>
+<p><strong>同目录 <code>AGENTS.override.md</code> 优先。</strong> 这不是 URL 覆盖，
+是「二选一」的覆盖——<code>configuration.md:45</code> 原文是
+replaces <code>AGENTS.md</code> or <code>CLAUDE.md</code> <strong>only in the same directory</strong>。</p>
+<p><strong>它不需要项目信任。</strong> F01 已经说过，这里再说一遍原因：
+<code>loadProjectContextFiles</code> 根本不接收 <code>isProjectTrusted()</code>，
+它是 Pi 启动流程里少数无条件读的路径（<code>configuration.md:47</code>）。</p>
+<h3 id="sec-2-1-1-git-worktree-的那个特例">1.1 git worktree 的那个特例</h3>
+<p><code>:242-258</code> 有一个函数叫 <code>findShadowedContextFile</code>，专门处理
+<code>git worktree add</code> 造出来的嵌套工作树。逻辑是：如果当前目录是个
+嵌套 worktree，且它自己也有 <code>AGENTS.md</code>，那么主仓库那份就跳过。</p>
+<p>为什么？注释写得很直接：两者「occupy the same logical repository scope」，
+两份都加载等于把同一段上下文应用两次。这是个很细的坑，
+你在用 worktree 时会遇到「为什么规则被说了两遍」——答案在这。</p>
+<hr>
+<h2 id="sec-3-二-system-md-与-append_system-md-二选一-不合并">二、<code>SYSTEM.md</code> 与 <code>APPEND_SYSTEM.md</code>：二选一，不合并</h2>
+<p>这两个文件的发现逻辑几乎一模一样（<code>:1245-1271</code>），
+都是先看项目、再看全局，命中即返回：</p>
+<p>&lt;!-- file: pi-main/pi-main/packages/coding-agent/src/core/resource-loader.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">	<span class="tok-kw">private</span> <span class="tok-fn">discoverSystemPromptFile</span>(): <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span> {</span><span class="ln">		<span class="tok-kw">const</span> projectPath = <span class="tok-fn">join</span>(<span class="tok-kw">this</span>.cwd, CONFIG_DIR_NAME, <span class="tok-str">"SYSTEM.md"</span>);</span><span class="ln">		<span class="tok-kw">if</span> (<span class="tok-kw">this</span>.settingsManager.<span class="tok-fn">isProjectTrusted</span>() &amp;&amp; <span class="tok-fn">existsSync</span>(projectPath)) {</span><span class="ln">			<span class="tok-kw">return</span> projectPath;</span><span class="ln">		}</span></code></pre></div>
+<p>注意两个 <code>return</code>：项目那份命中就返回了，<strong>全局那份根本不会被读</strong>。
+这就是 <code>configuration.md:39</code> 那句「Files with the same name are not combined」
+的代码实现。</p>
+<p>所以行为矩阵是这样：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>SYSTEM.md</code> 在哪</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>项目 <code>.pi/</code> 有（且已信任）</td>
+<td>用项目的，全局那份被忽略</td>
+</tr>
+<tr>
+<td>项目没有，全局 <code>&lt;agent-dir&gt;/</code> 有</td>
+<td>用全局的</td>
+</tr>
+<tr>
+<td>都没有</td>
+<td>用 <code>system-prompt.ts</code> 里拼出来的默认提示词</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>注意项目那份受信任闸门约束</strong>（<code>isProjectTrusted()</code> 在条件里），
+而 <code>AGENTS.md</code> 不受。这是四层里唯一有这个区别的地方。</p>
+<h3 id="sec-4-2-1-替换-vs-追加-代价差多少">2.1 替换 vs 追加，代价差多少</h3>
+<p><code>SYSTEM.md</code> 是<strong>整段替换</strong>。换了之后，Pi 那套
+<code>preamble</code> / <code>tools</code> / <code>rules</code> / <code>docs</code> / <code>cwd</code> 五段结构还在不在？
+取决于你怎么写。<code>buildSystemPromptSections</code>（<code>system-prompt.ts:128-160</code>）
+里 <code>customPrompt</code> 只顶掉 <code>preamble</code> 这一段（<code>:152-153</code>）：</p>
+<p>&lt;!-- file: pi-main/pi-main/packages/coding-agent/src/core/system-prompt.ts --&gt;</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">	<span class="tok-kw">if</span> (customPrompt) {</span><span class="ln">		promptSections.preamble = customPrompt;</span><span class="ln">	} <span class="tok-kw">else</span> {</span></code></pre></div>
+<p>也就是说 <code>SYSTEM.md</code> 换的是<strong>开头那段身份描述</strong>，工具清单、规则、
+文档路径这些结构化段落仍然由 Pi 现算。这个设计很克制：
+你写自己的开场白，但不会因此丢掉「有哪些工具」这种必须准确的信息。</p>
+<p><code>APPEND_SYSTEM.md</code> 则是往末尾追加，不动任何既有段落。
+它的用途基本只有一个：<strong>跨项目通用的偏好</strong>，比如「回答用中文」
+「不要给我写总结章节」。这类东西写进全局 <code>APPEND_SYSTEM.md</code>，
+每个项目都生效，又不影响任何人自己的 <code>AGENTS.md</code>。</p>
+<p>一句话选型：<strong>改「Pi 是谁」用 <code>SYSTEM.md</code>，加「我的习惯」用 <code>APPEND_SYSTEM.md</code>，
+写「这个项目的规矩」用 <code>AGENTS.md</code>。</strong></p>
+<hr>
+<h2 id="sec-5-三-agents-md-里到底该写什么">三、<code>AGENTS.md</code> 里到底该写什么</h2>
+<p>这一层是「项目上下文」，注入形式是一个 XML 块，
+由 <code>renderProjectContext</code>（<code>system-prompt.ts:79-86</code>）生成：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Project-specific instructions and guidelines:</span><span class="ln">&lt;project_instructions path="D:\proj\AGENTS.md"&gt;</span><span class="ln">（文件原文）</span><span class="ln">&lt;/project_instructions&gt;</span></code></pre></div>
+<p>带 <code>path</code> 属性很重要——模型能看出某条规则来自哪个目录，
+在多层叠加时这个信息不可省。</p>
+<p>因为是原文注入，<strong>写得越啰嗦，每个 turn 就多付一次</strong>。
+三条经验，都是踩出来的：</p>
+<p><strong>写「怎么验证」，不写「要注意质量」。</strong> 后者模型本来就知道，
+前者是它猜不到的。比如「跑 <code>npm run all</code>，它会依次做八件事」
+比「提交前请充分测试」有用一百倍。</p>
+<p><strong>写「不要做什么」，且给出替代。</strong> 「不要用 <code>npm run build</code>，
+用 <code>npm run build:fast</code>」是可执行的；「构建时小心」不是。</p>
+<p><strong>路径写相对路径。</strong> 注入块里没有 cwd 信息，模型的当前目录在另一段
+（<code>sections.cwd</code>）。绝对路径会让人在 clone 到别处之后全部失效。</p>
+<p>想验证注入效果，还是那招——看 <code>sections.docs</code>：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">$env:PI_OFFLINE="1"; pi --mode json -p "x" | Out-File -Encoding utf8 t.jsonl</span></code></pre></div>
+<p><code>t.jsonl</code> 里 message_end 那条 system 消息的 <code>sections.docs</code>
+就是所有上下文文件拼起来的那一段。文件里写了什么，这里就该看到什么
+——如果没看到，是没找到文件，不是模型没读。</p>
+<hr>
+<h2 id="sec-6-四-skill-md-只注入名字-用到才展开">四、<code>SKILL.md</code>：只注入名字，用到才展开</h2>
+<p>前三层的代价都是「每 turn 全量」。技能解决的是「有一大套流程，
+但一个月才用一次」。</p>
+<p><code>formatSkillsForPrompt</code>（<code>skills.ts:358-388</code>）只做一件事：
+把每个技能的<strong>名字、描述、位置</strong>三行塞进一个 <code>&lt;available_skills&gt;</code> 块。
+正文一个字都不进提示词。每个技能固定输出三个字段（<code>:377-383</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// skills.ts:379-381</span></span><span class="ln">&lt;name&gt;${<span class="tok-fn">escapeXml</span>(skill.name)}&lt;/name&gt;</span><span class="ln">&lt;description&gt;${<span class="tok-fn">escapeXml</span>(skill.description)}&lt;/description&gt;</span><span class="ln">&lt;location&gt;${<span class="tok-fn">escapeXml</span>(skill.filePath)}&lt;/location&gt;</span></code></pre></div>
+<p><code>location</code> 是个绝对路径。模型判断「这个任务匹配」之后，
+会用 <code>read</code> 去读那个文件，读完才拥有完整指令。
+这就是渐进加载：<strong>先付一条描述的钱，需要时再付全文的钱</strong>。</p>
+<h3 id="sec-7-4-1-一个技能的最小形态">4.1 一个技能的最小形态</h3>
+<p>目录 + <code>SKILL.md</code>：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pdf-tools/</span><span class="ln">├── SKILL.md</span><span class="ln">├── scripts/extract.sh</span><span class="ln">└── references/formats.md</span></code></pre></div>
+<div class="code-block" data-lang="markdown">
+<div class="code-head"><span class="lang">markdown</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">---</span><span class="ln">name: pdf-tools</span><span class="ln">description: Extract text and tables from PDF files.</span><span class="ln">  Use when reading, converting, or inspecting PDFs.</span><span class="ln">---</span><span class="ln"></span><span class="ln"># PDF tools</span><span class="ln"></span><span class="ln">Read `references/formats.md` before converting a document.</span><span class="ln">Run scripts relative to this skill directory.</span></code></pre></div>
+<p><code>description</code> 是唯一决定「会不会被想起来」的字段。<code>skills.md:37</code>
+的要求是：既说清做什么，也说清什么时候用。
+「Helps with PDFs」这种描述路由不到任何具体任务。</p>
+<p><code>name</code> 有格式约束：小写字母、数字、连字符，不能以连字符开头或结尾，
+不能连续两个连字符，最长 64 字符；描述最长 1024
+（<code>skills.md:81</code>）。不合规只是<strong>警告</strong>，不会阻止加载
+（<code>skills.md:7</code>，<code>skills.ts:313-332</code> 也是记 warning 后继续）。</p>
+<h3 id="sec-8-4-2-强制加载与隐藏">4.2 强制加载与隐藏</h3>
+<p>模型可能漏掉一个明明相关的技能。<code>skills.md:45</code> 给的解法是手动敲：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">/skill:pdf-tools extract report.pdf</span></code></pre></div>
+<p>后面那串参数会作为「用户请求」追加到技能正文后面
+（<code>skills.md:47-51</code>）。</p>
+<p>反过来的需求也有：某个技能只想被人手动调用，不想被模型自动联想。
+在 frontmatter 里加一行 <code>disable-model-invocation: true</code>，
+它就从 <code>&lt;available_skills&gt;</code> 里消失了（<code>skills.ts:359</code> 那个 filter），
+但 <code>/skill:name</code> 还能用。</p>
+<h3 id="sec-9-4-3-放哪儿">4.3 放哪儿</h3>
+<p>按 <code>skills.md:57-63</code>，Pi 认这几个位置：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;agent-dir&gt;/skills/</code></td>
+<td>全局</td>
+</tr>
+<tr>
+<td><code>.pi/skills/</code></td>
+<td>项目（需信任）</td>
+</tr>
+<tr>
+<td><code>~/.agents/skills/</code></td>
+<td>Agent Skills 标准的全局位置</td>
+</tr>
+<tr>
+<td><code>.agents/skills/</code></td>
+<td>标准位置，<strong>从 cwd 向上找到仓库根</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>技能目录是递归扫描的</strong>（<code>skills.md:59</code>）——这和扩展只下一层正好相反。
+所以你可以在 <code>skills/</code> 下面按分类建子目录，<code>skills/pdf/tools/SKILL.md</code>
+照样能被找到。</p>
+<p>最后一条安全提醒来自原文（<code>skills.md:65</code>）：技能可以让模型跑脚本、改文件。
+信任一个项目之前，先看看它的 <code>.pi/skills/</code> 里有什么。</p>
+<hr>
+<h2 id="sec-10-五-prompts-不是注入-是手敲的快捷方式">五、<code>prompts/</code>：不是注入，是手敲的快捷方式</h2>
+<p>这一层和上面四层性质不同——它不进系统提示词。
+<code>&lt;agent-dir&gt;/prompts/*.md</code> 里的每个文件变成一个斜杠命令，
+你敲 <code>/文件名</code> 时才展开成一段话发给模型。</p>
+<p>占位符替换在 <code>substituteArgs</code>（<code>prompt-templates.ts:76-108</code>），
+支持这些写法：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>写法</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$1</code> <code>$2</code> …</td>
+<td>第 N 个参数</td>
+</tr>
+<tr>
+<td><code>$@</code> 或 <code>$ARGUMENTS</code></td>
+<td>所有参数拼起来的整串</td>
+</tr>
+<tr>
+<td><code>${1:-默认值}</code></td>
+<td>第 1 个参数，缺省用默认值</td>
+</tr>
+<tr>
+<td><code>${@:-默认值}</code></td>
+<td>全部参数，缺省用默认值</td>
+</tr>
+<tr>
+<td><code>${@:2}</code></td>
+<td>从第 2 个开始到末尾</td>
+</tr>
+<tr>
+<td><code>${@:2:3}</code></td>
+<td>从第 2 个开始取 3 个</td>
+</tr>
+</tbody>
+</table></div>
+<p>两个容易踩的点：</p>
+<p><strong>不递归替换。</strong> 注释写得很明确（<code>:73-75</code>）：只替换模板字符串本身，
+参数值和默认值里出现的 <code>$1</code> 不会再被展开。所以你没法用默认值套默认值。</p>
+<p><strong>序号从 1 开始，但 <code>${@:0}</code> 不报错。</strong> <code>:89-91</code> 有个 <code>if (start &lt; 0) start = 0</code>，
+把 0 当 1 处理——bash 习惯。写错成 <code>${@:0}</code> 不会给你任何提示。</p>
+<p>文件不合法时会发生什么？<code>prompt-templates.ts:110-115</code> 之后是
+解析 frontmatter 的逻辑，出错记 warning 并跳过该文件，
+其余提示词照常可用。和技能一样：<strong>单点失败不拖垮全局</strong>。</p>
+<hr>
+<h2 id="sec-11-六-自己动手验证">六、自己动手验证</h2>
+<p><strong>实验 1：看叠加顺序。</strong></p>
+<p>在项目根建 <code>AGENTS.md</code> 写 <code>ROOT-MARK</code>，在 <code>src/</code> 建 <code>AGENTS.md</code> 写 <code>SRC-MARK</code>，
+然后 <code>cd src</code> 跑：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">$env:PI_OFFLINE="1"; pi --mode json -p "x" | Out-File -Encoding utf8 t.jsonl</span></code></pre></div>
+<p>用 F03 那个 <code>tools.mjs</code> 改个字段名，把 <code>sections.tools</code> 换成 <code>sections.docs</code>
+打出来。期望：<code>ROOT-MARK</code> 在前，<code>SRC-MARK</code> 在后。
+再把根目录的改成 <code>AGENTS.override.md</code>，重跑——<code>ROOT-MARK</code> 还在，
+但文件名变了，因为 override 只是同目录内的替换。</p>
+<p><strong>实验 2：确认 <code>AGENTS.md</code> 不受信任影响。</strong></p>
+<p>进一个没信任过的仓库（<code>.pi/</code> 里有 <code>settings.json</code> 但内容随意），
+跑 <code>pi -p &quot;x&quot; -na</code>（<code>--no-approve</code> 强制不信任）。
+此时 <code>.pi/settings.json</code> 被忽略，但 <code>AGENTS.md</code> 仍然出现在 <code>sections.docs</code> 里。
+这是本章最值得亲手确认的一条——它和「项目配置」是两套机制。</p>
+<p><strong>实验 3：确认技能只注入了三行。</strong></p>
+<p>在 <code>&lt;agent-dir&gt;/skills/demo/SKILL.md</code> 写一个 200 行的技能，
+描述写 <code>Use when testing skill loading</code>。跑起来看 <code>sections.docs</code>，
+搜索 <code>available_skills</code>：你只会看到 <code>&lt;name&gt;</code> <code>&lt;description&gt;</code> <code>&lt;location&gt;</code>
+三行，正文那 200 行不在里面。</p>
+<h3 id="sec-12-改一处试试">改一处试试</h3>
+<p>给全局 <code>APPEND_SYSTEM.md</code> 加一行：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Always answer in Chinese, even if the code and comments are in English.</span></code></pre></div>
+<p>然后随便跑一次。这条规则每个项目都生效，而你不用改任何人的
+<code>AGENTS.md</code>。反过来，如果你想试试 <code>SYSTEM.md</code>，写一句话进去，
+用 <code>sections.preamble</code> 观察——只有那一段变了，
+<code>sections.tools</code> 和 <code>sections.rules</code> 原封不动。</p>
+<hr>
+<h2 id="sec-13-七-工程暗坑">七、工程暗坑</h2>
+<p><strong>坑一：以为子目录的 <code>AGENTS.md</code> 会覆盖父目录。</strong>
+它是叠加。想「只让子目录生效」，得让父目录那份自己消失，
+没有「取消继承」的开关。</p>
+<p><strong>坑二：项目 <code>SYSTEM.md</code> 与全局 <code>SYSTEM.md</code> 不合并。</strong>
+「不合并」的意思是全局那份<strong>完全不被读</strong>，不是「项目覆盖同名键」。
+把公共部分放全局、项目只写差异，这个用法在 <code>SYSTEM.md</code> 上不成立。</p>
+<p><strong>坑三：<code>AGENTS.md</code> 越写越长，每 turn 都付钱。</strong>
+两百行上下文文件对每个 turn 都是固定成本。长流程搬到 <code>SKILL.md</code>
+里，用不到就不花钱。</p>
+<p><strong>坑四：技能不写 <code>description</code> 就等于不存在。</strong>
+<code>skills.ts:306-308</code> 和 <code>:330-332</code> 两处都在检查：没有描述，
+非显式声明的技能直接不加载。而且<strong>不报错</strong>。</p>
+<p><strong>坑五：提示词模板里的 <code>$</code> 会被吃掉。</strong>
+想在提示词里写一个字面的 <code>$1</code> 给模型看，做不到——它一定会被替换。
+要么改措辞，要么把这个符号拆到参数里传进去。</p>
+<hr>
+<h2 id="sec-14-八-本章源码索引">八、本章源码索引</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/coding-agent/src/core/resource-loader.ts</code></td>
+<td>1,319</td>
+<td>五个候选名、祖先链 <code>unshift</code>、两个 <code>discover*</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/system-prompt.ts</code></td>
+<td>229</td>
+<td><code>renderProjectContext</code>、五段结构与 <code>customPrompt</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/skills.ts</code></td>
+<td>505</td>
+<td>frontmatter 校验、<code>formatSkillsForPrompt</code> 三行注入</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/prompt-templates.ts</code></td>
+<td>325</td>
+<td><code>substituteArgs</code> 七种占位符</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/configuration.md</code></td>
+<td>47</td>
+<td>13 项 / 8 项 / 上下文文件三节</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/skills.md</code></td>
+<td>93</td>
+<td>技能的目录形态与 frontmatter 字段</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-15-九-下一章">九、下一章</h2>
+<p>四层指令都是「静态文本」。F05 开始写代码：扩展到底怎么被加载、
+<code>on()</code> 那四十多个钩子里哪些真正常用、
+以及怎么在工具真正执行之前把它拦下来。</p>
+
+<div class="pager">
+      <a class="prev" href="f03-tools.html"><span class="lbl">上一篇</span>工具开关 —— 八个内置，两个模组，五档暴露</a>
+      <a class="next" href="f05-extension-basics.html"><span class="lbl">下一篇</span>扩展（上）—— 三步落位，一次拦截</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-探索链-agents-md-从哪几个目录找" class="">一、探索链：AGENTS.md 从哪几个目录找</a><a href="#sec-2-1-1-git-worktree-的那个特例" class="lv3">1.1 git worktree 的那个特例</a><a href="#sec-3-二-system-md-与-append_system-md-二选一-不合并" class="">二、SYSTEM.md 与 APPEND_SYSTEM.md：二选一，不合并</a><a href="#sec-4-2-1-替换-vs-追加-代价差多少" class="lv3">2.1 替换 vs 追加，代价差多少</a><a href="#sec-5-三-agents-md-里到底该写什么" class="">三、AGENTS.md 里到底该写什么</a><a href="#sec-6-四-skill-md-只注入名字-用到才展开" class="">四、SKILL.md：只注入名字，用到才展开</a><a href="#sec-7-4-1-一个技能的最小形态" class="lv3">4.1 一个技能的最小形态</a><a href="#sec-8-4-2-强制加载与隐藏" class="lv3">4.2 强制加载与隐藏</a><a href="#sec-9-4-3-放哪儿" class="lv3">4.3 放哪儿</a><a href="#sec-10-五-prompts-不是注入-是手敲的快捷方式" class="">五、prompts/：不是注入，是手敲的快捷方式</a><a href="#sec-11-六-自己动手验证" class="">六、自己动手验证</a><a href="#sec-12-改一处试试" class="lv3">改一处试试</a><a href="#sec-13-七-工程暗坑" class="">七、工程暗坑</a><a href="#sec-14-八-本章源码索引" class="">八、本章源码索引</a><a href="#sec-15-九-下一章" class="">九、下一章</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

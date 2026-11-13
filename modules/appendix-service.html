@@ -39,17 +39,27 @@
                 <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
-                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="active">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
-                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="active">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">APX</div>
       <h1>附录 C —— 把 Agent 装进你的服务</h1>
-      <div class="module-meta">3,334 字 · 含 220 行代码 · 约 19 分钟</div>
+      <div class="module-meta">3,353 字 · 含 220 行代码 · 约 19 分钟</div>
     </header>
     <p>Part A–D 讲的是「里面怎么转」。这一页讲另一件事：<strong>怎么把它装进一个
 能对外服务的进程</strong>，让浏览器、Java、Python 都能用。</p>
@@ -652,8 +662,8 @@ the message.」——特意抄全，因为你会在日志里反复看到它。</
 </table></div>
 
 <div class="pager">
-      <a class="prev" href="appendix-typescript.html"><span class="lbl">上一篇</span>附录 B —— 读源码用的 TypeScript 速查</a>
-      <a class="next" href="appendix-integration.html"><span class="lbl">下一篇</span>附录 D —— 合龙：一次请求，二十五个落点</a>
+      <a class="prev" href="appendix-migration.html"><span class="lbl">上一篇</span>附录 A —— v0.80 → v1.4 迁移对照</a>
+      <a class="next" href="appendix-typescript.html"><span class="lbl">下一篇</span>附录 B —— 读源码用的 TypeScript 速查</a>
     </div>
 </main>
 <nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-四种跑法-先选一种" class="">一、四种跑法，先选一种</a><a href="#sec-2-二-前置条件-先有凭据" class="">二、前置条件：先有凭据</a><a href="#sec-3-三-十行嵌入" class="">三、十行嵌入</a><a href="#sec-4-四-第二轮-会话怎么续" class="">四、第二轮：会话怎么续</a><a href="#sec-5-五-subscribe-能拿到什么" class="">五、subscribe 能拿到什么</a><a href="#sec-6-1-message_start-不只属于用户" class="lv3">1. message_start 不只属于用户</a><a href="#sec-7-2-tool_execution_end-带-durationms" class="lv3">2. tool_execution_end 带 durationMs</a><a href="#sec-8-3-增量藏在-assistantmessageevent-里" class="lv3">3. 增量藏在 assistantMessageEvent 里</a><a href="#sec-9-4-一轮到底发多少事件" class="lv3">4. 一轮到底发多少事件</a><a href="#sec-10-六-四十行服务" class="">六、四十行服务</a><a href="#sec-11-请求一次" class="lv3">请求一次</a><a href="#sec-12-前端那一侧" class="lv3">前端那一侧</a><a href="#sec-13-接口文档" class="lv3">接口文档</a><a href="#sec-14-七-上线前的四个坑" class="">七、上线前的四个坑</a><a href="#sec-15-坑-1-凭据和-cwd" class="lv3">坑 1：凭据和 cwd</a><a href="#sec-16-坑-2-并发" class="lv3">坑 2：并发</a><a href="#sec-17-坑-3-背压" class="lv3">坑 3：背压</a><a href="#sec-18-坑-4-一个畸形请求能打挂整个进程" class="lv3">坑 4：一个畸形请求能打挂整个进程</a><a href="#sec-19-八-改一处试试" class="">八、改一处试试</a><a href="#sec-20-本章小结" class="">本章小结</a><a href="#sec-21-概念回顾" class="">概念回顾</a><a href="#sec-22-练习" class="">练习</a><a href="#sec-23-常见误区" class="">常见误区</a><a href="#sec-24-九-这一页没讲的" class="">九、这一页没讲的</a><a href="#sec-25-源码索引" class="">源码索引</a></nav>

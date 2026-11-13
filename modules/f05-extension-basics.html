@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>扩展（上）—— 三步落位，一次拦截 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="active">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">F05</div>
+      <h1>扩展（上）—— 三步落位，一次拦截</h1>
+      <div class="module-meta">2,405 字 · 含 31 行代码 · 约 19 分钟</div>
+    </header>
+    <p>从这一章开始动手写代码。目标是两条：<strong>让扩展真的被加载</strong>，
+以及<strong>在工具执行前把它拦下来</strong>——后者是「权限控制」在 Pi 里唯一可行的入口。</p>
+<p>M07 讲过扩展机制的内部实现（加载器状态机、四十一个钩子怎么分发）。
+这一章只讲使用视角：文件放哪、改完怎么生效、写坏了怎么救回来。</p>
+<p>三个问题：</p>
+<ol>
+<li>一个 <code>.ts</code> 文件放在三个不同的位置，加载行为有什么区别？</li>
+<li>改完扩展，要重启 Pi 吗？</li>
+<li><code>tool_call</code> 里返回值有 <code>block</code> 和 <code>reason</code>，还有第三个字段是干什么的？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">   写代码            落位                 生效             验证</span><span class="ln">   ─────            ─────                ─────            ─────</span><span class="ln">   foo.ts  ──&gt;  ~/.pi/agent/extensions/  ──&gt; 自动发现  ──&gt; console.log</span><span class="ln">           ──&gt;  .pi/extensions/         ──&gt; 需项目信任</span><span class="ln">           ──&gt;  pi -e ./foo.ts          ──&gt; 显式加载</span><span class="ln">                                                        └─ /reload 热重载</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-三步落位-e-全局目录-项目目录">一、三步落位：<code>-e</code>、全局目录、项目目录</h2>
+<p>同一个文件，三种放法，行为完全不同。</p>
+<h3 id="sec-2-1-1-e-只这次算数">1.1 <code>-e</code>：只这次算数</h3>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -e ./tmp-pif/hello.ts -p "say ok" --no-tools</span></code></pre></div>
+<p><code>-e</code> 是 <code>--extension</code>，可以重复多次（<code>--help</code> 里写了 &quot;can be used multiple times&quot;）。
+它<strong>不缓存、不改配置</strong>，进程退出就没了。调试时首选这种方式：
+路径写错立刻报错，且不污染你的全局目录。</p>
+<p>路径不存在时报错原文（本机实跑）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Error: Failed to load extension "...\tmp-pif\probe.ts":</span><span class="ln">Extension path does not exist: ...\tmp-pif\probe.ts</span><span class="ln">Hint: Start without extensions using "pi -ne".</span></code></pre></div>
+<p>最后那行 <code>pi -ne</code> 是逃生舱。扩展写坏了导致 Pi 起不来时，
+加上 <code>-ne</code>（<code>--no-extensions</code>）绕过全部扩展启动一次，进去把文件删掉。
+注意 <code>--help</code> 里的措辞很细：<strong>显式 <code>-e</code> 的路径仍然会加载</strong>，
+<code>-ne</code> 关的是「发现」和内置扩展，不是「你亲手指定的那个」。</p>
+<p>另外 <code>-e</code> 支持 <code>builtin:&lt;name&gt;</code>，用来单独打开一个内置扩展，
+比如 <code>-e builtin:codemode</code>。</p>
+<h3 id="sec-3-1-2-全局目录-放进去就生效">1.2 全局目录：放进去就生效</h3>
+<p>把文件丢进 <code>&lt;agent-dir&gt;/extensions/</code>（默认 <code>~/.pi/agent/extensions/</code>），
+下一次启动自动加载。本机实测的输出：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ok</span><span class="ln">[hello] reason=startup</span></code></pre></div>
+<p>第一行是模型回答，第二行是扩展在 <code>session_start</code> 里打的日志。
+删掉文件再跑，第二行就没了。</p>
+<p><strong>不需要写进 <code>settings.json</code></strong>。目录扫描就够了。</p>
+<h3 id="sec-4-1-3-项目目录-要过信任闸门">1.3 项目目录：要过信任闸门</h3>
+<p><code>.pi/extensions/</code> 里的扩展会随项目加载——但只在项目被信任时。
+F01 讲的信任闸门在这里生效。同一个仓库，换台机器第一次打开，
+<code>.pi/</code> 里的扩展<strong>不会</strong>加载，直到你按了信任。</p>
+<h3 id="sec-5-1-4-目录扫描的规则-只下一层">1.4 目录扫描的规则：只下一层</h3>
+<p><code>discoverExtensionsInDir</code>（<code>extensions/loader.ts:790-880</code>）认三种形态：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>形态</th>
+<th>例子</th>
+<th>认不认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>目录里直接的 <code>.ts</code> / <code>.js</code></td>
+<td><code>extensions/foo.ts</code></td>
+<td>认</td>
+</tr>
+<tr>
+<td>子目录带 <code>index.ts</code></td>
+<td><code>extensions/bar/index.ts</code></td>
+<td>认</td>
+</tr>
+<tr>
+<td>子目录带 <code>package.json</code> 且声明 <code>pi</code></td>
+<td><code>extensions/baz/</code></td>
+<td>认</td>
+</tr>
+<tr>
+<td>子目录再套子目录</td>
+<td><code>extensions/baz/lib/x.ts</code></td>
+<td><strong>不认</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>源码注释写得很干脆：<strong>No recursion beyond one level</strong>。
+所以别指望按分类建目录树，Pi 只看一层。</p>
+<p>一个文件要被认成扩展，形式是 <code>export default function (pi) {...}</code>。
+没有默认导出、或者默认导出不是函数，这个文件会被静默跳过。</p>
+<hr>
+<h2 id="sec-6-二-reload-改完不用重启">二、<code>/reload</code>：改完不用重启</h2>
+<p>改扩展、改设置、改 <code>AGENTS.md</code>，绝大多数情况下在交互模式里敲
+<code>/reload</code> 就够。它做的事是：重新发现资源、重建会话状态、
+重跑 <code>session_start</code>（<code>reason</code> 是 <code>&quot;reload&quot;</code>）。</p>
+<p>那条 <code>reason</code> 字段值得单独说。<code>session_start</code> 事件的
+<code>reason</code> 有五种（<code>types.ts:774-781</code>）：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>什么时候</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>startup</code></td>
+<td>进程启动</td>
+</tr>
+<tr>
+<td><code>reload</code></td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>new</code></td>
+<td>新会话</td>
+</tr>
+<tr>
+<td><code>resume</code></td>
+<td>恢复旧会话</td>
+</tr>
+<tr>
+<td><code>fork</code></td>
+<td>从某个节点分叉</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>如果你的扩展在 <code>session_start</code> 里做了初始化，必须对 <code>reload</code> 幂等。</strong>
+最常见的事故是「每 reload 一次就多注册一份工具」——
+注册两次同名工具会报错，然后整个扩展挂掉。</p>
+<p>正确的写法是不在 <code>session_start</code> 里注册任何东西，
+只在工厂函数顶层注册一次；<code>session_start</code> 里只做「重建内存状态」。</p>
+<hr>
+<h2 id="sec-7-三-钩子全景-四十一个-常用的十几个">三、钩子全景：四十一个，常用的十几个</h2>
+<p><code>ExtensionAPI</code> 上的 <code>on()</code> 一共 41 个重载（<code>types.ts:1621-1688</code>）。
+全列一遍没有意义，按用途分四类，每类挑最常用的：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>钩子</th>
+<th>你会用来干什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>会话</td>
+<td><code>session_start</code> <code>session_tree</code> <code>session_shutdown</code></td>
+<td>初始化状态、重建状态、收尾</td>
+</tr>
+<tr>
+<td>轮次</td>
+<td><code>before_agent_start</code> <code>turn_start</code> <code>turn_end</code> <code>agent_end</code></td>
+<td>改系统提示词、计时、记账</td>
+</tr>
+<tr>
+<td>模型</td>
+<td><code>context</code> <code>before_provider_request</code> <code>message_end</code></td>
+<td>裁剪上下文、改请求体、改回复</td>
+</tr>
+<tr>
+<td>工具</td>
+<td><code>tool_call</code> <code>tool_result</code> <code>tool_execution_start</code></td>
+<td><strong>拦截</strong>、改写结果、打日志</td>
+</tr>
+<tr>
+<td>用户</td>
+<td><code>input</code> <code>user_bash</code></td>
+<td>改输入、接管 <code>!</code> 命令</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>tool_call</code> 是这一章的主角，<code>tool_result</code> 和 <code>input</code> 在 F06 收尾时再说。</p>
+<h3 id="sec-8-3-1-拦截-tool_call-的三个返回值">3.1 拦截：<code>tool_call</code> 的三个返回值</h3>
+<p><code>ToolCallEventResult</code>（<code>types.ts:1474-1483</code>）只有三个可选字段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// types.ts:1474-1483（注释已摘成下面三段说明）</span></span><span class="ln">block?: <span class="tok-kw">boolean</span>;</span><span class="ln">reason?: <span class="tok-kw">string</span>;</span><span class="ln">terminate?: <span class="tok-kw">boolean</span>;</span></code></pre></div>
+<p>源码的注释比字段本身更有信息量，按三条摘：</p>
+<p><strong><code>block</code></strong>——Block tool execution. To modify arguments, <strong>mutate <code>event.input</code>
+in place instead</strong>. 改参数不走返回值，直接改 <code>event.input</code>。</p>
+<p><strong><code>terminate</code></strong>——Hint that the agent should stop after the current tool batch
+when this call is blocked. Early termination only happens when <strong>every</strong> finalized
+tool result in the batch sets this to true.</p>
+<p><strong><code>block: true</code></strong> 拒绝执行。返回给模型的是一个错误结果，
+它知道「被拒绝了」以及 <code>reason</code> 里写的理由，可以换个方式重试。</p>
+<p><strong><code>reason</code></strong> 只是给人（和模型）看的说明。不写也能 block，
+但模型会收到一个没有解释的失败，通常会原地重试同一个调用。</p>
+<p><strong><code>terminate: true</code></strong> 是容易被忽略的那个。注释写得很精确：
+「只有当这一批里<strong>每一个</strong>最终工具结果都把它设成 true 时，
+早停才真的发生」。这是个「与」条件，不是「或」。
+你想让 agent 立刻停下，光返回 <code>terminate</code> 不够——
+同批其它调用没有一起表态，agent 还是会继续跑。</p>
+<p><strong>想改参数怎么办？</strong> 看第一条注释：<code>mutate event.input in place</code>。
+不是返回值里放个新 input，是<strong>就地把 <code>event.input</code> 改掉</strong>。
+而且 <code>types.ts:1270-1275</code> 补了一句关键的：</p>
+<blockquote>
+<p>Later <code>tool_call</code> handlers see earlier mutations.
+<strong>No re-validation is performed after mutation.</strong></p>
+</blockquote>
+<p>改完不再校验。你把 <code>read</code> 的 <code>path</code> 改成一个数字，也没人拦你。
+这是扩展能造成麻烦的地方，也是它能做「参数规范化」的地方。</p>
+<hr>
+<h2 id="sec-9-四-一个能用的拦截器-permission-gate">四、一个能用的拦截器：permission-gate</h2>
+<p>仓库自带这个例子（<code>examples/extensions/permission-gate.ts</code>，35 行），
+这是最短的可运行拦截器。它的骨架就四步：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">const</span> dangerousPatterns = [</span><span class="ln">	/\brm\s+(-rf?|--recursive)/i,</span><span class="ln">	/\bsudo\b/i,</span><span class="ln">	/\<span class="tok-fn">b</span>(chmod|chown)\b.*<span class="tok-num">777</span>/i,</span><span class="ln">];</span></code></pre></div>
+<p>下一步是 <code>pi.on(&quot;tool_call&quot;, ...)</code>，里面按顺序做四件事：</p>
+<ol>
+<li><code>if (event.toolName !== &quot;bash&quot;) return undefined;</code></li>
+<li>取 <code>event.input.command</code>，过一遍 <code>dangerousPatterns.some(...)</code></li>
+<li>命中则先看 <code>ctx.hasUI</code>：假就 <code>return { block: true, reason: ... }</code></li>
+<li>真就 <code>await ctx.ui.select(...)</code>，用户选了 <code>&quot;Yes&quot;</code> 才放行</li>
+</ol>
+<p>完整文件可以在仓库里直接打开看，也可以拷到
+<code>&lt;agent-dir&gt;/extensions/</code> 直接用。下面只标出四个设计点。</p>
+<p><strong>先判 <code>toolName</code> 再取 <code>event.input</code>。</strong> 不判就去摸 <code>event.input.command</code>，
+在 <code>read</code> 调用上拿到的是 <code>undefined</code>，正则不报错，但你就失去了这个钩子。</p>
+<p><strong><code>ctx.hasUI</code> 决定降级策略。</strong> 没有 UI 时不能问人，
+选择是「直接 block」。<code>-p</code> 和 CI 跑的时候走这条路——
+这就是为什么权限扩展在非交互模式下默认是「更严」而不是「更松」。</p>
+<p><strong>返回值 <code>undefined</code> 表示放行。</strong> 不是 <code>{ block: false }</code>。
+两者的差别在实践中不明显，但写 <code>undefined</code> 更清楚：什么都没说。</p>
+<p><strong>正则写宽一点，只拦最危险的。</strong> <code>\brm\s+(-rf?|--recursive)</code> 只拦递归删除，
+不拦 <code>rm a.txt</code>。拦截器太激进会让 agent 每两步就被打断，
+最后你只能关掉它——那才是真正的不安全。</p>
+<h3 id="sec-10-4-1-这个模型的门槛在哪">4.1 这个模型的门槛在哪</h3>
+<p>它匹配的是<strong>命令文本</strong>。<code>bash -c &quot;rm -rf /&quot;</code> 能拦到，
+<code>python -c &quot;import shutil; shutil.rmtree('/')&quot;</code> 拦不到；
+<code>base64</code> 解码后再执行更拦不到。</p>
+<p>这不是缺陷，是这类方案的固有边界。真要隔离，得靠容器——
+F10 会讲三条隔离线的取舍。</p>
+<hr>
+<h2 id="sec-11-五-三种错误策略-写给会崩的扩展">五、三种错误策略：写给会崩的扩展</h2>
+<p>扩展是会抛异常的。Pi 对着三种情况有三种态度，
+M07 讲过实现，这里只记结论：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>错误发生在</th>
+<th>Pi 的态度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>扩展加载时（工厂函数抛错）</td>
+<td>记为加载失败，其它扩展继续，Pi 正常启动</td>
+</tr>
+<tr>
+<td>事件处理器抛错</td>
+<td>记日志，<strong>该事件的其余处理器照常跑</strong></td>
+</tr>
+<tr>
+<td>返回值不合法</td>
+<td>当作「没说」处理</td>
+</tr>
+</tbody>
+</table></div>
+<p>第一行是最重要的：<strong>一个扩展写坏不会让 Pi 起不来</strong>。
+所以你调试时不需要每次都 <code>-ne</code>，正常启动，去看看有没有报错就行。</p>
+<p>真正会挡住启动的是「路径不存在」这类加载期错误——
+F01 实验 3 演示过，它会直接打一行 <code>Error: Failed to load extension</code>。</p>
+<hr>
+<h2 id="sec-12-六-自己动手验证">六、自己动手验证</h2>
+<p><strong>实验 1：三步落位的差别。</strong></p>
+<p>先在 <code>tmp-pif/hello.ts</code> 建：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi) {</span><span class="ln">	pi.<span class="tok-fn">on</span>(<span class="tok-str">"session_start"</span>, (event) =&gt; {</span><span class="ln">		console.<span class="tok-fn">log</span>(<span class="tok-str">"[hello] reason="</span> + event.reason);</span><span class="ln">	});</span><span class="ln">}</span></code></pre></div>
+<p>三种跑法，观察第二行输出：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -e ./tmp-pif/hello.ts -p "say ok" --no-tools</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Copy-Item ./tmp-pif/hello.ts "$env:USERPROFILE\.pi\agent\extensions\zz.ts"</span><span class="ln">pi -p "say ok" --no-tools</span></code></pre></div>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -ne -p "say ok" --no-tools</span></code></pre></div>
+<p>第三条应该<strong>没有</strong> <code>[hello]</code>——这就是 <code>-ne</code> 的作用。
+实验完记得删掉那个 <code>zz.ts</code>，否则它会影响你后面所有实验。</p>
+<p><strong>实验 2：看 <code>reload</code> 的 reason。</strong></p>
+<p>把上面的 <code>hello.ts</code> 改成也打印 <code>reason</code>，然后进交互模式敲 <code>/reload</code>。
+你会看到 <code>reason=reload</code>。这一条决定了你的初始化逻辑要不要防重入。</p>
+<p><strong>实验 3：亲手拦一次。</strong></p>
+<p>把 <code>permission-gate.ts</code> 拷到全局扩展目录，然后让 Pi 干点危险事。
+非交互模式下最直观：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -p "run: rm -rf /tmp/nonexistent-dir" </span></code></pre></div>
+<p>期望：模型调 <code>bash</code>，扩展返回
+<code>Dangerous command blocked (no UI for confirmation)</code>，
+模型收到错误后改用别的说法或者告诉你它被拦了。</p>
+<h3 id="sec-13-改一处试试">改一处试试</h3>
+<p>把 permission-gate 的正则改宽一点，比如加上 <code>/\bdel\s+/i</code>（Windows 的删除命令）。
+然后重复实验 3。你会立刻发现一个问题：<strong>这个正则对 <code>bash</code> 工具生效，
+但 Windows 上实际用的是 <code>powershell</code> 工具</strong>——<code>event.toolName !== &quot;bash&quot;</code>
+那行直接把它挡在门外了。</p>
+<p>这正是本章想让你带走的一点：拦截器的覆盖面，
+取决于你判了哪些 <code>toolName</code>。要拦 PowerShell，得再写一个分支。</p>
+<hr>
+<h2 id="sec-14-七-工程暗坑">七、工程暗坑</h2>
+<p><strong>坑一：在 <code>session_start</code> 里注册工具。</strong>
+reload 一次注册一次，第二次报重名，扩展整体失效。
+注册放工厂顶层，<code>session_start</code> 只重建状态。</p>
+<p><strong>坑二：改了 <code>event.input</code> 之后以为会被校验。</strong>
+不会。类型上是 <code>Record&lt;string, unknown&gt;</code>，运行时也不复查。
+改参数要自己保证合法。</p>
+<p><strong>坑三：<code>terminate</code> 单独返回不管用。</strong>
+必须是同一批所有最终工具结果都为 <code>true</code>。想让 agent 停，
+更可靠的做法是把 <code>reason</code> 写清楚，让模型自己决定不继续。</p>
+<p><strong>坑四：以为 <code>-ne</code> 把所有扩展都关了。</strong>
+显式 <code>-e</code> 的路径仍然加载。这个设计是对的——否则你没法在
+「怀疑某个自动发现的扩展有问题」时，只保留自己那个调试扩展。</p>
+<p><strong>坑五：<code>.pi/extensions/</code> 里写了代码，但没生效也不报错。</strong>
+先查信任。没信任时整个 <code>.pi/</code> 被跳过，包括扩展、技能、提示词，
+而且<strong>不会提示你</strong>。见 F01 那节的五级判定。</p>
+<hr>
+<h2 id="sec-15-八-本章源码索引">八、本章源码索引</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/types.ts</code></td>
+<td>2,328</td>
+<td><code>on()</code> 41 个重载、<code>ToolCallEventResult</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/loader.ts</code></td>
+<td>880</td>
+<td><code>discoverExtensionsInDir</code> 三种形态</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/runner.ts</code></td>
+<td>1,565</td>
+<td>事件分发与错误策略</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/examples/extensions/permission-gate.ts</code></td>
+<td>34</td>
+<td>拦截器的最小样本</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/examples/extensions/todo.ts</code></td>
+<td>304</td>
+<td>F06 的主体样本</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-16-九-下一章">九、下一章</h2>
+<p>会拦了，下一步是「自己造一个工具」。F06 拆 <code>registerTool</code> 的全部参数，
+用 <code>todo.ts</code> 走一遍状态存哪、怎么在分叉之后自动恢复，
+以及 TUI 里怎么给自己的工具画一块专门的显示区。</p>
+
+<div class="pager">
+      <a class="prev" href="f04-instructions.html"><span class="lbl">上一篇</span>指令四层 —— 从 AGENTS.md 到 SKILL.md</a>
+      <a class="next" href="f06-extension-tools.html"><span class="lbl">下一篇</span>扩展（下）—— 自己造一个工具</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-三步落位-e-全局目录-项目目录" class="">一、三步落位：-e、全局目录、项目目录</a><a href="#sec-2-1-1-e-只这次算数" class="lv3">1.1 -e：只这次算数</a><a href="#sec-3-1-2-全局目录-放进去就生效" class="lv3">1.2 全局目录：放进去就生效</a><a href="#sec-4-1-3-项目目录-要过信任闸门" class="lv3">1.3 项目目录：要过信任闸门</a><a href="#sec-5-1-4-目录扫描的规则-只下一层" class="lv3">1.4 目录扫描的规则：只下一层</a><a href="#sec-6-二-reload-改完不用重启" class="">二、/reload：改完不用重启</a><a href="#sec-7-三-钩子全景-四十一个-常用的十几个" class="">三、钩子全景：四十一个，常用的十几个</a><a href="#sec-8-3-1-拦截-tool_call-的三个返回值" class="lv3">3.1 拦截：tool_call 的三个返回值</a><a href="#sec-9-四-一个能用的拦截器-permission-gate" class="">四、一个能用的拦截器：permission-gate</a><a href="#sec-10-4-1-这个模型的门槛在哪" class="lv3">4.1 这个模型的门槛在哪</a><a href="#sec-11-五-三种错误策略-写给会崩的扩展" class="">五、三种错误策略：写给会崩的扩展</a><a href="#sec-12-六-自己动手验证" class="">六、自己动手验证</a><a href="#sec-13-改一处试试" class="lv3">改一处试试</a><a href="#sec-14-七-工程暗坑" class="">七、工程暗坑</a><a href="#sec-15-八-本章源码索引" class="">八、本章源码索引</a><a href="#sec-16-九-下一章" class="">九、下一章</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

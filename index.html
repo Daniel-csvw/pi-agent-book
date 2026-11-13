@@ -20,15 +20,15 @@
 <div class="main">
 <main class="prose">
 <div class="hero">
-        <div class="hero-eyebrow">源码级拆解 · Pi-Agent v1.4.0 · 23 章 + 4 篇附录</div>
+        <div class="hero-eyebrow">源码级拆解 · Pi-Agent v1.4.0 · 33 章 + 4 篇附录</div>
         <h1>Pi Agent 源码级教程</h1>
         <p class="sub">对着 v1.4.0 真源码，一行一行读透一个 23 万行的 Agent</p>
         <div class="hero-stats">
-          <div class="stat"><b>23</b><span>章正文</span></div>
-          <div class="stat"><b>174,022</b><span>字</span></div>
-          <div class="stat"><b>8,906</b><span>行源码引用</span></div>
-          <div class="stat"><b>15</b><span>小时读完</span></div>
-          <div class="stat"><b>2026-11-11</b><span>最后更新</span></div>
+          <div class="stat"><b>33</b><span>章正文</span></div>
+          <div class="stat"><b>198,514</b><span>字</span></div>
+          <div class="stat"><b>9,288</b><span>行源码引用</span></div>
+          <div class="stat"><b>18</b><span>小时读完</span></div>
+          <div class="stat"><b>2026-11-13</b><span>最后更新</span></div>
         </div>
         <div class="hero-actions">
           <a class="btn btn-primary" href="modules/m01-overview.html">从 M01 开始读</a>
@@ -47,16 +47,16 @@
     <div class="q-grid"><a class="q-card" href="modules/m03-agent-loop.html">
         <span class="q-no">Q1</span>
         <p>模型调用和工具执行，到底谁包着谁？</p>
-        <span class="q-go">M03 · Agent Loop →</span></a><a class="q-card" href="modules/m05-tools.html">
+        <span class="q-go">M03 · Agent Loop →</span></a><a class="q-card" href="modules/f01-config.html">
         <span class="q-no">Q2</span>
-        <p>并发改同一个文件，锁加在哪一层？</p>
-        <span class="q-go">M05 · 工具系统 →</span></a><a class="q-card" href="modules/m09-compaction.html">
+        <p>同一个配置文件，用户层和项目层谁盖谁？</p>
+        <span class="q-go">F01 · 配置 →</span></a><a class="q-card" href="modules/m09-compaction.html">
         <span class="q-no">Q3</span>
         <p>上下文超了，先截断还是先摘要？</p>
-        <span class="q-go">M09 · 上下文压缩 →</span></a><a class="q-card" href="modules/m11-durable.html">
+        <span class="q-go">M09 · 上下文压缩 →</span></a><a class="q-card" href="modules/f01-config.html">
         <span class="q-no">Q4</span>
-        <p>一个 while 循环，怎么变成能恢复的状态机？</p>
-        <span class="q-go">M11 · 持久运行时 →</span></a></div>
+        <p>只想用、不想改代码，从哪一篇开始？</p>
+        <span class="q-go">Part F · 应用 →</span></a></div>
   </section>
       <section class="part-block" id="part-1">
         <h2 class="part-title"><span>Part A · 全景</span><span class="count">2 章</span></h2>
@@ -64,7 +64,7 @@
             <span class="num">M01</span>
             <span class="ttl">开篇</span>
             <span class="desc">为什么 Pi-Agent 值得你花时间</span>
-            <span class="card-foot"><span class="meta">9,376 字 · 186 行代码 · 44 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m02-package-map.html">
+            <span class="card-foot"><span class="meta">9,648 字 · 186 行代码 · 44 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/m02-package-map.html">
             <span class="num">M02</span>
             <span class="ttl">三层架构</span>
             <span class="desc">十二个包各自站在哪一层</span>
@@ -164,26 +164,69 @@
             <span class="num">E08</span>
             <span class="ttl">命令行</span>
             <span class="desc">七块零件，一条命令</span>
-            <span class="card-foot"><span class="meta">1,519 字 · 150 行代码 · 10 分钟</span><span class="go">阅读 →</span></span></a></div>
+            <span class="card-foot"><span class="meta">1,602 字 · 150 行代码 · 10 分钟</span><span class="go">阅读 →</span></span></a></div>
       </section><section class="part-block" id="part-6">
+        <h2 class="part-title"><span>Part F · 应用</span><span class="count">10 章</span></h2>
+        <div class="card-grid"><a class="card" href="modules/f01-config.html">
+            <span class="num">F01</span>
+            <span class="ttl">配置</span>
+            <span class="desc">三层文件，一道信任闸门</span>
+            <span class="card-foot"><span class="meta">2,418 字 · 50 行代码 · 20 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f02-models.html">
+            <span class="num">F02</span>
+            <span class="ttl">模型与凭据</span>
+            <span class="desc">六种来源，一张 models.json</span>
+            <span class="card-foot"><span class="meta">2,294 字 · 76 行代码 · 15 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f03-tools.html">
+            <span class="num">F03</span>
+            <span class="ttl">工具开关</span>
+            <span class="desc">八个内置，两个模组，五档暴露</span>
+            <span class="card-foot"><span class="meta">2,340 字 · 36 行代码 · 16 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f04-instructions.html">
+            <span class="num">F04</span>
+            <span class="ttl">指令四层</span>
+            <span class="desc">从 AGENTS.md 到 SKILL.md</span>
+            <span class="card-foot"><span class="meta">2,740 字 · 40 行代码 · 18 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f05-extension-basics.html">
+            <span class="num">F05</span>
+            <span class="ttl">扩展（上）</span>
+            <span class="desc">三步落位，一次拦截</span>
+            <span class="card-foot"><span class="meta">2,405 字 · 31 行代码 · 19 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f06-extension-tools.html">
+            <span class="num">F06</span>
+            <span class="ttl">扩展（下）</span>
+            <span class="desc">自己造一个工具</span>
+            <span class="card-foot"><span class="meta">2,040 字 · 53 行代码 · 19 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f07-mcp-codemode.html">
+            <span class="num">F07</span>
+            <span class="ttl">MCP 与 codemode</span>
+            <span class="desc">接别人的工具，写自己的脚本</span>
+            <span class="card-foot"><span class="meta">2,816 字 · 14 行代码 · 19 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f08-packages.html">
+            <span class="num">F08</span>
+            <span class="ttl">打包分发</span>
+            <span class="desc">package.json 里的 pi 清单</span>
+            <span class="card-foot"><span class="meta">2,176 字 · 44 行代码 · 15 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f09-interfaces.html">
+            <span class="num">F09</span>
+            <span class="ttl">五种接口</span>
+            <span class="desc">从终端到 SDK 的五个入口</span>
+            <span class="card-foot"><span class="meta">2,289 字 · 36 行代码 · 16 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/f10-safety.html">
+            <span class="num">F10</span>
+            <span class="ttl">上线前</span>
+            <span class="desc">信任、可写、环境三条边界</span>
+            <span class="card-foot"><span class="meta">2,499 字 · 2 行代码 · 17 分钟</span><span class="go">阅读 →</span></span></a></div>
+      </section><section class="part-block" id="part-7">
         <h2 class="part-title"><span>附录</span><span class="count">4 篇</span></h2>
-        <div class="card-grid"><a class="card" href="modules/appendix-migration.html">
-            <span class="num">APX</span>
-            <span class="ttl">附录 A</span>
-            <span class="desc">v0.80 → v1.4 迁移对照</span>
-            <span class="card-foot"><span class="meta">3,291 字 · 86 行代码 · 16 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-typescript.html">
-            <span class="num">APX</span>
-            <span class="ttl">附录 B</span>
-            <span class="desc">读源码用的 TypeScript 速查</span>
-            <span class="card-foot"><span class="meta">3,722 字 · 166 行代码 · 27 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-service.html">
-            <span class="num">APX</span>
-            <span class="ttl">附录 C</span>
-            <span class="desc">把 Agent 装进你的服务</span>
-            <span class="card-foot"><span class="meta">3,334 字 · 220 行代码 · 19 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-integration.html">
+        <div class="card-grid"><a class="card" href="modules/appendix-integration.html">
             <span class="num">APX</span>
             <span class="ttl">附录 D</span>
             <span class="desc">合龙：一次请求，二十五个落点</span>
-            <span class="card-foot"><span class="meta">1,711 字 · 7 行代码 · 8 分钟</span><span class="go">阅读 →</span></span></a></div>
+            <span class="card-foot"><span class="meta">1,777 字 · 7 行代码 · 8 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-migration.html">
+            <span class="num">APX</span>
+            <span class="ttl">附录 A</span>
+            <span class="desc">v0.80 → v1.4 迁移对照</span>
+            <span class="card-foot"><span class="meta">3,307 字 · 86 行代码 · 16 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-service.html">
+            <span class="num">APX</span>
+            <span class="ttl">附录 C</span>
+            <span class="desc">把 Agent 装进你的服务</span>
+            <span class="card-foot"><span class="meta">3,353 字 · 220 行代码 · 19 分钟</span><span class="go">阅读 →</span></span></a><a class="card" href="modules/appendix-typescript.html">
+            <span class="num">APX</span>
+            <span class="ttl">附录 B</span>
+            <span class="desc">读源码用的 TypeScript 速查</span>
+            <span class="card-foot"><span class="meta">3,741 字 · 166 行代码 · 27 分钟</span><span class="go">阅读 →</span></span></a></div>
       </section>
       <footer class="site-foot">
         <div class="foot-grid">
@@ -204,7 +247,7 @@
         </div>
         <p>内容对应 Pi-Agent v1.4.0 源码（上游已到 v1.5.x，钉 tag 阅读）· <a href="https://github.com/earendil-works/pi" target="_blank" rel="noopener">github.com/earendil-works/pi</a></p>
         <p>本书仓库 · <a href="https://github.com/Daniel-csvw/pi-agent-book" target="_blank" rel="noopener">github.com/Daniel-csvw/pi-agent-book</a></p>
-        <p>最近更新 2026-11-11 · 共 27 篇（23 章正文 + 附录）· 由 site/build.mjs 生成</p>
+        <p>最近更新 2026-11-13 · 共 37 篇（33 章正文 + 附录）· 由 site/build.mjs 生成</p>
         <p class="foot-feedback">发现错漏、或想补一章？写信给 <a href="mailto:luhui215@hotmail.com">luhui215@hotmail.com</a>，或在 <a href="https://github.com/Daniel-csvw/pi-agent-book/issues" target="_blank" rel="noopener">GitHub Issues</a> 里提。</p>
       </footer>
 

@@ -39,17 +39,27 @@
                 <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
-                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
-                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">M01</div>
       <h1>开篇 —— 为什么 Pi-Agent 值得你花时间</h1>
-      <div class="module-meta">9,376 字 · 含 186 行代码 · 约 44 分钟</div>
+      <div class="module-meta">9,648 字 · 含 186 行代码 · 约 44 分钟</div>
     </header>
     <p>先看 README 的第一句话：</p>
 <blockquote>
@@ -872,15 +882,16 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </blockquote>
 <p>到这儿，&quot;是什么&quot;和&quot;跑不跑得起来&quot;都交代过了。为什么同一件事（发请求、收结果）
 会被切成十二个包、这一刀切在哪，§三 已经摊开算过一遍。剩下的问题只有一个：
-这 23 章该按什么顺序读——§九。</p>
+这 33 章该按什么顺序读——§九。</p>
 <hr>
 <h2 id="sec-17-九-这本书怎么读">九、这本书怎么读</h2>
-<p>23 章分五部分，按&quot;离内核的距离&quot;排。</p>
+<p>33 章分六部分，按&quot;离内核的距离&quot;排：前三部分读源码，后两部分动手，最后一部分教你把 Pi 用起来。</p>
 <p><strong>Part A · 全景（M01–M02）</strong> —— 就是你现在读的这章，加上下一章的十二包地图。目标：拿到一张能定位任何代码的图。</p>
 <p><strong>Part B · 内核（M03–M07）</strong> —— <code>agent</code> 包的六个文件（<code>agent-loop</code> / <code>agent</code> / <code>types</code> / <code>proxy</code> / <code>stream-fn</code> / <code>index</code>）+ <code>ai</code> 的归一层 + <code>coding-agent</code> 的工具和消息。这五章是全书密度最高的部分，<code>agent-loop.ts</code> 那 960 行会被拆到不能再拆。</p>
 <p><strong>Part C · 上下文工程（M08–M10）</strong> —— 系统提示词怎么拼、超长对话怎么压、会话怎么存和恢复。这三章回答&quot;模型凭什么知道得这么多&quot;。</p>
 <p><strong>Part D · 盲区（M11–M15）</strong> —— <code>durable</code>、<code>chord</code>、<code>mcp</code>+<code>codemode</code>、<code>tui</code>、<code>schema</code>+<code>telemetry</code>。这五块网上的讲解最少，却占仓库 44% 的代码。</p>
 <p><strong>Part E · 造物（E01–E08，选修）</strong> —— 不读 Pi，自己写：从空目录开始，八章造出一个 1,252 行的零依赖 mini-agent，消息投影、真模型接口、工具写锁、压缩、会话、扩展钩子、命令行，每章一个能直接跑的入口。全程不 clone Pi、不配 API key；每章末尾有一节「与 Pi 的对照」，把刚写的东西指回对应源码。它不依赖前面任何一章也能开始，但读完 Part B 再做会快很多。</p>
+<p><strong>Part F · 应用（F01–F10）</strong> —— 前五部分都在讲&quot;它是怎么做的&quot;，这一部分讲&quot;你该怎么用它&quot;。十篇全是使用视角：配置文件哪一层盖哪一层、模型与凭据怎么接、工具开关如何反过来改写系统提示词、四层指令怎么叠、扩展怎么落位和造工具、MCP 与 codemode 怎么接和写、包怎么打、五种接口怎么选、上线前该查什么。每篇都以源码行号为据，但不读源码也能照着做。它和 Part E 一样可以独立开始。</p>
 <p>读法建议：</p>
 <ul>
 <li>想改 Pi 的行为 → 读 Part B 的钩子章节（M03 第七节），别动内核</li>
@@ -889,6 +900,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 <li>想知道为什么 Pi 卡住不恢复 → 读 M10、M11</li>
 <li>想抄它的 UI → 读 M14</li>
 <li>想把内核自己造一遍 → 读 Part E：E01–E08 零依赖零凭据，<code>node</code> 直接跑</li>
+<li>只想把 Pi 用起来、不改它的代码 → 读 Part F：从 F01 顺着读到 F10，全程只改配置文件</li>
 </ul>
 <p>每章结尾都有「自己动手验证」和「工程暗坑」，前者给能跑的命令，后者只写真踩过的坑。</p>
 <p>书末还有四页附录。三页是<strong>卡住时的入口</strong>，一页是<strong>读完后的全景</strong>：</p>
@@ -920,16 +932,17 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </table></div>
 <p>正文里每遇到一次这类写法，<strong>首次出现处都留了回指</strong>。不用背，卡了再翻。
 附录 D 反过来：它标的是每个结论出自哪一章，读不懂哪一站就回哪一章。</p>
-<h3 id="sec-18-9-1-五个里程碑">9.1 五个里程碑</h3>
+<h3 id="sec-18-9-1-六个里程碑">9.1 六个里程碑</h3>
 <p>书是按&quot;闭环&quot;分批写的：每一批结束时，该部分的每一章都能独立回答一个问题，且章与章之间的指针都对得上。比如 Part B 结束后，你应该能从&quot;我敲了一行字&quot;一直讲到&quot;toolResult 写回 transcript&quot;，中间不需要跳出去查。</p>
-<p>Part A 全景 → Part B 内核 → Part C 上下文工程 → Part D 盲区，四批正文之后是站点收尾（构建通过、0 失效引用）。Part E 是后来加的一批：八章自成一段，每章一个能跑的终点，不依赖 Pi 源码。</p>
-<h3 id="sec-19-9-2-三条不同的读法">9.2 三条不同的读法</h3>
-<p>同一本书，三类人应该走不一样的路。</p>
-<p><strong>路径一：三小时速通（只想用）。</strong> M01 → M02 → M05（工具）→ M07（扩展）。四章，约三小时。目标：知道扩展能改什么、工具怎么加、系统提示词里的话从哪来。剩下的以后用到再查。</p>
+<p>Part A 全景 → Part B 内核 → Part C 上下文工程 → Part D 盲区，四批正文之后是站点收尾（构建通过、0 失效引用）。Part E 是后来加的一批：八章自成一段，每章一个能跑的终点，不依赖 Pi 源码。Part F 是最后加的一批：十篇应用视角，把散落在 <code>docs/</code> 里的配置项按&quot;你要做什么&quot;重新组织。</p>
+<h3 id="sec-19-9-2-四种不同的读法">9.2 四种不同的读法</h3>
+<p>同一本书，四类人应该走不一样的路。</p>
+<p><strong>路径一：三小时速通（只想用）。</strong> F01 → F02 → F03 → F04。四章，约三小时。目标：知道配置写在哪个文件、模型怎么接、工具和指令从哪来。这是最短的一条&quot;能上手干活&quot;的路。</p>
 <p><strong>路径二：一周读通（想改内核）。</strong> 按顺序读 Part A 和 Part B，七章。重点在 M03：那章把 960 行拆成了两层循环、十三条事件、七种 stopReason。读完你应该能预测任意一段对话的事件序列。</p>
 <p><strong>路径三：只查变动最大的三块。</strong> M03 §六（三个开关的来历）+ M10 + M11。这三处是这两年改得最狠的地方，也是外部资料最容易讲错的地方。其余章节的差别属于&quot;路径变了、结论没变&quot;。</p>
+<p><strong>路径四：写扩展的人。</strong> M07（事件的语义）→ F05（落位与拦截）→ F06（造工具）→ F07（用别人的工具）→ F08（打包分发）。前两章建立心智模型，后三章是照着做的步骤。</p>
 <p>补一句：**不会 TypeScript 的话，先花十二分钟读附录 B。**它不在主线上，但缺了它，M03 的第一段代码就会卡住。</p>
-<p>三条路有一个共同的起点：先搞清楚哪一块代码属于哪一层。这就是下一章。</p>
+<p>四条路有一个共同的起点：先搞清楚哪一块代码属于哪一层。这就是下一章。</p>
 <hr>
 <h2 id="sec-20-十-自己动手验证">十、自己动手验证</h2>
 <blockquote>
@@ -1236,7 +1249,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
       <a class="next" href="m02-package-map.html"><span class="lbl">下一篇</span>三层架构 —— 十二个包各自站在哪一层</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-三个问题-一个答案" class="">零、三个问题，一个答案</a><a href="#sec-2-读这章之前-你需要先知道一件事" class="">读这章之前：你需要先知道一件事</a><a href="#sec-3-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-4-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-5-二-readme-公示-7-个包-仓库里有-12-个" class="">二、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-6-三-那-22-万行到底在补什么" class="">三、那 22 万行到底在补什么</a><a href="#sec-7-四-build-顺序能当依赖图看吗" class="">四、build 顺序能当依赖图看吗</a><a href="#sec-8-五-它刻意不做的四件事" class="">五、它刻意不做的四件事</a><a href="#sec-9-六-五个入口-一套机制" class="">六、五个入口，一套机制</a><a href="#sec-10-七-十行跑起一个-agent-然后拆开看" class="">七、十行跑起一个 agent，然后拆开看</a><a href="#sec-11-八-把仓库跑起来" class="">八、把仓库跑起来</a><a href="#sec-12-8-1-四步-每步一个判据" class="lv3">8.1 四步，每步一个判据</a><a href="#sec-13-8-2-那条长命令-三个词" class="lv3">8.2 那条长命令，三个词</a><a href="#sec-14-8-3-改一行-看到变化" class="lv3">8.3 改一行，看到变化</a><a href="#sec-15-8-4-另外两条路-build-与-test" class="lv3">8.4 另外两条路：build 与 test</a><a href="#sec-16-8-5-装依赖-四个坑-本机全踩了" class="lv3">8.5 装依赖：四个坑，本机全踩了</a><a href="#sec-17-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-18-9-1-五个里程碑" class="lv3">9.1 五个里程碑</a><a href="#sec-19-9-2-三条不同的读法" class="lv3">9.2 三条不同的读法</a><a href="#sec-20-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-21-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-22-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-23-十三-本书的引用口径" class="">十三、本书的引用口径</a><a href="#sec-24-本章小结" class="">本章小结</a><a href="#sec-25-概念回顾" class="">概念回顾</a><a href="#sec-26-练习" class="">练习</a><a href="#sec-27-常见误区" class="">常见误区</a><a href="#sec-28-读完自检" class="">读完自检</a><a href="#sec-29-下一步" class="">下一步</a><a href="#sec-30-源码索引" class="">源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-三个问题-一个答案" class="">零、三个问题，一个答案</a><a href="#sec-2-读这章之前-你需要先知道一件事" class="">读这章之前：你需要先知道一件事</a><a href="#sec-3-一-仓库自报的数字-互相打架" class="">一、仓库自报的数字，互相打架</a><a href="#sec-4-1-1-但真实行数还要多一倍" class="lv3">1.1 但真实行数还要多一倍</a><a href="#sec-5-二-readme-公示-7-个包-仓库里有-12-个" class="">二、README 公示 7 个包，仓库里有 12 个</a><a href="#sec-6-三-那-22-万行到底在补什么" class="">三、那 22 万行到底在补什么</a><a href="#sec-7-四-build-顺序能当依赖图看吗" class="">四、build 顺序能当依赖图看吗</a><a href="#sec-8-五-它刻意不做的四件事" class="">五、它刻意不做的四件事</a><a href="#sec-9-六-五个入口-一套机制" class="">六、五个入口，一套机制</a><a href="#sec-10-七-十行跑起一个-agent-然后拆开看" class="">七、十行跑起一个 agent，然后拆开看</a><a href="#sec-11-八-把仓库跑起来" class="">八、把仓库跑起来</a><a href="#sec-12-8-1-四步-每步一个判据" class="lv3">8.1 四步，每步一个判据</a><a href="#sec-13-8-2-那条长命令-三个词" class="lv3">8.2 那条长命令，三个词</a><a href="#sec-14-8-3-改一行-看到变化" class="lv3">8.3 改一行，看到变化</a><a href="#sec-15-8-4-另外两条路-build-与-test" class="lv3">8.4 另外两条路：build 与 test</a><a href="#sec-16-8-5-装依赖-四个坑-本机全踩了" class="lv3">8.5 装依赖：四个坑，本机全踩了</a><a href="#sec-17-九-这本书怎么读" class="">九、这本书怎么读</a><a href="#sec-18-9-1-六个里程碑" class="lv3">9.1 六个里程碑</a><a href="#sec-19-9-2-四种不同的读法" class="lv3">9.2 四种不同的读法</a><a href="#sec-20-十-自己动手验证" class="">十、自己动手验证</a><a href="#sec-21-十一-读这份仓库的六个坑" class="">十一、读这份仓库的六个坑</a><a href="#sec-22-十二-三个可以带走的方法" class="">十二、三个可以带走的方法</a><a href="#sec-23-十三-本书的引用口径" class="">十三、本书的引用口径</a><a href="#sec-24-本章小结" class="">本章小结</a><a href="#sec-25-概念回顾" class="">概念回顾</a><a href="#sec-26-练习" class="">练习</a><a href="#sec-27-常见误区" class="">常见误区</a><a href="#sec-28-读完自检" class="">读完自检</a><a href="#sec-29-下一步" class="">下一步</a><a href="#sec-30-源码索引" class="">源码索引</a></nav>
 </div>
 </div>
 <script>

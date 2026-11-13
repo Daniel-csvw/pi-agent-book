@@ -6,15 +6,15 @@
 
 <sub>上游已发布 v1.5.x；本书钉在 `v1.4.0` 这个 tag 上，文中行号与数字只对这一份有效</sub>
 
-<sub>27 篇 · 174,022 字 · 8,906 行代码 · 约 15 小时读完</sub>
+<sub>37 篇 · 198,389 字 · 9,288 行代码 · 约 18 小时读完</sub>
 
 <br>
 
 [![read online](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%98%85%E8%AF%BB-daniel--csvw.github.io-eb6c36?style=for-the-badge&labelColor=1a1d28)](https://daniel-csvw.github.io/pi-agent-book/)
 
-[![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-27-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-174%2C022-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-8%2C906%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-37-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-198%2C389-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-9%2C288%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
 [![pi-agent](https://img.shields.io/badge/pi--agent-v1.4.0-4f5d75?style=flat-square)](https://github.com/earendil-works/pi)
 
 **[马上开始读 →](https://daniel-csvw.github.io/pi-agent-book/)**
@@ -69,6 +69,7 @@
 | TypeScript 语法（附录 B） | `#` 私有字段、`<const T>`、重载、映射类型：源码为什么非得这么写 |
 | 合龙（附录 D） | 一条请求依次落过二十五个落点，每站都标了出处章节 |
 | 造物（Part E） | 1,252 行自造一个零依赖内核（八章，每章一个能跑的 `demo-*.ts`）；再回读 Pi 的对应实现 |
+| 应用（Part F） | 不改一行源码，把 Pi 配好、扩好、发出去：配置三层、工具开关、扩展五步、MCP、打包、五种接口、上线三边界 |
 
 ---
 
@@ -80,7 +81,7 @@
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| M01 | [开篇 —— 为什么 Pi-Agent 值得你花时间](https://daniel-csvw.github.io/pi-agent-book/modules/m01-overview.html) | 9,376 字 · 186 行 |
+| M01 | [开篇 —— 为什么 Pi-Agent 值得你花时间](https://daniel-csvw.github.io/pi-agent-book/modules/m01-overview.html) | 9,648 字 · 186 行 |
 | M02 | [三层架构 —— 十二个包各自站在哪一层](https://daniel-csvw.github.io/pi-agent-book/modules/m02-package-map.html) | 7,671 字 · 262 行 |
 
 ### Part B · 内核
@@ -122,29 +123,48 @@
 | E05 | [上下文 —— 一道阈值，一条摘要，四个数字](https://daniel-csvw.github.io/pi-agent-book/modules/e05-context.html) | 1,771 字 · 112 行 |
 | E06 | [会话 —— 一行一条，坏行报行号](https://daniel-csvw.github.io/pi-agent-book/modules/e06-session.html) | 1,584 字 · 95 行 |
 | E07 | [扩展 —— 钩子挂在工具表上，内核不动](https://daniel-csvw.github.io/pi-agent-book/modules/e07-extension.html) | 1,908 字 · 163 行 |
-| E08 | [命令行 —— 七块零件，一条命令](https://daniel-csvw.github.io/pi-agent-book/modules/e08-cli.html) | 1,519 字 · 150 行 |
+| E08 | [命令行 —— 七块零件，一条命令](https://daniel-csvw.github.io/pi-agent-book/modules/e08-cli.html) | 1,602 字 · 150 行 |
 
 > E01–E08 零依赖、零凭据，`node` 直接跑：每章一个入口，终态 1,252 行源码 + 249 行测试（14 个测试）。
+
+### Part F · 应用
+
+| # | 章节 | 篇幅 |
+| --- | --- | --- |
+| F01 | [配置 —— 三层文件，一道信任闸门](https://daniel-csvw.github.io/pi-agent-book/modules/f01-config.html) | 2,418 字 · 50 行 |
+| F02 | [模型与凭据 —— 六种来源，一张 models.json](https://daniel-csvw.github.io/pi-agent-book/modules/f02-models.html) | 2,294 字 · 76 行 |
+| F03 | [工具开关 —— 八个内置，两个模组，五档暴露](https://daniel-csvw.github.io/pi-agent-book/modules/f03-tools.html) | 2,340 字 · 36 行 |
+| F04 | [指令四层 —— 从 AGENTS.md 到 SKILL.md](https://daniel-csvw.github.io/pi-agent-book/modules/f04-instructions.html) | 2,740 字 · 40 行 |
+| F05 | [扩展（上）—— 三步落位，一次拦截](https://daniel-csvw.github.io/pi-agent-book/modules/f05-extension-basics.html) | 2,405 字 · 31 行 |
+| F06 | [扩展（下）—— 自己造一个工具](https://daniel-csvw.github.io/pi-agent-book/modules/f06-extension-tools.html) | 2,040 字 · 53 行 |
+| F07 | [MCP 与 codemode —— 接别人的工具，写自己的脚本](https://daniel-csvw.github.io/pi-agent-book/modules/f07-mcp-codemode.html) | 2,816 字 · 14 行 |
+| F08 | [打包分发 —— package.json 里的 pi 清单](https://daniel-csvw.github.io/pi-agent-book/modules/f08-packages.html) | 2,176 字 · 44 行 |
+| F09 | [五种接口 —— 从终端到 SDK 的五个入口](https://daniel-csvw.github.io/pi-agent-book/modules/f09-interfaces.html) | 2,289 字 · 36 行 |
+| F10 | [上线前 —— 信任、可写、环境三条边界](https://daniel-csvw.github.io/pi-agent-book/modules/f10-safety.html) | 2,499 字 · 2 行 |
+
+> F01–F10 只讲“改哪个文件、写什么、改完怎么生效”，不重复源码原理；每章末尾的索引指回 M 系列。
 
 ### 附录
 
 | # | 章节 | 篇幅 |
 | --- | --- | --- |
-| APX-1 | [附录 A —— v0.80 → v1.4 迁移对照](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-migration.html) | 3,291 字 · 86 行 |
-| APX-2 | [附录 B —— 读源码用的 TypeScript 速查](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-typescript.html) | 3,722 字 · 166 行 |
-| APX-3 | [附录 C —— 把 Agent 装进你的服务](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-service.html) | 3,334 字 · 220 行 |
-| APX-4 | [附录 D —— 合龙：一次请求，二十五个落点](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-integration.html) | 1,711 字 · 7 行 |
+| APX-1 | [附录 A —— v0.80 → v1.4 迁移对照](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-migration.html) | 3,307 字 · 86 行 |
+| APX-2 | [附录 B —— 读源码用的 TypeScript 速查](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-typescript.html) | 3,741 字 · 166 行 |
+| APX-3 | [附录 C —— 把 Agent 装进你的服务](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-service.html) | 3,353 字 · 220 行 |
+| APX-4 | [附录 D —— 合龙：一次请求，二十五个落点](https://daniel-csvw.github.io/pi-agent-book/modules/appendix-integration.html) | 1,777 字 · 7 行 |
 
 ---
 
-## 三条阅读路线
+## 四条阅读路线
 
 | 你有多少时间 | 怎么读 |
 | --- | --- |
 | 30 分钟 | M01 → M03。先看它凭什么算一个 Agent，再看主循环怎么转 |
+| 只想用起来 | F01 → F02 → F03 → F04。配置、凭据、工具开关、指令文件，四篇就够了 |
 | 半天 | Part A + Part B（M01–M07）。吃透内核，够你改一个自己的 Agent |
 | 全流程 | M01 → M15，再用附录 D 横向复盘一遍，最后用附录 C 把它装成一个 HTTP 服务 |
 | 想自己造一遍 | Part E 的 E01–E08 写 1,252 行 mini-agent，再拿它对照 Pi 的对应实现（M03–M10） |
+| 想写扩展 / 发包 | F05 → F06 → F07，再回 M07 看懂钩子为什么这么设计；F08 教你怎么发出去 |
 
 ```mermaid
 flowchart TB
@@ -152,7 +172,8 @@ flowchart TB
     B --> C["M08–M10 · 上下文工程"]
     C --> D["M11–M15 · 运行时与生态"]
     D --> E["E01–E08 · 造物"]
-    E --> F["附录 · 迁移对照 / TS 速查 / 上线 / 合龙"]
+    E --> F["F01–F10 · 应用"]
+    F --> G["附录 · 迁移对照 / TS 速查 / 上线 / 合龙"]
 ```
 
 ---

@@ -39,17 +39,27 @@
                 <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
-                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="active">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="">
-                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="active">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">APX</div>
       <h1>附录 B —— 读源码用的 TypeScript 速查</h1>
-      <div class="module-meta">3,722 字 · 含 166 行代码 · 约 27 分钟</div>
+      <div class="module-meta">3,741 字 · 含 166 行代码 · 约 27 分钟</div>
     </header>
     <p>这本书的代码块全部来自 v1.4.0 源码，不是伪代码。所以读之前，你得能
 看懂两种东西：<strong>TypeScript 的类型写法</strong>，和<strong>Node 运行时的几个内建对象</strong>。</p>
@@ -743,8 +753,8 @@ Python 里最接近 <code>asyncio.call_soon</code>。</p>
 </table></div>
 
 <div class="pager">
-      <a class="prev" href="appendix-migration.html"><span class="lbl">上一篇</span>附录 A —— v0.80 → v1.4 迁移对照</a>
-      <a class="next" href="appendix-service.html"><span class="lbl">下一篇</span>附录 C —— 把 Agent 装进你的服务</a>
+      <a class="prev" href="appendix-service.html"><span class="lbl">上一篇</span>附录 C —— 把 Agent 装进你的服务</a>
+      <span></span>
     </div>
 </main>
 <nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-第一件事-类型标注是注释" class="">一、第一件事：类型标注是注释</a><a href="#sec-2-二-八种只有读源码才会遇到的写法" class="">二、八种只有读源码才会遇到的写法</a><a href="#sec-3-2-1-联合类型-a-b-一个变量几种形状" class="lv3">2.1 联合类型 A | B：一个变量几种形状</a><a href="#sec-4-2-2-判别联合-never-漏一种就编译不过" class="lv3">2.2 判别联合 + never：漏一种就编译不过</a><a href="#sec-5-2-3-泛型-lt-t-gt-待填的类型参数" class="lv3">2.3 泛型 &amp;lt;T&amp;gt;：待填的类型参数</a><a href="#sec-6-2-4-类型谓词-is-收窄的开关" class="lv3">2.4 类型谓词 is：收窄的开关</a><a href="#sec-7-2-5-条件类型-类型层面的-if" class="lv3">2.5 条件类型：类型层面的 if</a><a href="#sec-8-2-6-satisfies-检查-但别改我的类型" class="lv3">2.6 satisfies：检查，但别改我的类型</a><a href="#sec-9-2-7-as-const-把字面量冻成常量" class="lv3">2.7 as const：把字面量冻成常量</a><a href="#sec-10-2-8-declare-module-声明合并" class="lv3">2.8 declare module：声明合并</a><a href="#sec-11-三-进阶十种-源码里就那么写" class="">三、进阶十种：源码里就那么写</a><a href="#sec-12-3-1-x-真私有-类外拿不到-1-043-处" class="lv3">3.1 #x：真私有，类外拿不到（1,043 处）</a><a href="#sec-13-3-2-get-set-调用时不带括号-347-处" class="lv3">3.2 get / set：调用时不带括号（347 处）</a><a href="#sec-14-3-3-async-yield-手写异步迭代器-160-处" class="lv3">3.3 async * / yield：手写异步迭代器（160 处）</a><a href="#sec-15-3-4-as-unknown-as-跨家族断言-138-处" class="lv3">3.4 as unknown as：跨家族断言（138 处）</a><a href="#sec-16-3-5-override-覆写要写出来-108-处" class="lv3">3.5 override：覆写要写出来（108 处）</a><a href="#sec-17-3-6-promise-withresolvers-把开关留在自己手里-41-处" class="lv3">3.6 Promise.withResolvers：把开关留在自己手里（41 处）</a><a href="#sec-18-3-7-lt-const-t-gt-让字面量别被放宽-39-处" class="lv3">3.7 &amp;lt;const T&amp;gt;：让字面量别被放宽（39 处）</a><a href="#sec-19-3-8-函数重载-一个名字-几份目录-33-处" class="lv3">3.8 函数重载：一个名字，几份目录（33 处）</a><a href="#sec-20-3-9-映射类型-索引访问-在类型层面遍历键-82-处" class="lv3">3.9 映射类型 + 索引访问：在类型层面遍历键（82 处）</a><a href="#sec-21-3-10-unique-symbol-给-number-贴标签-10-处" class="lv3">3.10 unique symbol：给 number 贴标签（10 处）</a><a href="#sec-22-3-11-剩下几种-一句话过" class="lv3">3.11 剩下几种，一句话过</a><a href="#sec-23-四-符号速查表" class="">四、符号速查表</a><a href="#sec-24-五-node-运行时-四个绕不开的内建对象" class="">五、Node 运行时：四个绕不开的内建对象</a><a href="#sec-25-六-python-程序员的三个真陷阱" class="">六、Python 程序员的三个真陷阱</a><a href="#sec-26-七-正文里哪些地方该回这一页" class="">七、正文里哪些地方该回这一页</a><a href="#sec-27-源码索引" class="">源码索引</a></nav>

@@ -39,17 +39,27 @@
                 <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
                 <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
                 <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
-                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-migration.html" class="">
-                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-service.html" class="">
-                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-integration.html" class="active">
-                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a></div></aside>
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="active">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">APX</div>
       <h1>附录 D —— 合龙：一次请求，二十五个落点</h1>
-      <div class="module-meta">1,711 字 · 含 7 行代码 · 约 8 分钟</div>
+      <div class="module-meta">1,777 字 · 含 7 行代码 · 约 8 分钟</div>
     </header>
     <p>Part A–D 那十五章是<strong>纵向</strong>的：一章一个包，一段一段往下钻。这一页横着走一遍——
 一条用户输入，从敲下回车到看见回复，中途在哪些地方换了手。</p>
@@ -364,11 +374,13 @@ M04 §十一 把它叫做用折叠点找设计重心。</p>
 <h2 id="sec-7-七-接下来读什么">七、接下来读什么</h2>
 <p>三条路，按你现在的状态选：</p>
 <p><strong>想改行为。</strong> 回 M07 §七照着写一个扩展——那是唯一一个&quot;不改内核也能改一切&quot;的口子。
-写完再回这一页，你会发现自己动的是第 22 站和第 23 站之间。</p>
+写完再回这一页，你会发现自己动的是第 22 站和第 23 站之间。
+落地的写法（放哪个目录、<code>on()</code> 接哪些事件、<code>registerTool</code> 的每个参数）在 F05 / F06。</p>
 <p><strong>想改内核。</strong> 从 M03 §5.1 那段骨架开始，把 <code>agent-loop.ts</code> 抄一遍再对照。
 它 960 行，抄完你就有了自己的 Agent 循环。</p>
 <p><strong>想搬进产品。</strong> 附录 C 有能跑的四十行服务和四个上线坑；
-M11 讲清楚了&quot;进程随时会消失&quot;时该怎么办。</p>
+M11 讲清楚了&quot;进程随时会消失&quot;时该怎么办。
+五种入口的业务选型（交互 / <code>-p</code> / json / rpc / SDK）在 F09，上线前的三条边界在 F10。</p>
 <hr>
 <h2 id="sec-8-源码索引">源码索引</h2>
 <div class="table-wrap"><table>
@@ -429,8 +441,8 @@ M11 讲清楚了&quot;进程随时会消失&quot;时该怎么办。</p>
 </table></div>
 
 <div class="pager">
-      <a class="prev" href="appendix-service.html"><span class="lbl">上一篇</span>附录 C —— 把 Agent 装进你的服务</a>
-      <span></span>
+      <a class="prev" href="f10-safety.html"><span class="lbl">上一篇</span>上线前 —— 信任、可写、环境三条边界</a>
+      <a class="next" href="appendix-migration.html"><span class="lbl">下一篇</span>附录 A —— v0.80 → v1.4 迁移对照</a>
     </div>
 </main>
 <nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-一条链路-二十五个落点" class="">一、一条链路，二十五个落点</a><a href="#sec-2-二-三个折叠点-跨边界只允许收窄一次" class="">二、三个折叠点：跨边界只允许收窄一次</a><a href="#sec-3-三-五笔-quot-只追加-quot" class="">三、五笔&amp;quot;只追加&amp;quot;</a><a href="#sec-4-四-三道边界" class="">四、三道边界</a><a href="#sec-5-五-如果只带走五句话" class="">五、如果只带走五句话</a><a href="#sec-6-六-这一页没讲的" class="">六、这一页没讲的</a><a href="#sec-7-七-接下来读什么" class="">七、接下来读什么</a><a href="#sec-8-源码索引" class="">源码索引</a></nav>

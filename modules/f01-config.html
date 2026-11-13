@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配置 —— 三层文件，一道信任闸门 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="active">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">F01</div>
+      <h1>配置 —— 三层文件，一道信任闸门</h1>
+      <div class="module-meta">2,418 字 · 含 50 行代码 · 约 20 分钟</div>
+    </header>
+    <p><code>npm install -g @earendil-works/pi-coding-agent</code> 跑完，<code>pi</code> 能启动，然后呢？
+多数人的第一反应是去翻配置——结果发现根本没有 <code>pi.config.yaml</code>，也没有 <code>--flag</code> 清单能覆盖的
+那几十个开关。Pi 的配置就是<strong>目录里的几个文件</strong>，<code>settings.json</code> 只是其中最小的一个。</p>
+<p>这一章只做一件事：把「改哪个文件、什么时候生效、谁挡住你」三件事钉死。
+偏差配置是最贵的 bug——它不报错，只是让你以为 Pi 不听话。</p>
+<p>三个问题：</p>
+<ol>
+<li>一个设置项到底从哪来？用户层、项目层、命令行，谁压谁？</li>
+<li><code>defaultTools</code> 写 <code>[&quot;+codemode&quot;]</code> 和写 <code>[&quot;codemode&quot;]</code> 差在哪？</li>
+<li>项目里的 <code>.pi/</code> 为什么有时候<strong>完全不生效</strong>，而且不报错？</li>
+</ol>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">  ~/.pi/agent/            项目 .pi/</span><span class="ln">  ├─ settings.json         ├─ settings.json      &lt;-- 需要信任</span><span class="ln">  ├─ models.json           ├─ mcp.json</span><span class="ln">  ├─ auth.json             ├─ extensions/</span><span class="ln">  ├─ mcp.json              ├─ skills/</span><span class="ln">  ├─ trust.json  -----&gt;    └─ prompts/</span><span class="ln">  ├─ AGENTS.md   (不需要信任，任何目录都加载)</span><span class="ln">  └─ extensions/</span><span class="ln">        |                        |</span><span class="ln">        +--------+---------------+</span><span class="ln">                 v</span><span class="ln">        deepMergeSettings(global, project)     core/settings-manager.ts:143</span><span class="ln">                 v</span><span class="ln">        deepMergeSettings(merged, overrides)   命令行/SDK</span><span class="ln">                 v</span><span class="ln">        resolveDefaultTools()                  core/settings-manager.ts:137</span></code></pre></div>
+<hr>
+<h2 id="sec-1-一-本章终点-先跑起来">一、本章终点：先跑起来</h2>
+<p>三个命令就能看到全部真相，都不需要 API key：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi --version</span><span class="ln">pi list</span><span class="ln">pi --list-models</span></code></pre></div>
+<p>本机（v1.4.0 / Windows 24H2）实跑的前两行输出：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">1.4.0</span><span class="ln">User packages:</span><span class="ln">  npm:pi-web-access</span><span class="ln">    C:\Users\luhui2\.pi\agent\npm\node_modules\pi-web-access</span><span class="ln">  npm:pi-chrome</span><span class="ln">    C:\Users\luhui2\.pi\agent\npm\node_modules\pi-chrome</span></code></pre></div>
+<p><code>pi list</code> 只报<strong>包</strong>，不报散装扩展。这一点后面 §四 会再回来：你往
+<code>~/.pi/agent/extensions/</code> 里丢十个 <code>.ts</code>，<code>pi list</code> 一个都不显示，但它们确实在跑。</p>
+<p>第三个命令要配 <code>PI_OFFLINE=1</code>，否则会先去网上刷模型目录：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">$env:PI_OFFLINE="1"; pi --list-models</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">provider        model                       context  max-out  thinking  images</span><span class="ln">funagent        funagent-default            128K     16.4K    no        no</span><span class="ln">funagent-local  funagent-default            128K     16.4K    no        no</span><span class="ln">svw             doubao                      262.1K   32.8K    no        no</span><span class="ln">volcengine      deepseek-v4-1-flash-260910  262.1K   32.8K    no        no</span></code></pre></div>
+<p>这四行全部来自 <code>models.json</code>，不是 Pi 内置目录——它们长得就不像内置模型名。
+F02 讲怎么造这样的条目。</p>
+<hr>
+<h2 id="sec-2-二-agent-目录-13-个位置-各管一件事">二、agent 目录：13 个位置，各管一件事</h2>
+<p>用户级配置全在 <code>&lt;agent-dir&gt;</code>，默认 <code>~/.pi/agent</code>，可用 <code>PI_CODING_AGENT_DIR</code>
+或 SDK 的 <code>agentDir</code> 改（<code>environment-variables.md</code> 的 Pi Process Configuration 表）。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>路径</th>
+<th>谁读它</th>
+<th>改完怎么生效</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>settings.json</code></td>
+<td><code>SettingsManager</code></td>
+<td><code>/reload</code>，或重启</td>
+</tr>
+<tr>
+<td><code>models.json</code></td>
+<td><code>ModelConfig</code></td>
+<td>打开 <code>/model</code> 时重读（<code>models.md:67</code>）</td>
+</tr>
+<tr>
+<td><code>auth.json</code></td>
+<td><code>AuthStorage</code></td>
+<td>立即；<code>/login</code> <code>/logout</code> 写它</td>
+</tr>
+<tr>
+<td><code>mcp.json</code></td>
+<td>MCP 扩展</td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>keybindings.json</code></td>
+<td>交互模式</td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>AGENTS.md</code> 等 5 个名字</td>
+<td><code>loadProjectContextFiles</code></td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>SYSTEM.md</code> / <code>APPEND_SYSTEM.md</code></td>
+<td>系统提示词装配</td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>extensions/</code></td>
+<td><code>discoverAndLoadExtensions</code></td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>skills/</code> <code>prompts/</code> <code>themes/</code></td>
+<td>资源加载器</td>
+<td><code>/reload</code></td>
+</tr>
+<tr>
+<td><code>trust.json</code></td>
+<td><code>TrustManager</code></td>
+<td>立即</td>
+</tr>
+<tr>
+<td><code>sessions/</code></td>
+<td><code>SessionManager</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>npm/</code> <code>tmp/</code> <code>bin/</code></td>
+<td>包与 -e 缓存</td>
+<td>自动</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>AGENTS.md</code> 那一行要特别注意：它<strong>不属于</strong>项目配置。配置文档把
+「Context files」单列一节，原话是 Context-file discovery does not require
+project trust（<code>configuration.md:47</code>）。也就是说，你 clone 一个陌生仓库、拒绝信任它，
+<code>.pi/</code> 里的一切都被跳过，只有 <code>AGENTS.md</code> 照样进系统提示词。</p>
+<blockquote>
+<p>这不是漏洞，是设计：同目录下 <code>AGENTS.override.md</code> 优先于 <code>AGENTS.md</code>，
+<code>AGENTS.md</code> 又优先于 <code>CLAUDE.md</code>（<code>resource-loader.ts:213</code> 那五个候选名）。
+覆盖链只影响同目录，不会屏蔽上层的文件（<code>configuration.md:45</code>）。
+三十章之后 F04 会把这五个名字的探索顺序完整走一遍。</p>
+</blockquote>
+<p>三层的关系一句话：<strong>用户层是基线，项目层覆盖它，命令行和 SDK 再覆盖合并结果。</strong></p>
+<hr>
+<h2 id="sec-3-三-合并规则-深合并-数组例外">三、合并规则：深合并，数组例外</h2>
+<p>三条设置文件都是 JSON，但合并不是 <code>Object.assign</code>。三个函数决定了一切，
+都在 <code>settings-manager.ts</code> 的前 150 行里：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>行</th>
+<th>函数</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>:61-63</code></td>
+<td><code>isMergeableObject</code></td>
+<td>对象算可合并，<strong>数组不算</strong></td>
+</tr>
+<tr>
+<td><code>:65-82</code></td>
+<td><code>deepMergeObjects</code></td>
+<td>递归合并，叶子取覆盖值</td>
+</tr>
+<tr>
+<td><code>:143-147</code></td>
+<td><code>deepMergeSettings</code></td>
+<td>先深合并，再把 <code>defaultTools</code> 单独接回</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>deepMergeObjects</code> 的循环体只有一句判断：两边都是对象就递归，否则用覆盖值。
+<code>isMergeableObject</code> 里那个 <code>!Array.isArray(value)</code> 排除了数组——
+所以你在项目里写 <code>&quot;compaction&quot;: { &quot;enabled&quot;: false }</code>，用户的 <code>reserveTokens</code>
+会保留；但你写 <code>&quot;packages&quot;: []</code>，用户的包声明就<strong>全没了</strong>。</p>
+<p><code>defaultTools</code> 是唯一的例外：<code>deepMergeSettings</code> 先深合并<strong>其它</strong>所有键，
+最后单独把 <code>defaultTools</code> 拿出来交给 <code>mergeDefaultTools</code>（<code>:145-146</code>）。
+两个函数一共八行，逻辑可直接摊成一张表（<code>:126-140</code>）：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>输入</th>
+<th>内部动作</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>覆盖值为 <code>undefined</code></td>
+<td>直接返回 <code>base</code></td>
+<td>继承</td>
+</tr>
+<tr>
+<td>任一侧不是数组</td>
+<td>返回覆盖值</td>
+<td>替换</td>
+</tr>
+<tr>
+<td>覆盖值里有普通名</td>
+<td>返回覆盖值</td>
+<td>整套替换</td>
+</tr>
+<tr>
+<td>覆盖值全是 <code>+</code>/<code>-</code></td>
+<td><code>[...base, ...overrides]</code> 拼起来</td>
+<td>叠加</td>
+</tr>
+</tbody>
+</table></div>
+<p>拼接完还有一道 <code>resolveDefaultTools</code>：先挑出普通名（<code>plain</code>），
+如果 <code>plain</code> 非空、或者整个列表就是空数组，就把它当基准；
+否则拿 <code>DEFAULT_TOOL_NAMES</code> 当基准；最后把 <code>+</code>/<code>-</code> 逐条应用上去。</p>
+<p>拆开读，四句话：</p>
+<p><strong>写在项目层的一串 <code>+name</code> 是「叠加」，不是「替换」。</strong>
+覆盖值全是模组时直接拼接，所以用户层加的工具不会被项目层冲掉。</p>
+<p><strong>写了普通名字就是「整套替换」。</strong> <code>plain.length &gt; 0</code> 时基准变成 <code>plain</code>，
+默认的那四个工具一起消失。</p>
+<p><strong>只有 <code>+</code>/<code>-</code> 时基准是默认四件套。</strong> <code>DEFAULT_TOOL_NAMES</code> 就是
+<code>[&quot;read&quot;, &quot;bash&quot;, &quot;edit&quot;, &quot;write&quot;]</code>（<code>:85</code>）。</p>
+<p><strong><code>+</code> / <code>-</code> 按顺序生效。</strong> <code>applyToolModifiers</code> 从头扫到尾（<code>:110-120</code>），
+重复 <code>+</code> 不会加两次，删一个不存在的名字也不报错。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你写的</th>
+<th>最终工具集</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不写 <code>defaultTools</code></td>
+<td><code>read</code> <code>bash</code> <code>edit</code> <code>write</code></td>
+</tr>
+<tr>
+<td><code>[&quot;+codemode&quot;]</code></td>
+<td>四件套 + <code>codemode</code></td>
+</tr>
+<tr>
+<td><code>[&quot;+codemode&quot;, &quot;-write&quot;]</code></td>
+<td><code>read</code> <code>bash</code> <code>edit</code> <code>codemode</code></td>
+</tr>
+<tr>
+<td><code>[&quot;read&quot;, &quot;grep&quot;]</code></td>
+<td>只有 <code>read</code> <code>grep</code></td>
+</tr>
+<tr>
+<td><code>[&quot;read&quot;, &quot;+grep&quot;]</code></td>
+<td>非法：普通名与 <code>+</code> 混用（<code>getToolListError</code>，<code>:97-104</code>）</td>
+</tr>
+<tr>
+<td><code>[&quot;+code*&quot;]</code></td>
+<td>非法：<code>+</code>/<code>-</code> 只收精确名，不支持 <code>*</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>最后两行不是合并规则，是校验规则：<code>getToolListError</code> 只检查
+「模组里有没有普通名」和「模组里有没有 <code>*</code>」。但注意注释
+「Settings files are not validated」——<code>settings.json</code> 里的非法组合<strong>不会在启动时拦你</strong>，
+命令行 <code>--tools</code> 才会立刻报错。</p>
+<hr>
+<h2 id="sec-4-四-信任闸门-它挡的是什么-不挡什么">四、信任闸门：它挡的是什么，不挡什么</h2>
+<p><code>.pi/settings.json</code> 写好了，<code>pi</code> 一启动却毫无反应——多半是信任没给。
+判定写在 <code>resolveProjectTrusted</code> 里，一共五道卡，从上往下问：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>行</th>
+<th>依据</th>
+<th>命中结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>:48-50</code></td>
+<td><code>--approve</code> / <code>--no-approve</code></td>
+<td>直接用命令行的布尔值</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>:51-53</code></td>
+<td>目录里没有需要信任的资源</td>
+<td>查 <code>trust.json</code>，无记录就算真</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>:55-71</code></td>
+<td>扩展的 <code>project_trust</code> 事件</td>
+<td>第一个回答 yes/no 的说了算</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>:73-76</code></td>
+<td><code>trust.json</code> 里的旧决定</td>
+<td>直接返回那个布尔值</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>:78-96</code></td>
+<td><code>defaultProjectTrust</code> 设置 → 弹窗</td>
+<td><code>always</code> 真 / <code>never</code> 假 / <code>ask</code> 问人</td>
+</tr>
+</tbody>
+</table></div>
+<p>第五道自己是两段的：先看设置项三选一，<code>ask</code> 才往下走；
+<code>hasUI</code> 为假就在 <code>:87-89</code> 直接 <code>return false</code>，有 UI 才弹窗让人选，
+并且只有在选了「记住」时才写回 <code>trust.json</code>。</p>
+<p>三个必须记住的后果：</p>
+<p><strong>目录里没有任何「需要信任」的资源，直接算可信。</strong>
+<code>hasTrustRequiringProjectResources</code> 为假时 <code>?? true</code>——空 <code>.pi</code> 目录不拦你
+（<code>security.md:45</code> 也是这么写的）。</p>
+<p><strong><code>ask</code> + 没有 UI = 拒绝。</strong> <code>:87-89</code> 那三行是「非交互模式」的全部命运：
+<code>hasUI</code> 为假就直接 <code>return false</code>。
+<code>-p</code> / <code>--mode json</code> / <code>--mode rpc</code> 全在这里静默跳过项目配置。
+CI 里跑 Pi 却「项目配置不生效」，八成是这里。</p>
+<p><strong>它挡的是加载，不是运行。</strong> 官方说得很直白：project trust
+does not limit what tool calls can access（<code>security.md:33</code>）。
+信任闸门只管「启动时要不要读 <code>.pi/</code> 里的东西」，读完之后工具照样以你的身份跑。
+唯一漏网的读是 <code>sessionDir</code>——它在信任之前就被读了，好让 Pi 知道会话存哪（<code>configuration.md:3</code>）。</p>
+<p><code>defaultProjectTrust</code> 只能写在用户层（<code>settings-schema.ts:271-274</code> 标了
+Global setting only），默认值 <code>&quot;ask&quot;</code>（<code>settings-defaults.ts:30</code>）。
+<code>trust.json</code> 里存的是逐目录的布尔决定，用 <code>/trust</code> 或弹窗写入。</p>
+<h3 id="sec-5-4-1-同一个目录-三种活法">4.1 同一个目录，三种活法</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>启动方式</th>
+<th><code>.pi/</code> 是否加载</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pi</code>（终端）</td>
+<td>首次问，记住后自动</td>
+<td><code>ask</code> + 有 UI</td>
+</tr>
+<tr>
+<td><code>pi -a</code></td>
+<td>是</td>
+<td><code>--approve</code> 直接盖过一切</td>
+</tr>
+<tr>
+<td><code>pi -p &quot;...&quot;</code></td>
+<td>否（除非已记住或 <code>always</code>）</td>
+<td><code>ask</code> + 无 UI</td>
+</tr>
+<tr>
+<td><code>pi -p -a &quot;...&quot;</code></td>
+<td>是</td>
+<td>命令行覆盖优先于 <code>defaultProjectTrust</code></td>
+</tr>
+<tr>
+<td><code>defaultProjectTrust: &quot;always&quot;</code> 后 <code>pi -p</code></td>
+<td>是</td>
+<td>设置项直接返回 true</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Windows 上注意：<code>pi</code> 走的是 <code>pi.ps1</code> 包装脚本，多行输出会被 PowerShell
+当成错误流染色。判断「到底跑没跑」看第一行有没有打出来，别被红字吓到。</p>
+</blockquote>
+<hr>
+<h2 id="sec-6-五-资源路径-想让-pi-读别处的文件">五、资源路径：想让 Pi 读别处的文件</h2>
+<p><code>settings.json</code> 里还有五类资源声明，都能写绝对路径或相对路径：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>键</th>
+<th>收什么</th>
+<th>出现在</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages</code></td>
+<td><code>npm:</code> / <code>git:</code> / URL / 本地目录</td>
+<td><code>pi list</code></td>
+</tr>
+<tr>
+<td><code>extensions</code></td>
+<td><code>.ts</code> / <code>.js</code> / 目录 / <code>builtin:&lt;name&gt;</code></td>
+<td>启动横幅</td>
+</tr>
+<tr>
+<td><code>skills</code></td>
+<td>目录（递归找 <code>SKILL.md</code>）</td>
+<td>系统提示词的 <code>&lt;available_skills&gt;</code></td>
+</tr>
+<tr>
+<td><code>prompts</code></td>
+<td><code>.md</code></td>
+<td><code>/</code> 菜单</td>
+</tr>
+<tr>
+<td><code>themes</code></td>
+<td><code>.json</code></td>
+<td><code>/settings</code> → Theme</td>
+</tr>
+</tbody>
+</table></div>
+<p>相对路径相对<strong>声明它的那个文件</strong>解析（<code>packages.md:44</code>）。
+这条看着琐碎，实际是团队协作里最常见的坑：<code>.pi/settings.json</code> 里写
+<code>&quot;../shared/skills&quot;</code>，人人在自己机器上都对，一进容器就全崩——
+因为容器里 cwd 变了，<code>.pi/settings.json</code> 的位置没变，但 <code>../shared</code> 指向别处了。</p>
+<p><code>packages</code> 还有对象形式，能按资源类型过滤：</p>
+<div class="code-block" data-lang="json">
+<div class="code-head"><span class="lang">json</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">{</span><span class="ln">  <span class="tok-str">"packages"</span>: [</span><span class="ln">    { <span class="tok-str">"source"</span>: <span class="tok-str">"npm:@acme/pi-tools"</span>, <span class="tok-str">"skills"</span>: <span class="tok-kw">false</span>, <span class="tok-str">"themes"</span>: <span class="tok-kw">false</span> }</span><span class="ln">  ]</span><span class="ln">}</span></code></pre></div>
+<p><code>settings-schema.ts:175-182</code> 定义的字段是 <code>source</code> / <code>autoload</code> /
+<code>extensions</code> / <code>skills</code> / <code>prompts</code> / <code>themes</code>。设成 <code>false</code> 的那类资源不加载，
+但包本身仍然装着——适合「只要它的工具，不要它的提示词」这种场景。</p>
+<hr>
+<h2 id="sec-7-六-自己动手验证">六、自己动手验证</h2>
+<blockquote>
+<p>环境：v1.4.0 / node v24.12.0 / Windows 24H2。下面三个实验都在本机跑过。</p>
+</blockquote>
+<p><strong>实验 1：看默认工具集到底是谁定的。</strong></p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">$env:PI_OFFLINE="1"; pi -p "hi" --tools read,grep --no-tools</span></code></pre></div>
+<p>加上 <code>--no-tools</code> 之后 <code>read,grep</code> 仍然生效——命令行工具选择是<strong>最后</strong>叠加的，
+它盖过 <code>defaultTools</code>，也盖过 <code>-nt</code>。想确认「先 <code>-nt</code> 再 <code>--tools</code>」的优先级，
+看 <code>cli.md:119-128</code>：<code>-xt</code> 在「所有其它选择选项之后」才起作用。</p>
+<p><strong>实验 2：把一个扩展放进全局目录，看它有没有被自动发现。</strong></p>
+<p>把下面这个 12 行文件存成 <code>~/.pi/agent/extensions/zz-book-hello.ts</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">default</span> <span class="tok-kw">function</span> (pi) {</span><span class="ln">  pi.<span class="tok-fn">on</span>(<span class="tok-str">"session_start"</span>, (event) =&gt; {</span><span class="ln">    console.<span class="tok-fn">log</span>(<span class="tok-str">"[hello] reason="</span> + event.reason);</span><span class="ln">  });</span><span class="ln">}</span></code></pre></div>
+<p>然后不传 <code>-e</code> 直接跑：</p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -p "reply with the single word: ok" --no-tools</span></code></pre></div>
+<p>本机输出（<code>ok</code> 是模型回答，<code>[hello]</code> 是扩展打的）：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">ok</span><span class="ln">[hello] reason=startup</span></code></pre></div>
+<p>删除该文件后再跑一次，第二行消失。<strong>自动发现只需要放进目录，不需要写进 <code>settings.json</code>。</strong></p>
+<p><strong>实验 3：让 Pi 报出「路径不存在」的错。</strong></p>
+<div class="code-block" data-lang="powershell">
+<div class="code-head"><span class="lang">powershell</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">pi -e ./tmp-pif/probe.ts -p "hi" --no-tools</span></code></pre></div>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">Error: Failed to load extension "...\tmp-pif\probe.ts":</span><span class="ln">Extension path does not exist: ...\tmp-pif\probe.ts</span><span class="ln">Hint: Start without extensions using "pi -ne".</span></code></pre></div>
+<p>这条提示 <code>pi -ne</code> 是逃生舱：扩展写坏了导致 Pi 起不来时，用它绕过全部扩展启动一次，
+进去把文件删掉。</p>
+<h3 id="sec-8-改一处试试">改一处试试</h3>
+<p>把 <code>~/.pi/agent/settings.json</code> 的 <code>defaultTools</code> 从默认改成：</p>
+<div class="code-block" data-lang="json">
+<div class="code-head"><span class="lang">json</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-str">"defaultTools"</span>: [<span class="tok-str">"+codemode"</span>, <span class="tok-str">"-write"</span>]</span></code></pre></div>
+<p>预期：<code>pi</code> 启动后模型看得到 <code>codemode</code>，看不到 <code>write</code>；<code>read</code> <code>bash</code> <code>edit</code> 仍在。
+连带影响：<code>codemode</code> 会把「可调用工具」列进自己的描述，系统提示词的
+Available tools 段会变长。回滚：删掉这个键即可，不要写成 <code>[]</code>
+——空数组 <code>[]</code> 会一路走到 <code>entries.length === 0</code> 分支，等于「回到默认四件套」，
+看着像生效了其实什么都没改。</p>
+<hr>
+<h2 id="sec-9-七-工程暗坑">七、工程暗坑</h2>
+<p><strong>坑一：<code>&quot;defaultTools&quot;: []</code> 不等于「关掉所有工具」。</strong>
+<code>resolveDefaultTools</code> 里 <code>entries.length === 0</code> 走的是 <code>DEFAULT_TOOL_NAMES</code>。
+真要全关，用命令行 <code>-nt</code>，或者 <code>+</code> / <code>-</code> 逐个减。</p>
+<p><strong>坑二：项目层写了普通名字，用户层加的东西全丢。</strong>
+<code>mergeDefaultTools</code> 只在 <code>overrides</code> <strong>全是</strong>模组时叠加。项目里写
+<code>[&quot;read&quot;, &quot;bash&quot;]</code>，你在用户层辛苦加的 <code>+codemode</code> 就没了。
+想只减不加，写 <code>[&quot;-write&quot;]</code>。</p>
+<p><strong>坑三：<code>pi list</code> 看不到散装扩展。</strong>
+它只列 <code>settings.json</code> 里的 <code>packages</code>。全局 <code>extensions/</code> 目录里的文件
+靠目录扫描发现（<code>loader.ts:832-880</code>），<code>pi list</code> 不参与。想确认某个扩展有没有加载，
+在它里面打一行日志，或者看启动横幅的 Extensions 列表。</p>
+<p><strong>坑四：<code>models.json</code> 改了不生效，因为进程没重读。</strong>
+它只在打开 <code>/model</code> 时重读（<code>models.md:67</code>）。<code>/reload</code> 不重读它；
+改完最稳的是重启，或在交互模式里开一次 <code>/model</code> 再取消。</p>
+<p><strong>坑五：数组整体替换。</strong>
+项目里想「追加一个包」，把用户层的包抄一遍再往后加；
+写 <code>&quot;packages&quot;: [&quot;npm:new-one&quot;]</code> 会把用户层的两个包全冲掉。</p>
+<hr>
+<h2 id="sec-10-八-本章源码索引">八、本章源码索引</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>行数</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/coding-agent/src/core/settings-manager.ts</code></td>
+<td>1,456</td>
+<td><code>deepMergeObjects</code> / <code>mergeDefaultTools</code> / <code>resolveDefaultTools</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/settings-defaults.ts</code></td>
+<td>67</td>
+<td>全部默认值（<code>defaultProjectTrust: &quot;ask&quot;</code>）</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/settings-schema.ts</code></td>
+<td>494</td>
+<td>每一层能写哪些键</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/project-trust.ts</code></td>
+<td>97</td>
+<td><code>resolveProjectTrusted</code> 五级判定</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/resource-loader.ts</code></td>
+<td>1,319</td>
+<td>上下文文件发现、<code>SYSTEM.md</code> / <code>APPEND_SYSTEM.md</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/src/core/extensions/loader.ts</code></td>
+<td>880</td>
+<td>目录扫描规则（只下一层）</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/configuration.md</code></td>
+<td>48</td>
+<td>13 个位置的责任表</td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/security.md</code></td>
+<td>99</td>
+<td>信任闸门「不挡什么」</td>
+</tr>
+</tbody>
+</table></div>
+<hr>
+<h2 id="sec-11-九-下一章">九、下一章</h2>
+<p>配置层的框架搭好了，但四条 <code>--list-models</code> 里的模型还没醒——因为没有 key。
+下一章 F02 拆 <code>models.json</code> 与 <code>auth.json</code>：凭据五级优先级、
+兼容端点怎么接本地模型、<code>modelOverrides</code> 怎么改内置模型而不用替换它的整个列表。</p>
+
+<div class="pager">
+      <a class="prev" href="e08-cli.html"><span class="lbl">上一篇</span>命令行 —— 七块零件，一条命令</a>
+      <a class="next" href="f02-models.html"><span class="lbl">下一篇</span>模型与凭据 —— 六种来源，一张 models.json</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-本章终点-先跑起来" class="">一、本章终点：先跑起来</a><a href="#sec-2-二-agent-目录-13-个位置-各管一件事" class="">二、agent 目录：13 个位置，各管一件事</a><a href="#sec-3-三-合并规则-深合并-数组例外" class="">三、合并规则：深合并，数组例外</a><a href="#sec-4-四-信任闸门-它挡的是什么-不挡什么" class="">四、信任闸门：它挡的是什么，不挡什么</a><a href="#sec-5-4-1-同一个目录-三种活法" class="lv3">4.1 同一个目录，三种活法</a><a href="#sec-6-五-资源路径-想让-pi-读别处的文件" class="">五、资源路径：想让 Pi 读别处的文件</a><a href="#sec-7-六-自己动手验证" class="">六、自己动手验证</a><a href="#sec-8-改一处试试" class="lv3">改一处试试</a><a href="#sec-9-七-工程暗坑" class="">七、工程暗坑</a><a href="#sec-10-八-本章源码索引" class="">八、本章源码索引</a><a href="#sec-11-九-下一章" class="">九、下一章</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>
