@@ -6,15 +6,15 @@
 
 <sub>上游已发布 v1.5.x；本书钉在 `v1.4.0` 这个 tag 上，文中行号与数字只对这一份有效</sub>
 
-<sub>37 篇 · 198,651 字 · 9,288 行代码 · 约 18 小时读完</sub>
+<sub>37 篇 · 198,807 字 · 9,284 行代码 · 约 18 小时读完</sub>
 
 <br>
 
 [![read online](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%98%85%E8%AF%BB-daniel--csvw.github.io-eb6c36?style=for-the-badge&labelColor=1a1d28)](https://daniel-csvw.github.io/pi-agent-book/)
 
 [![chapters](https://img.shields.io/badge/%E7%AB%A0%E8%8A%82-37-2d3142?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-198%2C651-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
-[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-9%2C288%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![words](https://img.shields.io/badge/%E5%AD%97%E6%95%B0-198%2C807-c792ea?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
+[![source lines](https://img.shields.io/badge/%E4%BB%A3%E7%A0%81%E8%A1%8C%E6%95%B0-9%2C284%20%E8%A1%8C-82aaff?style=flat-square)](https://daniel-csvw.github.io/pi-agent-book/)
 [![pi-agent](https://img.shields.io/badge/pi--agent-v1.4.0-4f5d75?style=flat-square)](https://github.com/earendil-works/pi)
 
 **[马上开始读 →](https://daniel-csvw.github.io/pi-agent-book/)**
@@ -133,7 +133,7 @@
 | --- | --- | --- |
 | F01 | [配置 —— 三层文件，一道信任闸门](https://daniel-csvw.github.io/pi-agent-book/modules/f01-config.html) | 2,418 字 · 50 行 |
 | F02 | [模型与凭据 —— 六种来源，一张 models.json](https://daniel-csvw.github.io/pi-agent-book/modules/f02-models.html) | 2,294 字 · 76 行 |
-| F03 | [工具开关 —— 八个内置，两个模组，五档暴露](https://daniel-csvw.github.io/pi-agent-book/modules/f03-tools.html) | 2,340 字 · 36 行 |
+| F03 | [工具开关 —— 八个内置，两个模组，五档暴露](https://daniel-csvw.github.io/pi-agent-book/modules/f03-tools.html) | 2,496 字 · 32 行 |
 | F04 | [指令四层 —— 从 AGENTS.md 到 SKILL.md](https://daniel-csvw.github.io/pi-agent-book/modules/f04-instructions.html) | 2,740 字 · 40 行 |
 | F05 | [扩展（上）—— 三步落位，一次拦截](https://daniel-csvw.github.io/pi-agent-book/modules/f05-extension-basics.html) | 2,405 字 · 31 行 |
 | F06 | [扩展（下）—— 自己造一个工具](https://daniel-csvw.github.io/pi-agent-book/modules/f06-extension-tools.html) | 2,040 字 · 53 行 |

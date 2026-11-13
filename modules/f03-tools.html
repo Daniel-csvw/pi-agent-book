@@ -59,7 +59,7 @@
 <header class="module-header">
       <div class="module-eyebrow">F03</div>
       <h1>工具开关 —— 八个内置，两个模组，五档暴露</h1>
-      <div class="module-meta">2,340 字 · 含 36 行代码 · 约 16 分钟</div>
+      <div class="module-meta">2,496 字 · 含 32 行代码 · 约 16 分钟</div>
     </header>
     <p>F02 解决「能不能调用模型」，这一章解决「模型能动手做多少事」。</p>
 <p>这是 Pi 最容易被低估的一块：工具集不只是「开几个开关」，
@@ -71,10 +71,20 @@
 <li><code>--tools read,grep</code> 和 <code>--tools +codemode,-write</code> 有什么区别？</li>
 <li>为什么有的工具明明注册了，模型却看不见？</li>
 </ol>
+<p>注册一个工具（<code>registerTool</code>）之后，要问两个<strong>相互独立</strong>的问题：</p>
+<ul>
+<li><strong>模型看得见它吗？</strong> 看它在不在 active 集合里（<code>exposure</code> 决定它会不会自动进去）。</li>
+<li><strong>别的工具能调它吗？</strong> 只看 <code>exposure</code>，和 active 无关。</li>
+</ul>
+<p>五档 exposure 把这两个问题拆成了四个组合：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">                   注册（registerTool）</span><span class="ln">                          |</span><span class="ln">                 +--------+--------+</span><span class="ln">                 |                 |</span><span class="ln">            exposure          是否 active</span><span class="ln">                 |                 |</span><span class="ln">   direct  ─────┼──&gt; 声明给模型 &lt;──┤</span><span class="ln">   model-only ──┤                 │</span><span class="ln">   codemode ────┼──&gt; 只能被别的工具调</span><span class="ln">   deferred ────┤    （tool_search 能找出来）</span><span class="ln">   hidden ──────┴──&gt; 谁也够不着</span></code></pre></div>
-<p>&lt;sub&gt;这张图是本章的主线：左边是「怎么够得着」，右边是「够到之后宣不宣告」。&lt;/sub&gt;</p>
+<pre><code><span class="ln">   exposure     自动激活   模型看得见   工具能调</span><span class="ln">   ---------------------------------------------</span><span class="ln">   direct       是         看得见       能调</span><span class="ln">   model-only   是         看得见       不能调</span><span class="ln">   codemode     否         看不见 *     一直能调</span><span class="ln">   deferred     否         看不见 *     一直能调</span><span class="ln">   hidden       否         从来看不见   不能调</span></code></pre></div>
+<p>&lt;sub&gt;<code>*</code> <code>codemode</code> / <code>deferred</code> 只在被显式激活（或 <code>tool_search</code> 搜中）之后
+才进声明名单。两者唯一区别是「要不要写进 codemode 工具的说明书」。&lt;/sub&gt;</p>
+<p>把四行分成两对记：<strong>看得见 ≠ 能调</strong>（<code>model-only</code>），
+<strong>能调 ≠ 看得见</strong>（<code>codemode</code> / <code>deferred</code>）。把它们当成一根轴的人，
+写扩展时会在「我明明注册了，模型为什么不用」上卡很久。</p>
 <hr>
 <h2 id="sec-1-一-默认工具集-四个-不是八个">一、默认工具集：四个，不是八个</h2>
 <p><code>pi --help</code> 的第一行是 <code>pi - AI coding assistant with read, bash, edit, write tools</code>。
