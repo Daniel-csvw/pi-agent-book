@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -473,37 +475,37 @@ Pi 自己展开它，不经过 shell。用 <code>!command</code> 取令牌时必
 <tbody>
 <tr>
 <td><code>packages/coding-agent/src/core/mcp-servers.ts</code></td>
-<td>358</td>
+<td>359</td>
 <td>配置类型、<code>validateMcpServerConfig</code>、<code>getMcpToolExposure</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/extensions/mcp/config.ts</code></td>
-<td>243</td>
+<td>244</td>
 <td>两台文件、覆盖键、<code>loadMcpConfig</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/extensions/mcp/index.ts</code></td>
-<td>1,347</td>
+<td>1,348</td>
 <td><code>mcp_servers</code> 段、自动激活、启动等待</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/extensions/mcp/tools.ts</code></td>
-<td>391</td>
+<td>392</td>
 <td>工具名生成、20 KB 截断、注解</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/extensions/mcp/cli.ts</code></td>
-<td>625</td>
+<td>626</td>
 <td><code>pi mcp add/list/login</code> 全开关</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/extensions/codemode/tool.ts</code></td>
-<td>434</td>
+<td>435</td>
 <td><code>reachesTools</code>、<code>prepareLoadout</code>、<code>model-only</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/extensions/codemode/execute.ts</code></td>
-<td>850</td>
+<td>851</td>
 <td>沙箱、worker 配额、256 MB 堆</td>
 </tr>
 <tr>

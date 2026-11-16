@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="active">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,13 +54,14 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">M02</div>
       <h1>三层架构 —— 十二个包各自站在哪一层</h1>
-      <div class="module-meta">7,671 字 · 含 262 行代码 · 约 39 分钟</div>
+      <div class="module-meta">7,678 字 · 含 262 行代码 · 约 39 分钟</div>
     </header>
     <p>上一章给了一张体量表。但体量只回答&quot;哪里代码多&quot;，不回答&quot;哪块代码归谁管&quot;。</p>
 <p>这一章给的是后者：一张能定位任何文件的图。</p>
@@ -246,7 +248,7 @@
 </tr>
 <tr>
 <td><code>codemode</code></td>
-<td style="text-align:right">3,034</td>
+<td style="text-align:right">3,054</td>
 <td>沙箱 JS 执行，唯一能力是调注入的工具</td>
 </tr>
 </tbody>
@@ -267,11 +269,11 @@
 <tbody>
 <tr>
 <td><code>coding-agent</code></td>
-<td style="text-align:right">254</td>
-<td style="text-align:right">77,614</td>
+<td style="text-align:right">256</td>
+<td style="text-align:right">77,658</td>
 <td style="text-align:right">5</td>
 <td style="text-align:right">3</td>
-<td style="text-align:right">305</td>
+<td style="text-align:right">303</td>
 </tr>
 <tr>
 <td><code>chord</code></td>
@@ -283,19 +285,19 @@
 </tr>
 <tr>
 <td><code>durable</code></td>
-<td style="text-align:right">96</td>
-<td style="text-align:right">33,722</td>
+<td style="text-align:right">97</td>
+<td style="text-align:right">33,728</td>
 <td style="text-align:right">5</td>
 <td style="text-align:right">2</td>
-<td style="text-align:right">351</td>
+<td style="text-align:right">348</td>
 </tr>
 <tr>
 <td><code>ai</code></td>
-<td style="text-align:right">204</td>
-<td style="text-align:right">28,551</td>
+<td style="text-align:right">206</td>
+<td style="text-align:right">28,581</td>
 <td style="text-align:right">2</td>
 <td style="text-align:right">1</td>
-<td style="text-align:right">140</td>
+<td style="text-align:right">139</td>
 </tr>
 <tr>
 <td><code>tui</code></td>
@@ -323,11 +325,11 @@
 </tr>
 <tr>
 <td><code>codemode</code></td>
-<td style="text-align:right">16</td>
-<td style="text-align:right">3,034</td>
+<td style="text-align:right">17</td>
+<td style="text-align:right">3,054</td>
 <td style="text-align:right">0</td>
 <td style="text-align:right">0</td>
-<td style="text-align:right">190</td>
+<td style="text-align:right">180</td>
 </tr>
 <tr>
 <td><code>agent</code></td>
@@ -363,11 +365,11 @@
 </tr>
 <tr>
 <td><strong>合计</strong></td>
-<td style="text-align:right"><strong>920</strong></td>
-<td style="text-align:right"><strong>228,895</strong></td>
+<td style="text-align:right"><strong>924</strong></td>
+<td style="text-align:right"><strong>228,999</strong></td>
 <td style="text-align:right">—</td>
 <td style="text-align:right">—</td>
-<td style="text-align:right">249</td>
+<td style="text-align:right">248</td>
 </tr>
 </tbody>
 </table></div>
@@ -483,7 +485,7 @@
 <p>深度 2 的两个包是 <code>agent</code> 和 <code>durable</code>。它们<strong>互不依赖</strong>，这是全图最重要的一条&quot;缺席的边&quot;。</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">agent      → ai, schema                2,559 行</span><span class="ln">durable    → chord, ai, codemode, schema, telemetry   33,722 行</span></code></pre></div>
+<pre><code><span class="ln">agent      → ai, schema                2,559 行</span><span class="ln">durable    → chord, ai, codemode, schema, telemetry   33,728 行</span></code></pre></div>
 <h3 id="sec-17-6-1-agent-只认两样东西">6.1 <code>agent</code> 只认两样东西</h3>
 <div class="code-block" data-lang="json">
 <div class="code-head"><span class="lang">json</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
@@ -495,7 +497,7 @@
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">chord       → 插件宿主（热重载）</span><span class="ln">ai          → 调模型</span><span class="ln">codemode    → 沙箱执行</span><span class="ln">schema      → 工具参数校验</span><span class="ln">telemetry   → 遥测</span></code></pre></div>
-<p>再加它自己 33,722 行。<code>durable/src/</code> 的目录结构：</p>
+<p>再加它自己 33,728 行。<code>durable/src/</code> 的目录结构：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">harness/       25 文件   运行时主体</span><span class="ln">session/        7 文件   会话与事务</span><span class="ln">storage/        多后端    jsonl / sqlite / memory / indexeddb</span><span class="ln">codemode/  tools/  tool-search/  images/  env/  testing/</span><span class="ln">tasks.ts  documents.ts  entries.ts  timers.ts  search.ts  truncate.ts</span></code></pre></div>
@@ -517,12 +519,12 @@
 <h3 id="sec-20-7-1-coding-agent-是产品-所以它最大">7.1 <code>coding-agent</code> 是产品，所以它最大</h3>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">core/        100 文件   36,058 行   ← 内核粘合层</span><span class="ln">modes/        69 文件   24,493 行   ← 五种入口的 UI</span><span class="ln">extensions/   25 文件    7,818 行   ← 扩展加载器</span><span class="ln">utils/        37 文件    3,925 行</span><span class="ln">cli/          12 文件    1,471 行</span><span class="ln">package-manager-cli.ts   1,210 行</span><span class="ln">main.ts                  1,011 行</span><span class="ln">config.ts                  682 行</span><span class="ln">index.ts                   500 行   ← SDK 导出面</span></code></pre></div>
-<p><code>modes/</code> 24,493 行对应上一章那张&quot;五个入口&quot;表——交互、print、JSON、RPC、SDK，每种模式一套实现。<strong>这是&quot;极简内核&quot;藏起来的成本</strong>：内核不管怎么显示，所以显示逻辑全在这里。</p>
+<pre><code><span class="ln">core/        100 文件   约 36,400 行   ← 内核粘合层</span><span class="ln">modes/        69 文件   约 24,500 行   ← 五种入口的 UI</span><span class="ln">extensions/   25 文件    7,818 行   ← 扩展加载器</span><span class="ln">utils/        37 文件    3,925 行</span><span class="ln">cli/          12 文件    1,471 行</span><span class="ln">package-manager-cli.ts   1,210 行</span><span class="ln">main.ts                  1,011 行</span><span class="ln">config.ts                  682 行</span><span class="ln">index.ts                   500 行   ← SDK 导出面</span></code></pre></div>
+<p><code>modes/</code> 两万四千多行对应上一章那张&quot;五个入口&quot;表——交互、print、JSON、RPC、SDK，每种模式一套实现。<strong>这是&quot;极简内核&quot;藏起来的成本</strong>：内核不管怎么显示，所以显示逻辑全在这里。</p>
 <p><code>core/</code> 的 100 个文件，拆开是这样：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">core/ 根层      60 文件  约 27,000 行   粘合层与状态</span><span class="ln">  compaction/    4 文件   1,664 行</span><span class="ln">  tools/        24 文件   4,688 行</span><span class="ln">  extensions/    9 文件   5,113 行</span><span class="ln">  export-html/   3 文件     756 行</span></code></pre></div>
+<pre><code><span class="ln">core/ 根层      60 文件  约 27,300 行   粘合层与状态</span><span class="ln">  compaction/    4 文件   1,664 行</span><span class="ln">  tools/        24 文件   4,688 行</span><span class="ln">  extensions/    9 文件   5,113 行</span><span class="ln">  export-html/   3 文件     756 行</span></code></pre></div>
 <p>根层 60 个文件里，有一个数字很吓人：<code>agent-session.ts</code> <strong>4,479 行</strong>。</p>
 <p>这是全仓库最大的单文件，比 <code>agent-loop.ts</code> 大 4.7 倍。它管的是&quot;一个会话的全部对外行为&quot;——提示词的拼接、工具变更的声明、压缩的触发、模型的切换、队列的排队与去重。M10 会专门拆它。</p>
 <p><code>core/</code> 36,058 行是粘合层：把 <code>agent</code> 的循环接到 <code>ai</code> 的流、把工具接到 <code>codemode</code> 的沙箱、把会话接到 JSONL 文件。这部分代码之所以多，是因为<strong>每接一条边都要处理错误、超时、取消、路径</strong>。</p>
@@ -538,7 +540,7 @@
 <p>把上面四节合成一张图。箭头方向 = 依赖方向。</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">                        ┌─────────────────────────────┐</span><span class="ln">   产品层               │  coding-agent     env       │</span><span class="ln">   (深度 3)             │   77,614       2,398        │</span><span class="ln">                        └──────┬───────────┬──────────┘</span><span class="ln">                               │           │</span><span class="ln">                        ┌──────┴──────┐    │</span><span class="ln">   运行层               │ agent       │    │</span><span class="ln">   (深度 2)             │  2,559      │    │</span><span class="ln">                        └──────┬──────┘    │</span><span class="ln">              ┌────────────────┼───────────┴───────────┐</span><span class="ln">              │                │                       │</span><span class="ln">   中间层     │  durable       │  ai          chord    │</span><span class="ln">   (深度 1)   │  33,722        │  28,551      50,101   │</span><span class="ln">              └───┬────────────┴────────┬──────────────┘</span><span class="ln">                  │                     │</span><span class="ln">        ┌─────────┴─────────────────────┴──────────────┐</span><span class="ln">   基础层         schema   telemetry   tui   mcp   codemode</span><span class="ln">   (深度 0)        4,608      1,580   19,971 3,305   3,034</span><span class="ln">        └──────────────────────────────────────────────┘</span></code></pre></div>
+<pre><code><span class="ln">                        ┌─────────────────────────────┐</span><span class="ln">   产品层               │  coding-agent     env       │</span><span class="ln">   (深度 3)             │   77,658       2,398        │</span><span class="ln">                        └──────┬───────────┬──────────┘</span><span class="ln">                               │           │</span><span class="ln">                        ┌──────┴──────┐    │</span><span class="ln">   运行层               │ agent       │    │</span><span class="ln">   (深度 2)             │  2,559      │    │</span><span class="ln">                        └──────┬──────┘    │</span><span class="ln">              ┌────────────────┼───────────┴───────────┐</span><span class="ln">              │                │                       │</span><span class="ln">   中间层     │  durable       │  ai          chord    │</span><span class="ln">   (深度 1)   │  33,728        │  28,581      50,101   │</span><span class="ln">              └───┬────────────┴────────┬──────────────┘</span><span class="ln">                  │                     │</span><span class="ln">        ┌─────────┴─────────────────────┴──────────────┐</span><span class="ln">   基础层         schema   telemetry   tui   mcp   codemode</span><span class="ln">   (深度 0)        4,608      1,580   19,971 3,305   3,054</span><span class="ln">        └──────────────────────────────────────────────┘</span></code></pre></div>
 <p>看不出来的几点，补三行：</p>
 <ul>
 <li><code>agent</code> 只连到 <code>ai</code> 和 <code>schema</code> 两根线，是图里最&quot;瘦&quot;的节点</li>

@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -439,12 +441,12 @@ MCP 工具的够得着程度由 exposure 决定。想让 <code>--tools</code> �
 <tbody>
 <tr>
 <td><code>packages/coding-agent/src/core/tools/index.ts</code></td>
-<td>224</td>
+<td>225</td>
 <td><code>allToolNames</code> 八件套、四件套工厂</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/settings-manager.ts</code></td>
-<td>1,456</td>
+<td>1,457</td>
 <td><code>DEFAULT_TOOL_NAMES</code>、<code>getToolListError</code>、<code>applyToolModifiers</code></td>
 </tr>
 <tr>
@@ -454,7 +456,7 @@ MCP 工具的够得着程度由 exposure 决定。想让 <code>--tools</code> �
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/types.ts</code></td>
-<td>2,328</td>
+<td>2,329</td>
 <td><code>ToolExposure</code> 五档与 <code>hiddenTools</code></td>
 </tr>
 <tr>

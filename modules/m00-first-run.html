@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第一天 —— 一条请求的八分钟 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="active">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">M00</div>
+      <h1>第一天 —— 一条请求的八分钟</h1>
+      <div class="module-meta">4,708 字 · 含 348 行代码 · 约 22 分钟</div>
+    </header>
+    <p>这一章不需要你先懂 Pi。要动手的话，只需要三样东西：
+装好的 <code>pi</code> 命令（<code>npm i -g @earendil-works/pi-coding-agent</code>，
+或者直接 clone 源码跑，见 M01 §8）、一个 <code>cd</code> 进去的仓库、
+以及一句你本来就想让它干的活。</p>
+<p>不装也能读。下面每一步都给了行号，你可以只看代码块不看终端。</p>
+<hr>
+<p>晚上九点半，你在一个仓库里敲下 <code>pi &quot;给 config.ts 加一个重试次数&quot;</code>，回车。</p>
+<p>屏幕上先是转了两秒的圈，然后模型开始吐字，第一句是「先看一下
+<code>config.ts</code> 的结构」。它读了文件、改了两行、跑了一遍测试，报告完成。</p>
+<p>你接受了结果，关掉终端。整个过程八分钟。</p>
+<p>这八分钟里发生了什么？从你敲下那句话，到模型看到它的第一眼，
+中间隔了大约二十个函数、五次 I/O、两个包边界。
+绝大多数教程会在这里直接跳到「agent loop 长什么样」，
+把入口那一层当成不必细看的管道。</p>
+<p>但入口那一层恰好是最容易出错的地方。如果你只是用 Pi，
+出问题时你要判断黑屏是网络、认证还是权限；如果你要改 Pi，
+<code>main.ts</code> 是你第一个必须读对的文件；如果你要写自己的 agent，
+这一段是唯一能照着搬的骨架。</p>
+<p>所以第 0 章只做一件事：<strong>把这条路径从头走到尾，一站不停。</strong>
+不切分支，不讲例外，不提另一个 provider，不提 RPC。
+遇到岔路只标一句话：那一条去哪章。</p>
+<p>八分钟按顺序拆开，是下面这么多站：<code>argv → parseArgs → 模式判定 → 装配 runtime → 造 session → 拿到那一句 → prompt → loop → 拼 payload → HTTP → SSE → 回到 terminal</code>。</p>
+<p>这份顺序和 M01 §七 那张九站图是同一件事的两个切面。那边从
+<code>UserMessage</code> 开始数到 <code>turn_end</code>，切的是「一轮对话的生命周期」；
+这边从 <code>argv</code> 开始数到你屏幕上出现第一个字，切的是「一次进程的启动」。
+本章正文按十个站走，再加上第十一站的工具循环，总共十二节。
+重叠的只有中间四站：<strong>prompt → loop → 拼 payload → 流式回来</strong>。
+两头各多一截：启动在这里，收尾在那边。两者不冲突，但别混着数。</p>
+<hr>
+<h2 id="sec-1-一-第一站-参数">一、第一站：参数</h2>
+<p>程序的入口在 <code>packages/coding-agent/src/main.ts</code>。终端里的 <code>pi</code> 是个 bin
+包装，真正跑的只有这一句：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:574</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">main</span>(args: <span class="tok-kw">string</span>[], options?: MainOptions) {</span></code></pre></div>
+<p>进来第一件事是判命令。<code>pi login</code>、<code>pi config</code>、<code>pi mcp</code>、<code>pi install</code>
+这些是「子命令」，各自在 <code>main.ts</code> 里走各的门口就返回了，不进入会话。
+<code>pi &quot;给 config.ts 加一个重试次数&quot;</code> 没有子命令，于是落到参数解析：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:634</span></span><span class="ln"><span class="tok-kw">const</span> parsed = <span class="tok-fn">parseArgs</span>(args);</span></code></pre></div>
+<p>解析器在 <code>cli/args.ts</code>。它不认识「提示词」这个概念，
+只把没有 <code>-</code> 前缀的东西当成位置参数：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/cli/args.ts:265-266</span></span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (!arg.<span class="tok-fn">startsWith</span>(<span class="tok-str">"-"</span>)) {</span><span class="ln">  result.messages.<span class="tok-fn">push</span>(arg);</span></code></pre></div>
+<p>所以那一整句 <code>给 config.ts 加一个重试次数</code>，此刻的身份是
+<code>parsed.messages[0]</code>。它是一个字符串数组的一项，
+还没有被当成用户的任何意图。</p>
+<p>这里有个容易读错的细节：<code>parsed.messages</code> 是<strong>多个</strong>位置参数，
+不是一条消息。引号让 shell 把整句塞进一个 argv 项，所以长度是 1。
+不加引号敲 <code>pi 给 config.ts 加一个重试次数</code>，长度就是 4，
+Pi 会把它们当成四条独立的消息依序发出去。
+这个歧义在 shell 层就产生了，Pi 只是如实按 argv 个数理解。</p>
+<p>参数里真正影响这条路径的只有几项：<code>--print</code>（<code>-p</code>）、<code>--mode</code>、
+<code>--model</code>、<code>--session-dir</code>。其余几十个开关在这一站只被记录，不被使用。</p>
+<hr>
+<h2 id="sec-2-二-第二站-判定你是-交互-还是-一次性">二、第二站：判定你是「交互」还是「一次性」</h2>
+<p>Pi 有五套运行形态：交互 TUI、print 文本、JSON 事件流、RPC、SDK。
+判定逻辑很短：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:112-123</span></span><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">resolveAppMode</span>(</span><span class="ln">  parsed: Args, stdinIsTTY: <span class="tok-kw">boolean</span>, stdoutIsTTY: <span class="tok-kw">boolean</span>,</span><span class="ln">): AppMode {</span><span class="ln">  <span class="tok-kw">if</span> (parsed.mode === <span class="tok-str">"rpc"</span>) <span class="tok-kw">return</span> <span class="tok-str">"rpc"</span>;</span><span class="ln">  <span class="tok-kw">if</span> (parsed.mode === <span class="tok-str">"json"</span>) <span class="tok-kw">return</span> <span class="tok-str">"json"</span>;</span><span class="ln">  <span class="tok-kw">if</span> (parsed.print || !stdinIsTTY || !stdoutIsTTY) <span class="tok-kw">return</span> <span class="tok-str">"print"</span>;</span><span class="ln">  <span class="tok-kw">return</span> <span class="tok-str">"interactive"</span>;</span><span class="ln">}</span></code></pre></div>
+<p>你在终端里直接敲 <code>pi ...</code>，stdin 和 stdout 都是 TTY，
+<code>--print</code> 也没给，所以得到 <code>interactive</code>。</p>
+<p>这不是无关紧要的分类。它决定了两件后面才会显形的事：
+<strong>谁来画屏幕</strong>，以及<strong>第一条消息从哪来</strong>。</p>
+<p><code>interactive</code> 走 TUI，屏幕由 <code>tui</code> 包接管，滚动、重绘、光标都归它管；
+<code>print</code> 走 <code>runPrintMode</code>，只往 stdout 写字，没有任何屏幕状态。
+同一个 <code>AgentSession</code>，外面套的壳不同，行为就完全不同。</p>
+<p>此刻还有第二件事要确定：参数里带的那句话，
+是「启动时就发出去」，还是「启动后等你再敲」。
+答案是前者，但它的落地位置在十几行之后。</p>
+<hr>
+<h2 id="sec-3-三-第三站-装配-这一段最长-也最值得看">三、第三站：装配（这一段最长，也最值得看）</h2>
+<p>判完模式，<code>main.ts</code> 开始造东西。造的顺序是有讲究的，
+因为它沿着一条依赖链从上往下走：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:606-607</span></span><span class="ln"><span class="tok-kw">const</span> agentDir = <span class="tok-fn">getAgentDir</span>();</span><span class="ln"><span class="tok-kw">const</span> bootstrapSettingsManager = SettingsManager.<span class="tok-fn">create</span>(cwd, agentDir, {</span><span class="ln">  projectTrusted: <span class="tok-kw">false</span>,</span><span class="ln">});</span></code></pre></div>
+<p><code>agentDir</code> 是 Pi 自己的家目录，认证令牌、全局设置、会话文件都在这里，
+和你的仓库无关。注意 <code>projectTrusted: false</code>：
+这一步<strong>故意不信任项目</strong>。项目里的设置文件（<code>.pi/settings.json</code>）
+可能含有 shell 命令，在没用之前不能读。这就是为什么它叫 bootstrap——
+它只够用来找会话目录，不够用来跑项目配置。</p>
+<p>接着是会话：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:703-707</span></span><span class="ln"><span class="tok-kw">const</span> sessionDir =</span><span class="ln">  (parsed.sessionDir ? <span class="tok-fn">normalizePath</span>(parsed.sessionDir) : <span class="tok-kw">undefined</span>) ??</span><span class="ln">  (envSessionDir ? <span class="tok-fn">expandTildePath</span>(envSessionDir) : <span class="tok-kw">undefined</span>) ??</span><span class="ln">  startupSettingsManager.<span class="tok-fn">getSessionDir</span>();</span><span class="ln"><span class="tok-kw">const</span> sessionManager = <span class="tok-kw">await</span> <span class="tok-fn">createSessionManager</span>(</span><span class="ln">  parsed, cwd, sessionDir, startupSettingsManager,</span><span class="ln">);</span></code></pre></div>
+<p>三条来源依次退化：命令行 → 环境变量 → 设置。
+<code>SessionManager</code> 代表的是「这一次对话存在哪」：
+它管一个追加写的 JSONL 文件、一个 <code>leafId</code> 指针、
+以及把它们读回成消息列表的方法。此刻它还是空的。</p>
+<p>真正的重活在一个工厂函数里。<code>main.ts</code> 没有直接 new 出 session，
+而是定义一个「怎么造」的闭包，交给 runtime 去调：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:744</span></span><span class="ln"><span class="tok-kw">const</span> createRuntime: CreateAgentSessionRuntimeFactory = <span class="tok-kw">async</span> ({</span><span class="ln">  cwd, agentDir, sessionManager, ...</span><span class="ln">}) =&gt; {</span></code></pre></div>
+<p>这个间接层是为了热重载：同一个工厂可以在不重启进程的前提下
+再造一个 session（M12 讲这套机制）。在这一章里，它只会被调用一次。</p>
+<p>工厂里第一件正事是解析项目信任：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:757-759</span></span><span class="ln"><span class="tok-kw">const</span> projectTrusted = shouldResolveProjectTrust</span><span class="ln">  ? <span class="tok-kw">false</span></span><span class="ln">  : (cachedProjectTrust ?? parsed.projectTrustOverride ?? trustStore.<span class="tok-kw">get</span>(cwd)</span><span class="ln">      ?? !hasTrustRequiringResources);</span></code></pre></div>
+<p>第一次进一个陌生仓库，<code>trustStore</code> 里没有记录，而你又不带 <code>--approve</code>，
+所以这里会弹一个确认框问「是否信任这个目录」。你点了「信任」，
+值被写进 <code>projectTrustByCwd</code>，后面所有资源都按已信任来加载。</p>
+<p>然后是服务层：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:761</span></span><span class="ln"><span class="tok-kw">const</span> services = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSessionServices</span>({ ... });</span></code></pre></div>
+<p>它一口气造出四样东西：<code>settingsManager</code>（合好的配置）、
+<code>modelRuntime</code>（有哪些模型、认证在哪）、
+<code>resourceLoader</code>（读扩展、技能、AGENTS.md），
+以及一组 <code>diagnostics</code>（加载过程中攒下的告警）。</p>
+<p>四样都到位了，才轮到 session。这里的顺序不可调换：
+session 需要模型，模型需要认证，认证来自配置。</p>
+<p>模型和工具的选择在工厂的后半段：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:822-825</span></span><span class="ln"><span class="tok-kw">const</span> modelPatterns = parsed.models ?? settingsManager.<span class="tok-fn">getEnabledModels</span>();</span><span class="ln"><span class="tok-kw">const</span> scopedModels = modelPatterns &amp;&amp; modelPatterns.length &gt; <span class="tok-num">0</span></span><span class="ln">  ? <span class="tok-kw">await</span> <span class="tok-fn">resolveModelScope</span>(modelPatterns, modelRuntime, {</span><span class="ln">      signal: AbortSignal.<span class="tok-fn">timeout</span>(<span class="tok-num">15_000</span>),</span><span class="ln">    })</span><span class="ln">  : [];</span></code></pre></div>
+<p><code>resolveModelScope</code> 是一个 15 秒超时的<strong>网络</strong>调用。
+这解释了启动时那两秒停顿的大部分来源：它要去取模型目录，
+确认你选的那个模型名字还有效。</p>
+<p>超时设了 15 秒而不是 3 秒，是因为慢网络下的失败比慢更糟——
+宁可多等，也不要误判成「模型不存在」。</p>
+<p>工具则是另一个维度：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:858-860</span></span><span class="ln">tools: sessionOptions.tools,</span><span class="ln">excludeTools: sessionOptions.excludeTools,</span><span class="ln">noTools: sessionOptions.noTools,</span></code></pre></div>
+<p>三个字段分别对应「明确列出」「从默认里去掉」「一个都不要」。
+你没给任何一个，所以走默认：<code>read</code>、<code>bash</code>、<code>edit</code>、<code>write</code> 四个，
+外加扩展注册进来的。</p>
+<hr>
+<h2 id="sec-4-四-第四站-造一个-session">四、第四站：造一个 session</h2>
+<p>工厂的产出交给 runtime，runtime 再把它包成 <code>AgentSessionRuntime</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:875</span></span><span class="ln"><span class="tok-kw">const</span> runtime = <span class="tok-kw">await</span> <span class="tok-fn">createAgentSessionRuntime</span>(createRuntime, {</span><span class="ln">  cwd: sessionManager.<span class="tok-fn">getCwd</span>(),</span><span class="ln">  agentDir,</span><span class="ln">  sessionManager,</span><span class="ln">});</span></code></pre></div>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/agent-session-runtime.ts:429-431</span></span><span class="ln"><span class="tok-fn">assertSessionCwdExists</span>(options.sessionManager, options.cwd);</span><span class="ln"><span class="tok-kw">const</span> result = <span class="tok-kw">await</span> <span class="tok-fn">createRuntime</span>(options);</span><span class="ln"><span class="tok-kw">return</span> <span class="tok-kw">new</span> <span class="tok-fn">AgentSessionRuntime</span>(</span><span class="ln">  result.session, result.services, createRuntime, result.diagnostics, ...</span><span class="ln">);</span></code></pre></div>
+<p>一路往下，工厂里最终调用的是 <code>createAgentSession</code>。
+这个函数是 SDK 的公共入口，CLI 和外部集成共用它，
+所以它写的每一句都同时服务两个读者。它的核心是造一个 <code>Agent</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/sdk.ts:403-411</span></span><span class="ln"><span class="tok-kw">const</span> agent = <span class="tok-kw">new</span> <span class="tok-fn">Agent</span>({</span><span class="ln">  initialState: {</span><span class="ln">    systemPrompt: <span class="tok-str">""</span>,</span><span class="ln">    model,</span><span class="ln">    thinkingLevel,</span><span class="ln">    tools: [],</span><span class="ln">    messages: existingSession.messages,</span><span class="ln">  },</span><span class="ln">  convertToLlm: convertToLlmWithBlockImages,</span><span class="ln">  streamFn: <span class="tok-kw">async</span> (model, context, options) =&gt; { ... },</span></code></pre></div>
+<p>四处空白值得看清楚：<code>systemPrompt</code> 是空串、<code>tools</code> 是空数组。
+一个刚造出来的 agent 是个空壳子，系统提示和工具都是后来填的。
+<code>messages</code> 反而有内容——如果你 <code>--continue</code> 续上一个会话，
+历史在这里就进来了。</p>
+<p><code>streamFn</code> 是这一层的接口点：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/sdk.ts:412-422</span></span><span class="ln">streamFn: <span class="tok-kw">async</span> (model, context, options) =&gt; {</span><span class="ln">  <span class="tok-kw">const</span> requestOptions = <span class="tok-fn">buildRequestOptions</span>(options);</span><span class="ln">  <span class="tok-kw">if</span> (options?.sessionId === sessionManager.<span class="tok-fn">getSessionId</span>()) {</span><span class="ln">    cacheWarmer.<span class="tok-fn">start</span>({ model, context, options: requestOptions },</span><span class="ln">      <span class="tok-fn">cacheContextIsCurrent</span>(model));</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">return</span> modelRuntime.<span class="tok-fn">streamSimple</span>(model, context, requestOptions);</span><span class="ln">},</span></code></pre></div>
+<p><code>Agent</code> 不需要知道你在用哪个厂家的模型。它只需要一个函数：
+给它模型、上下文、选项，它还你一条事件流。
+这一行 <code>modelRuntime.streamSimple</code> 是整本书里最重要的接口之一，
+M04 整章都在拆它。</p>
+<p>Agent 造完，紧接着是会话对象：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/sdk.ts:455-461</span></span><span class="ln"><span class="tok-kw">const</span> session = <span class="tok-kw">new</span> <span class="tok-fn">AgentSession</span>({</span><span class="ln">  agent,</span><span class="ln">  sessionManager,</span><span class="ln">  settingsManager,</span><span class="ln">  cwd,</span><span class="ln">  scopedModels: options.scopedModels,</span><span class="ln">  resourceLoader,</span></code></pre></div>
+<p><code>Agent</code> 和 <code>AgentSession</code> 不是同一层。<code>Agent</code> 是「循环 + 上下文 + 事件」
+这套通用机制，不到 2,600 行；<code>AgentSession</code> 在此之上加了持久化、压缩、
+扩展、重试、模型切换，4,480 行。</p>
+<p>本章要走的路径全在 <code>Agent</code> 里，<code>AgentSession</code> 负责的是把它接上
+真实的磁盘和真实的用户。两层的分工，M03 开头有一张图。</p>
+<hr>
+<h2 id="sec-5-五-第五站-系统提示是这时候才填的">五、第五站：系统提示是这时候才填的</h2>
+<p>上一站注意到 <code>systemPrompt</code> 是空串。它在 <code>AgentSession</code> 构造时被填上：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/agent-session.ts:1741-1748</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">_rebuildSystemPrompt</span>(toolNames: <span class="tok-kw">string</span>[]): <span class="tok-kw">void</span> {</span><span class="ln">  <span class="tok-kw">const</span> validToolNames = toolNames</span><span class="ln">    .<span class="tok-fn">filter</span>((name) =&gt; <span class="tok-kw">this</span>._toolRegistry.<span class="tok-fn">has</span>(name));</span><span class="ln">  <span class="tok-kw">const</span> toolSnippets: Record&lt;<span class="tok-kw">string</span>, <span class="tok-kw">string</span>&gt; = {};</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> name <span class="tok-kw">of</span> <span class="tok-kw">this</span>._toolRegistry.<span class="tok-fn">keys</span>()) {</span><span class="ln">    <span class="tok-kw">const</span> snippet = <span class="tok-kw">this</span>._toolPromptSnippets.<span class="tok-kw">get</span>(name);</span><span class="ln">    <span class="tok-kw">if</span> (snippet) toolSnippets[name] = snippet;</span><span class="ln">  }</span></code></pre></div>
+<p>它做的事是<strong>把已经注册的工具反查成提示词</strong>：工具的 <code>promptSnippet</code>
+和 <code>promptGuidelines</code> 就写在工具定义里，这里只是收拢。
+所以系统提示里那句「你可以用 bash 执行命令」不是写死的一段文字，
+而是被 <code>bash</code> 工具自己贡献的——工具不在，那句话就自动消失。</p>
+<p>拼装本身在 <code>core/system-prompt.ts</code>，产出是分节的结构，
+而不是一整块字符串：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/system-prompt.ts:155-160</span></span><span class="ln">promptSections.preamble =</span><span class="ln">  <span class="tok-str">"You are a coding assistant running inside pi, a coding agent harness. ..."</span>;</span><span class="ln"><span class="tok-kw">const</span> visibleTools = declaredTools.<span class="tok-fn">filter</span>((name) =&gt; !!toolSnippets[name]);</span><span class="ln"><span class="tok-kw">const</span> tools = visibleTools.length &gt; <span class="tok-num">0</span></span><span class="ln">  ? visibleTools.<span class="tok-kw">map</span>((name) =&gt; <span class="tok-str">`- ${name}: ${toolSnippets[name]}`</span>).<span class="tok-fn">join</span>(<span class="tok-str">"\n"</span>)</span><span class="ln">  : <span class="tok-str">"(none)"</span>;</span><span class="ln">promptSections.tools = <span class="tok-str">`${tools}\n\nAdditional tools may be available.`</span>;</span></code></pre></div>
+<p>分节这件事不是为了好看。后面每一节会被包成同名标签
+（<code>&lt;tools&gt;</code>、<code>&lt;rules&gt;</code>、<code>&lt;cwd&gt;</code>），这样中途某个标签变了，
+只需要发一个补丁，不用把整块系统提示重发一遍。这个设计在 M08 展开。</p>
+<p>一处具体的规则值得看，因为它体现了「提示词跟着环境走」：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/system-prompt.ts:110-115</span></span><span class="ln"><span class="tok-fn">addRule</span>(</span><span class="ln">  <span class="tok-str">"Use bash or PowerShell for file operations like "</span> +</span><span class="ln">  <span class="tok-str">"listing, searching, and finding files"</span>,</span><span class="ln">);</span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (hasPowerShell) {</span><span class="ln">  <span class="tok-fn">addRule</span>(</span><span class="ln">    <span class="tok-str">"Use PowerShell for file operations like listing, searching, "</span> +</span><span class="ln">    <span class="tok-str">"and finding files"</span>,</span><span class="ln">  );</span><span class="ln">} <span class="tok-kw">else</span> {</span><span class="ln">  <span class="tok-fn">addRule</span>(<span class="tok-str">"Use bash for file operations like ls, rg, find"</span>);</span><span class="ln">}</span></code></pre></div>
+<p>你在 Windows 上，系统里有没有 PowerShell，
+会改变模型被允许使用哪个 shell。这条规则产生时，模型请求还没发出去。</p>
+<hr>
+<h2 id="sec-6-六-第六站-那一句话落地">六、第六站：那一句话落地</h2>
+<p>回到 <code>main.ts</code>。到这一步为止，<code>parsed.messages[0]</code> 还只是一个字符串。
+在启动 TUI 之前，它被交给一个专门的函数：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:916</span></span><span class="ln"><span class="tok-kw">const</span> { initialMessage, initialImages } = <span class="tok-kw">await</span> <span class="tok-fn">prepareInitialMessage</span>(</span><span class="ln">  parsed, stdinContent,</span><span class="ln">);</span></code></pre></div>
+<p><code>initialMessage</code> 和 <code>initialImages</code> 分开返回，是因为它们后来的去处不同：
+文字进消息内容，图片走另一条处理链（缩放、格式转换，见 M06）。
+<code>stdinContent</code> 也存在，那是 <code>echo &quot;...&quot; | pi</code> 的管道输入，本章不涉。</p>
+<p>然后是运行形态的分派：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/main.ts:962-974</span></span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (appMode === <span class="tok-str">"interactive"</span>) {</span><span class="ln">  <span class="tok-kw">const</span> interactiveMode = <span class="tok-kw">new</span> <span class="tok-fn">InteractiveMode</span>(runtime, {</span><span class="ln">    migratedProviders,</span><span class="ln">    startupDiagnostics,</span><span class="ln">    modelFallbackMessage,</span><span class="ln">    autoTrustOnReloadCwd,</span><span class="ln">    initialMessage,</span><span class="ln">    initialImages,</span><span class="ln">    initialMessages: parsed.messages,</span><span class="ln">    ...</span><span class="ln">  });</span></code></pre></div>
+<p>注意 <code>interactiveMode.run()</code> 是在后面才 <code>await</code> 的。构造和运行分开，
+是为了让 TUI 能先把屏幕搭好、把终端切到 raw mode，再发第一条消息——
+否则模型的第一个字会打在你还没画完的屏幕上。</p>
+<p><code>InteractiveMode</code> 的核心是下面这个循环，它是整个交互形态的骨架：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/modes/interactive/interactive-mode.ts:1277-1285</span></span><span class="ln"><span class="tok-kw">while</span> (<span class="tok-kw">true</span>) {</span><span class="ln">  <span class="tok-kw">const</span> userInput = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">getUserInput</span>();</span><span class="ln">  <span class="tok-kw">try</span> {</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-kw">this</span>.session.<span class="tok-fn">prompt</span>(userInput);</span><span class="ln">  } <span class="tok-kw">catch</span> (error: <span class="tok-kw">unknown</span>) {</span><span class="ln">    <span class="tok-kw">const</span> errorMessage =</span><span class="ln">      error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-str">"Unknown error occurred"</span>;</span><span class="ln">    <span class="tok-kw">this</span>.<span class="tok-fn">showError</span>(errorMessage);</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p>一个 <code>while (true)</code>，一次 <code>await</code>。你敲一句，它发一句；
+你敲下一句，得等这一句彻底结束。
+这一点和很多人对 agent 的直觉不同：<strong>交互循环本身是严格串行的</strong>。
+所谓的「边说边改」，靠的是在流式输出期间把新输入塞进队列，
+不是并发跑两个 prompt。</p>
+<p>启动时带的那句话，走的是同一件事的另一条边：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/modes/interactive/interactive-mode.ts:1256-1262</span></span><span class="ln"><span class="tok-kw">if</span> (initialMessage) {</span><span class="ln">  <span class="tok-kw">try</span> {</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-kw">this</span>.session.<span class="tok-fn">prompt</span>(initialMessage, { images: initialImages });</span><span class="ln">  } <span class="tok-kw">catch</span> (error: <span class="tok-kw">unknown</span>) {</span><span class="ln">    <span class="tok-kw">this</span>.<span class="tok-fn">showError</span>(</span><span class="ln">      error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-str">"Unknown error occurred"</span>,</span><span class="ln">    );</span><span class="ln">  }</span><span class="ln">}</span></code></pre></div>
+<p>在 <code>run()</code> 的开始处，<code>initialMessage</code> 就绪，<code>session.prompt</code>
+被调用一次。这就是你回车后那八分钟真正的起点。</p>
+<hr>
+<h2 id="sec-7-七-第七站-从-prompt-到-loop">七、第七站：从 prompt 到 loop</h2>
+<p><code>AgentSession.prompt</code> 有 84 行，但要走的只有一个入口。
+前面几段是给扩展和斜杠命令留的闸门：<code>/</code> 开头先问扩展要不要接管，
+扩展输入钩子先过一遍，技能和模板在此展开，流式期间则变成入队。
+我们的输入什么都没命中，于是走到：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/agent-session.ts:2174-2180</span></span><span class="ln"><span class="tok-kw">if</span> (!<span class="tok-kw">this</span>.model) {</span><span class="ln">  <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-fn">formatNoModelSelectedMessage</span>());</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> hasConfiguredAuth =</span><span class="ln">  <span class="tok-kw">this</span>._modelRuntime.<span class="tok-fn">hasConfiguredAuth</span>(<span class="tok-kw">this</span>.model.provider) ||</span><span class="ln">  (<span class="tok-kw">await</span> <span class="tok-kw">this</span>._modelRuntime.<span class="tok-fn">checkAuth</span>(<span class="tok-kw">this</span>.model.provider)) !== <span class="tok-kw">undefined</span>;</span></code></pre></div>
+<p>程序化地确认两件事：有模型，且这个模型的厂家有可用凭证。
+这解释了为什么「没登录」不会在你敲完一大段话之后才告诉你——
+它在发请求之前就抛了。</p>
+<p>顺带说一个容易忽略的分工：<code>AgentSession.prompt</code> 检查认证，
+但 <code>packages/agent</code> 里的 <code>Agent.prompt</code> 完全不检查。
+内核不知道「认证」这个概念，这是上层的事。
+内核对下层只要求一件事：<code>streamFn</code> 要么给流，要么抛错。</p>
+<p>过闸之后：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/agent-session.ts:2193</span></span><span class="ln"><span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_startRun</span>({ messageType: <span class="tok-str">"user"</span>, prompt: expandedText,</span><span class="ln">  images: currentImages });</span></code></pre></div>
+<p><code>_startRun</code> 准备消息、发出事件，然后交棒给 agent：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/agent-session.ts:1920-1925</span></span><span class="ln"><span class="tok-kw">await</span> <span class="tok-kw">this</span>.agent.<span class="tok-fn">prompt</span>(messages);</span><span class="ln"><span class="tok-kw">while</span> (!<span class="tok-kw">this</span>._agentRunAbortRequested) {</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">_handlePostAgentRun</span>()) {</span><span class="ln">    <span class="tok-kw">if</span> (<span class="tok-kw">this</span>._agentRunAbortRequested) <span class="tok-kw">break</span>;</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-kw">this</span>.agent.<span class="tok-kw">continue</span>();</span><span class="ln">    <span class="tok-kw">continue</span>;</span><span class="ln">  }</span></code></pre></div>
+<p>这就是「两层循环」里外面那一层。内层在 <code>packages/agent</code>，
+外层在这里，外层的职责是处理内层结束后还要不要再来一轮
+（重试、压缩后重发、待办消息）。</p>
+<p>内核那一层：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent.ts:382-389</span></span><span class="ln"><span class="tok-kw">async</span> <span class="tok-fn">prompt</span>(input: <span class="tok-kw">string</span> | AgentMessage | AgentMessage[],</span><span class="ln">  images?: ImageContent[]): Promise&lt;<span class="tok-kw">void</span>&gt; {</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.activeRun) {</span><span class="ln">    <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Agent is already processing a prompt. ..."</span>);</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">const</span> messages = <span class="tok-kw">this</span>.<span class="tok-fn">normalizePromptInput</span>(input, images);</span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">runPromptMessages</span>(messages);</span><span class="ln">}</span></code></pre></div>
+<p>再往下就进入真正的循环：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent-loop.ts:111-133</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">async</span> <span class="tok-kw">function</span> <span class="tok-fn">runAgentLoop</span>(</span><span class="ln">  prompts, context, config, emit, signal, streamFn,</span><span class="ln">) {</span><span class="ln">  <span class="tok-kw">const</span> initialMessages = <span class="tok-fn">declareToolChanges</span>(context, prompts);</span><span class="ln">  <span class="tok-kw">const</span> newMessages: AgentMessage[] = [...initialMessages];</span><span class="ln">  <span class="tok-kw">const</span> currentContext = { ...context,</span><span class="ln">    messages: [...context.messages, ...initialMessages] };</span><span class="ln"></span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"agent_start"</span> });</span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_start"</span> });</span><span class="ln">  <span class="tok-kw">for</span> (<span class="tok-kw">const</span> message <span class="tok-kw">of</span> initialMessages) {</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"message_start"</span>, message });</span><span class="ln">    <span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"message_end"</span>, message });</span><span class="ln">  }</span><span class="ln"></span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-fn">runLoop</span>(currentContext, newMessages, config, signal, emit,</span><span class="ln">    streamFn ?? <span class="tok-fn">getDefaultStreamFn</span>());</span><span class="ln">  <span class="tok-kw">return</span> newMessages;</span><span class="ln">}</span></code></pre></div>
+<p>四行代码里藏着三个决定：新消息进上下文用<strong>新的数组</strong>
+（不改调用方那份），事件在发请求<strong>之前</strong>就发了
+（<code>agent_start</code> 比模型的第一个字节还早），<code>emit</code> 是同步等完的
+（上层要能阻塞住循环，这是扩展能拦截工具的前提）。</p>
+<hr>
+<h2 id="sec-8-八-第八站-拼-payload">八、第八站：拼 payload</h2>
+<p>循环核心在 <code>runLoop</code>，第一次迭代里最关键的一行是：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent-loop.ts:251</span></span><span class="ln"><span class="tok-kw">const</span> message = <span class="tok-kw">await</span> <span class="tok-fn">streamAssistantResponse</span>(</span><span class="ln">  currentContext, config, signal, emit, streamFunction,</span><span class="ln">);</span></code></pre></div>
+<p>这个函数负责把内部的 <code>AgentMessage[]</code> 翻译成厂商要的 <code>Message[]</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent-loop.ts:398-406</span></span><span class="ln"><span class="tok-kw">let</span> messages = context.messages;</span><span class="ln"><span class="tok-kw">if</span> (config.transformContext) {</span><span class="ln">  messages = <span class="tok-kw">await</span> config.<span class="tok-fn">transformContext</span>(messages, signal);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">const</span> llmMessages = <span class="tok-kw">await</span> config.<span class="tok-fn">convertToLlm</span>(messages);</span><span class="ln"><span class="tok-kw">const</span> llmContext = <span class="tok-fn">normalizeContext</span>({ messages: llmMessages });</span></code></pre></div>
+<p>三次改写，顺序不能换：扩展先看一遍（<code>transformContext</code>），
+再做格式转换（<code>convertToLlm</code>），最后规范化。
+扩展看到的是 Pi 的内部消息格式，而不是某个厂商的格式——
+这是扩展能跨厂商复用的原因。</p>
+<p>转换之后是发请求：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent-loop.ts:412-417</span></span><span class="ln"><span class="tok-kw">const</span> response = <span class="tok-kw">await</span> <span class="tok-fn">streamFunction</span>(config.model, llmContext, {</span><span class="ln">  ...config,</span><span class="ln">  apiKey: resolvedApiKey,</span><span class="ln">  identity: <span class="tok-fn">mergeClientIdentity</span>(DEFAULT_AGENT_IDENTITY, config.identity),</span><span class="ln">  signal,</span><span class="ln">});</span></code></pre></div>
+<p>注意 <code>streamFunction</code> 是<strong>同步返回</strong>的，返回的是一个流对象而不是 Promise。
+真正的 HTTP 请求在流被迭代的时候才发生。
+这个细节决定了后面的时序：请求还没发，事件已经在路上了。</p>
+<p>流往下走到 <code>AgentSession</code> 给的实现：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/model-runtime.ts:752-756</span></span><span class="ln"><span class="tok-kw">return</span> <span class="tok-fn">lazyStream</span>(model, <span class="tok-kw">async</span> () =&gt; {</span><span class="ln">  <span class="tok-fn">assertChatModel</span>(model);</span><span class="ln">  <span class="tok-kw">const</span> prepared = <span class="tok-kw">await</span> <span class="tok-kw">this</span>.<span class="tok-fn">prepareRequest</span>(model, options);</span><span class="ln">  <span class="tok-kw">return</span> prepared.provider.<span class="tok-fn">streamSimple</span>(</span><span class="ln">    prepared.model, transcript, prepared.options <span class="tok-kw">as</span> SimpleStreamOptions,</span><span class="ln">  );</span><span class="ln">});</span></code></pre></div>
+<p><code>prepareRequest</code> 是 Pi 和厂商之间那层「十级翻译」的入口
+（M04 的主线）。<code>provider.streamSimple</code> 最终落到 <code>packages/ai</code>
+里某个具体实现，本章假设是 Anthropic：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:954</span></span><span class="ln"><span class="tok-kw">export</span> <span class="tok-kw">const</span> streamSimple: StreamFunction&lt;</span><span class="ln">  <span class="tok-str">"anthropic-messages"</span>,</span><span class="ln">  SimpleStreamOptions</span><span class="ln">&gt; = (</span></code></pre></div>
+<p>到了这一层，请求才真正被构造：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:644-648</span></span><span class="ln"><span class="tok-kw">const</span> requestOptions = {</span><span class="ln">  ...(options?.signal ? { signal: options.signal } : {}),</span><span class="ln">  ...(options?.timeoutMs !== <span class="tok-kw">undefined</span> ? { timeout: options.timeoutMs } : {}),</span><span class="ln">  maxRetries: <span class="tok-num">0</span>,</span><span class="ln">};</span></code></pre></div>
+<p><code>maxRetries: 0</code> 值得停一下。SDK 自己是能重试的，这里被显式关掉，
+因为重试被挪到了上层：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:660-668</span></span><span class="ln">response = <span class="tok-kw">await</span> <span class="tok-fn">retryProviderRequest</span>(</span><span class="ln">  () =&gt; client.beta.messages.<span class="tok-fn">create</span>(params, requestOptions).<span class="tok-fn">asResponse</span>(),</span><span class="ln">  {</span><span class="ln">    maxRetries: options?.maxRetries,</span><span class="ln">    maxRetryDelayMs: options?.maxRetryDelayMs,</span><span class="ln">    signal: options?.signal,</span><span class="ln">  },</span><span class="ln">);</span></code></pre></div>
+<p>这一行 <code>asResponse()</code> 是整条路径上<strong>唯一</strong>一次网络 I/O。
+它拿到的是 HTTP 响应头还没读完的响应对象，body 是个 <code>ReadableStream</code>。
+到这一刻，八分钟里最不可控的一段开始了。</p>
+<hr>
+<h2 id="sec-9-九-第九站-字节变字">九、第九站：字节变字</h2>
+<p>响应回来之后，第一件被推出去的事件是 <code>start</code>：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:692-693</span></span><span class="ln"><span class="tok-kw">await</span> options?.onResponse?.({ status: response.status,</span><span class="ln">  headers: <span class="tok-fn">headersToRecord</span>(response.headers) }, model);</span><span class="ln">stream.<span class="tok-fn">push</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"start"</span>, partial: output });</span></code></pre></div>
+<p><code>output</code> 是一个空的 assistant 消息骨架：<code>content: []</code>，
+<code>stopReason: &quot;pending&quot;</code>，所有计数归零。它先被推出去，再被填充。
+所以下游拿到的第一个 assistant 消息是个空壳——这不是 bug，
+而是让 UI 可以立刻挂上「正在输出」的组件。</p>
+<p>SSE 是逐字节来的。把字节切成事件，是两层生成器：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:481-505</span></span><span class="ln"><span class="tok-kw">const</span> reader = body.<span class="tok-fn">getReader</span>();</span><span class="ln"><span class="tok-kw">const</span> decoder = <span class="tok-kw">new</span> <span class="tok-fn">TextDecoder</span>();</span><span class="ln"><span class="tok-kw">const</span> state: SseDecoderState = { event: <span class="tok-kw">null</span>, data: [], raw: [] };</span><span class="ln"><span class="tok-kw">let</span> buffer = <span class="tok-str">""</span>;</span><span class="ln"></span><span class="ln"><span class="tok-kw">try</span> {</span><span class="ln">  <span class="tok-kw">while</span> (<span class="tok-kw">true</span>) {</span><span class="ln">    <span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">      <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(<span class="tok-str">"Request was aborted"</span>);</span><span class="ln">    }</span><span class="ln">    <span class="tok-kw">const</span> { value, done } = <span class="tok-kw">await</span> reader.<span class="tok-fn">read</span>();</span><span class="ln">    <span class="tok-kw">if</span> (done) <span class="tok-kw">break</span>;</span><span class="ln">    buffer += decoder.<span class="tok-fn">decode</span>(value, { stream: <span class="tok-kw">true</span> });</span><span class="ln">    <span class="tok-kw">let</span> consumed = <span class="tok-fn">consumeLine</span>(buffer);</span><span class="ln">    <span class="tok-kw">while</span> (consumed) {</span><span class="ln">      buffer = consumed.rest;</span><span class="ln">      <span class="tok-kw">const</span> event = <span class="tok-fn">decodeSseLine</span>(consumed.line, state);</span><span class="ln">      <span class="tok-kw">if</span> (event) <span class="tok-kw">yield</span> event;</span><span class="ln">      consumed = <span class="tok-fn">consumeLine</span>(buffer);</span><span class="ln">    }</span><span class="ln">  }</span></code></pre></div>
+<p>三处细节都是为了「网络不按行来」这件事：<code>TextDecoder</code> 带
+<code>stream: true</code> 是因为一个汉字可能被切在两个 chunk 之间；
+<code>buffer</code> 保留残余是因为一个 SSE 事件可能横跨多次 <code>read()</code>；
+<code>while (consumed)</code> 内层循环是因为一次 <code>read()</code> 可能带回几十行。</p>
+<p>外层再筛一遍事件类型：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:547-563</span></span><span class="ln"><span class="tok-kw">for</span> <span class="tok-kw">await</span> (<span class="tok-kw">const</span> sse <span class="tok-kw">of</span> <span class="tok-fn">iterateSseMessages</span>(response.body, signal)) {</span><span class="ln">  <span class="tok-kw">if</span> (sse.event === <span class="tok-str">"error"</span>) <span class="tok-kw">throw</span> <span class="tok-kw">new</span> <span class="tok-fn">Error</span>(sse.data);</span><span class="ln">  <span class="tok-kw">if</span> (!ANTHROPIC_MESSAGE_EVENTS.<span class="tok-fn">has</span>(sse.event ?? <span class="tok-str">""</span>)) <span class="tok-kw">continue</span>;</span><span class="ln">  <span class="tok-kw">try</span> {</span><span class="ln">    <span class="tok-kw">const</span> event = parseJsonWithRepair&lt;RawMessageStreamEvent&gt;(sse.data);</span><span class="ln">    <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"message_start"</span>) sawMessageStart = <span class="tok-kw">true</span>;</span></code></pre></div>
+<p><code>parseJsonWithRepair</code> 这个名字是这层唯一的妥协：某些厂商会在 JSON
+里塞进非法字符，直接 <code>JSON.parse</code> 会整条流崩掉，所以尝试修复一次。
+你没遇到过，是因为它在替你兜底。</p>
+<p>真正把文本拼起来的地方只有几行：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/ai/src/api/anthropic-messages.ts:771-782</span></span><span class="ln">} <span class="tok-kw">else</span> <span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"content_block_delta"</span>) {</span><span class="ln">  <span class="tok-kw">const</span> open = <span class="tok-fn">openBlock</span>(event.index);</span><span class="ln">  <span class="tok-kw">if</span> (event.delta.<span class="tok-kw">type</span> === <span class="tok-str">"text_delta"</span>) {</span><span class="ln">    <span class="tok-kw">if</span> (open?.block.<span class="tok-kw">type</span> === <span class="tok-str">"text"</span>) {</span><span class="ln">      open.block.text += event.delta.text;</span><span class="ln">      stream.<span class="tok-fn">push</span>({</span><span class="ln">        <span class="tok-kw">type</span>: <span class="tok-str">"text_delta"</span>,</span><span class="ln">        contentIndex: open.contentIndex,</span><span class="ln">        delta: event.delta.text,</span><span class="ln">        partial: output,</span><span class="ln">      });</span><span class="ln">    }</span><span class="ln">  }</span></code></pre></div>
+<p><code>+=</code>。一个增量、一次拼接、一次推送，循环几百次，
+屏幕上就是你看到的那段话。</p>
+<hr>
+<h2 id="sec-10-十-第十站-回到你的屏幕">十、第十站：回到你的屏幕</h2>
+<p>字节已经变成了 <code>text_delta</code> 事件。它要经过两层才到你眼前。</p>
+<p>内核这一层把厂商事件翻译成 agent 事件：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent-loop.ts:442-450</span></span><span class="ln"><span class="tok-kw">if</span> (partialMessage) {</span><span class="ln">  partialMessage = event.partial;</span><span class="ln">  context.messages[context.messages.length - <span class="tok-num">1</span>] = partialMessage;</span><span class="ln">  <span class="tok-kw">await</span> <span class="tok-fn">emit</span>({</span><span class="ln">    <span class="tok-kw">type</span>: <span class="tok-str">"message_update"</span>,</span><span class="ln">    assistantMessageEvent: event,</span><span class="ln">    message: { ...partialMessage },</span><span class="ln">  });</span><span class="ln">}</span></code></pre></div>
+<p>这里有个容易滑过去的动作：<code>context.messages[...] = partialMessage</code>。
+流式期间，插在上下文末尾的那条 assistant 消息<strong>每一帧都被替换</strong>。
+如果此时有人读到 <code>agent.state.messages</code>，他拿到的是半成品。
+这是事件机制的前提，也是 F10 与附录 E 里几条裂缝的共同源头之一。</p>
+<p>事件往上，<code>AgentSession</code> 只做一件事：落盘。</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/agent-session.ts:1163-1182</span></span><span class="ln"><span class="tok-kw">if</span> (event.<span class="tok-kw">type</span> === <span class="tok-str">"message_end"</span>) {</span><span class="ln">  <span class="tok-kw">let</span> entryId: <span class="tok-kw">string</span> | <span class="tok-kw">undefined</span>;</span><span class="ln">  <span class="tok-kw">if</span> (event.message.role === <span class="tok-str">"custom"</span>) {</span><span class="ln">    entryId = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">appendCustomMessageEntry</span>(</span><span class="ln">      event.message.customType,</span><span class="ln">      event.message.content,</span><span class="ln">      event.message.display,</span><span class="ln">      event.message.details,</span><span class="ln">    );</span><span class="ln">  } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (</span><span class="ln">    event.message.role === <span class="tok-str">"system"</span> ||</span><span class="ln">    event.message.role === <span class="tok-str">"user"</span> ||</span><span class="ln">    event.message.role === <span class="tok-str">"assistant"</span> ||</span><span class="ln">    event.message.role === <span class="tok-str">"toolResult"</span></span><span class="ln">  ) {</span><span class="ln">    entryId = <span class="tok-kw">this</span>.sessionManager.<span class="tok-fn">appendMessage</span>(event.message);</span><span class="ln">  }</span></code></pre></div>
+<p>只在 <code>message_end</code> 落盘——不是 <code>message_update</code>。所以「流到一半崩溃，
+历史里有没有这半句话」的答案是：没有。这是刻意的，M10 有一节专门算这笔账。</p>
+<p>落盘是同步追加：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/core/session-manager.ts:1187</span></span><span class="ln"><span class="tok-fn">appendFileSync</span>(<span class="tok-kw">this</span>.sessionFile, <span class="tok-str">`${JSON.stringify(entry)}\n`</span>);</span></code></pre></div>
+<p>一行 JSONL，一次 <code>appendFileSync</code>。没有缓冲，没有批量，没有事务。
+一条消息写完就真的在盘上了，代价是每条消息一次系统调用。</p>
+<p>最后一层是 UI：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// coding-agent/src/modes/interactive/interactive-mode.ts:3585-3588</span></span><span class="ln"><span class="tok-kw">case</span> <span class="tok-str">"message_update"</span>:</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.streamingComponent &amp;&amp; event.message.role === <span class="tok-str">"assistant"</span>) {</span><span class="ln">    <span class="tok-kw">this</span>.streamingMessage = event.message;</span><span class="ln">    <span class="tok-kw">this</span>.streamingComponent.<span class="tok-fn">updateContent</span>(<span class="tok-kw">this</span>.streamingMessage, <span class="tok-kw">true</span>);</span></code></pre></div>
+<p>它没有「追加文本」，而是<strong>整条消息重新渲染</strong>。<code>updateContent</code>
+的第二个参数 <code>true</code> 表示还在流式，组件据此跳过一部分代价高的处理
+（比如完整的 markdown 解析）。最后落到重绘调度：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/tui/src/tui.ts:1067-1073</span></span><span class="ln"><span class="tok-kw">private</span> <span class="tok-fn">scheduleRender</span>(): <span class="tok-kw">void</span> {</span><span class="ln">  <span class="tok-kw">if</span> (<span class="tok-kw">this</span>.stopped || <span class="tok-kw">this</span>.renderTimer || !<span class="tok-kw">this</span>.renderRequested) {</span><span class="ln">    <span class="tok-kw">return</span>;</span><span class="ln">  }</span><span class="ln">  <span class="tok-kw">const</span> elapsed = performance.<span class="tok-fn">now</span>() - <span class="tok-kw">this</span>.lastRenderAt;</span><span class="ln">  <span class="tok-kw">const</span> delay = Math.<span class="tok-fn">max</span>(<span class="tok-num">0</span>, TuiBase.MIN_RENDER_INTERVAL_MS - elapsed);</span></code></pre></div>
+<p><code>MIN_RENDER_INTERVAL_MS</code> 是 16。60 帧每秒。</p>
+<p>到这里，路径走完了。第一行字出现在你屏幕上的那一刻，Pi 一共做了这些事：
+读 argv、判模式、装配服务和会话、拼系统提示、过认证、进两层循环、
+把内部消息翻译成厂商格式、发一次 HTTP、解析 SSE、把字节拼成字符串、
+发事件、写 JSONL、重绘屏幕。</p>
+<hr>
+<h2 id="sec-11-十一-八分钟的另一半-工具">十一、八分钟的另一半：工具</h2>
+<p>上面的路径只解释到「模型说了第一句话」。真正的八分钟里，
+模型说完话之后还要读文件、改代码、跑测试。这一段不在本章展开，
+因为它的每条边都会引出分支，但主干只有一条：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-com">// packages/agent/src/agent-loop.ts:268-279</span></span><span class="ln"><span class="tok-kw">const</span> toolCalls = message.content.<span class="tok-fn">filter</span>((c) =&gt; c.<span class="tok-kw">type</span> === <span class="tok-str">"toolCall"</span>);</span><span class="ln"><span class="tok-kw">const</span> toolResults: ToolResultMessage[] = [];</span><span class="ln">hasMoreToolCalls = <span class="tok-kw">false</span>;</span><span class="ln"><span class="tok-kw">if</span> (toolCalls.length &gt; <span class="tok-num">0</span>) {</span><span class="ln">  <span class="tok-kw">const</span> executedToolBatch = message.stopReason === <span class="tok-str">"length"</span></span><span class="ln">    ? <span class="tok-kw">await</span> <span class="tok-fn">failToolCallsFromTruncatedMessage</span>(toolCalls, emit)</span><span class="ln">    : <span class="tok-kw">await</span> <span class="tok-fn">executeToolCalls</span>(currentContext, message, config, signal, emit);</span></code></pre></div>
+<p>模型吐出 <code>toolCall</code>，循环执行它，把结果塞回上下文，
+然后<strong>再发一次请求</strong>。这就是「内层循环」：一次用户消息对应 N 次模型请求。
+上文那一句「说的第一句话」，其实是第 1 次请求的产物；
+读到文件之后的第二句话，是第 2 次请求的产物。</p>
+<p>八分钟里你看到的是一段连续的对话，机器这边是七次独立的 HTTP 请求，
+每次都带着更长一点的上下文。这是理解 agent 成本曲线最直接的方式，
+M09 会把它算成钱。</p>
+<hr>
+<h2 id="sec-12-十二-这一章漏掉了什么-去哪里补">十二、这一章漏掉了什么，去哪里补</h2>
+<p>本章是一条直路。现实里每一步都有分叉，下面这张表把它们对到章节：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你可能想知道的</th>
+<th>去哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>为什么 loop 有两层，各自边界在哪</td>
+<td>M03</td>
+</tr>
+<tr>
+<td>那「十级翻译」具体是哪十级</td>
+<td>M04</td>
+</tr>
+<tr>
+<td>工具的参数校验、并发、中止怎么做</td>
+<td>M05</td>
+</tr>
+<tr>
+<td><code>AgentMessage</code> 和厂商 <code>Message</code> 有什么区别</td>
+<td>M06</td>
+</tr>
+<tr>
+<td>十九种事件什么时候发，谁订阅</td>
+<td>M07</td>
+</tr>
+<tr>
+<td>系统提示怎么分节、怎么增量更新</td>
+<td>M08</td>
+</tr>
+<tr>
+<td>上下文快满了，先截断还是先摘要</td>
+<td>M09</td>
+</tr>
+<tr>
+<td>这个 JSONL 会话文件长什么样、怎么恢复</td>
+<td>M10</td>
+</tr>
+<tr>
+<td>崩溃之后怎么接着跑（<code>durable</code>）</td>
+<td>M11</td>
+</tr>
+<tr>
+<td>改代码怎么不重启（<code>chord</code>）</td>
+<td>M12</td>
+</tr>
+<tr>
+<td>MCP 和 codemode 是什么</td>
+<td>M13</td>
+</tr>
+<tr>
+<td>屏幕上那些块、卡片、表格是怎么画的</td>
+<td>M14</td>
+</tr>
+<tr>
+<td>一份工具声明为什么要给五个读者看</td>
+<td>M15</td>
+</tr>
+<tr>
+<td>十个包的体积和依赖</td>
+<td>M02</td>
+</tr>
+<tr>
+<td>只想改配置、写扩展，不想读源码</td>
+<td>F01–F10</td>
+</tr>
+<tr>
+<td>照着造一个自己的 agent</td>
+<td>E01–E08</td>
+</tr>
+<tr>
+<td>换一个模型商要动哪几行</td>
+<td>附录 A</td>
+</tr>
+<tr>
+<td>包成一个 HTTP 服务</td>
+<td>附录 C</td>
+</tr>
+<tr>
+<td>Pi 自己没修干净的坑</td>
+<td>附录 E</td>
+</tr>
+</tbody>
+</table></div>
+<p>读这张表的正确姿势是：<strong>先在脑子里留一条完整的直路，再回头补分叉。</strong>
+反过来做，你会读到一个由四十个特例拼起来的框架，
+每个特例都对，合起来不知道在干什么。</p>
+<hr>
+<h2 id="sec-13-十三-源码索引">十三、源码索引</h2>
+<p>本章只用到五个文件。行数是 <code>split(/\r?\n/).length</code> 口径，
+和全书其它章一致（<code>wc -l</code> 会少算 1）。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th style="text-align:right">行数</th>
+<th>本章用到的地方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent/src/main.ts</code></td>
+<td style="text-align:right">1,011</td>
+<td>入口 <code>:574</code>、解析 <code>:634</code>、装配 <code>:744</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/src/cli/args.ts</code></td>
+<td style="text-align:right">481</td>
+<td>位置参数 <code>:265-266</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/src/core/sdk.ts</code></td>
+<td style="text-align:right">482</td>
+<td><code>new Agent</code> <code>:403-411</code></td>
+</tr>
+<tr>
+<td><code>agent/src/agent-loop.ts</code></td>
+<td style="text-align:right">960</td>
+<td>外壳 <code>:111-133</code>、请求 <code>:398-417</code></td>
+</tr>
+<tr>
+<td><code>ai/src/api/anthropic-messages.ts</code></td>
+<td style="text-align:right">1,687</td>
+<td>SSE 解码 <code>:481-534</code></td>
+</tr>
+<tr>
+<td><code>coding-agent/src/cli/initial-message.ts</code></td>
+<td style="text-align:right">44</td>
+<td>拼第一句 <code>:34-37</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>AgentSession</code>（4,480 行）与 <code>interactive-mode.ts</code>（7,212 行）只在
+第五站和第十站各露一行，读它们的时机在 M03 与 M14。</p>
+<hr>
+<h2 id="sec-14-十四-本章小结">十四、本章小结</h2>
+<p>三句话：</p>
+<ul>
+<li>一句提示词从 argv 到屏幕，中间没有魔法，只有十站可以被逐行指认的代码。</li>
+<li>交互循环是串行的；「边聊边干」靠队列，不靠并发。</li>
+<li>一次用户消息对应 N 次模型请求，N 由工具调用决定——
+这就是 agent 和聊天机器人的全部差别。</li>
+</ul>
+<p>刚才那条路，你已经能在脑子里从头到尾走一遍了。但它脚下踩的是
+十几个文件，而这些文件属于十二个包中的一个。</p>
+<p>接下来 M01 回答的是下一个问题：这一条路为什么会散在这么多包里？
+每条边值多少行？哪一块你不必读。它不重复这条路径，它给这条路径称重。</p>
+
+<div class="pager">
+      <span></span>
+      <a class="next" href="m01-overview.html"><span class="lbl">下一篇</span>开篇 —— 为什么 Pi-Agent 值得你花时间</a>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-第一站-参数" class="">一、第一站：参数</a><a href="#sec-2-二-第二站-判定你是-交互-还是-一次性" class="">二、第二站：判定你是「交互」还是「一次性」</a><a href="#sec-3-三-第三站-装配-这一段最长-也最值得看" class="">三、第三站：装配（这一段最长，也最值得看）</a><a href="#sec-4-四-第四站-造一个-session" class="">四、第四站：造一个 session</a><a href="#sec-5-五-第五站-系统提示是这时候才填的" class="">五、第五站：系统提示是这时候才填的</a><a href="#sec-6-六-第六站-那一句话落地" class="">六、第六站：那一句话落地</a><a href="#sec-7-七-第七站-从-prompt-到-loop" class="">七、第七站：从 prompt 到 loop</a><a href="#sec-8-八-第八站-拼-payload" class="">八、第八站：拼 payload</a><a href="#sec-9-九-第九站-字节变字" class="">九、第九站：字节变字</a><a href="#sec-10-十-第十站-回到你的屏幕" class="">十、第十站：回到你的屏幕</a><a href="#sec-11-十一-八分钟的另一半-工具" class="">十一、八分钟的另一半：工具</a><a href="#sec-12-十二-这一章漏掉了什么-去哪里补" class="">十二、这一章漏掉了什么，去哪里补</a><a href="#sec-13-十三-源码索引" class="">十三、源码索引</a><a href="#sec-14-十四-本章小结" class="">十四、本章小结</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

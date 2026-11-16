@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -386,27 +388,27 @@ reload 一次注册一次，第二次报重名，扩展整体失效。
 <tbody>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/types.ts</code></td>
-<td>2,328</td>
+<td>2,329</td>
 <td><code>on()</code> 41 个重载、<code>ToolCallEventResult</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/loader.ts</code></td>
-<td>880</td>
+<td>881</td>
 <td><code>discoverExtensionsInDir</code> 三种形态</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/runner.ts</code></td>
-<td>1,565</td>
+<td>1,566</td>
 <td>事件分发与错误策略</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/examples/extensions/permission-gate.ts</code></td>
-<td>34</td>
+<td>35</td>
 <td>拦截器的最小样本</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/examples/extensions/todo.ts</code></td>
-<td>304</td>
+<td>305</td>
 <td>F06 的主体样本</td>
 </tr>
 </tbody>

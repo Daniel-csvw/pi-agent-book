@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -532,32 +534,32 @@ Available tools 段会变长。回滚：删掉这个键即可，不要写成 <co
 <tbody>
 <tr>
 <td><code>packages/coding-agent/src/core/settings-manager.ts</code></td>
-<td>1,456</td>
+<td>1,457</td>
 <td><code>deepMergeObjects</code> / <code>mergeDefaultTools</code> / <code>resolveDefaultTools</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/settings-defaults.ts</code></td>
-<td>67</td>
+<td>68</td>
 <td>全部默认值（<code>defaultProjectTrust: &quot;ask&quot;</code>）</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/settings-schema.ts</code></td>
-<td>494</td>
+<td>495</td>
 <td>每一层能写哪些键</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/project-trust.ts</code></td>
-<td>97</td>
+<td>98</td>
 <td><code>resolveProjectTrusted</code> 五级判定</td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/resource-loader.ts</code></td>
-<td>1,319</td>
+<td>1,320</td>
 <td>上下文文件发现、<code>SYSTEM.md</code> / <code>APPEND_SYSTEM.md</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/loader.ts</code></td>
-<td>880</td>
+<td>881</td>
 <td>目录扫描规则（只下一层）</td>
 </tr>
 <tr>

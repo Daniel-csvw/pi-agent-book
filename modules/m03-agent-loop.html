@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="active">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,13 +54,14 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">M03</div>
       <h1>Agent Loop —— 两层循环，三条出路</h1>
-      <div class="module-meta">13,089 字 · 含 626 行代码 · 约 64 分钟</div>
+      <div class="module-meta">13,786 字 · 含 661 行代码 · 约 64 分钟</div>
     </header>
     <p>上一章我们把 12 个包摊在桌上，看清了分层：<code>coding-agent</code> 管业务，<code>agent</code> 是无状态内核，<code>ai</code> 统一各家模型。</p>
 <p>但架构图是静态的。Agent 之所以是 Agent，靠的是 <code>packages/agent/src/agent-loop.ts</code> 里那个 <code>while (true)</code>。</p>
@@ -1074,6 +1076,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">shouldTerminateToolBatch</span>(</span><span class="ln">	finalizedCalls: FinalizedToolCallOutcome[],</span><span class="ln">): <span class="tok-kw">boolean</span> {</span><span class="ln">	<span class="tok-kw">return</span> (</span><span class="ln">		finalizedCalls.length &gt; <span class="tok-num">0</span> &amp;&amp;</span><span class="ln">		finalizedCalls.<span class="tok-fn">every</span>((finalized) =&gt; finalized.result.terminate === <span class="tok-kw">true</span>)</span><span class="ln">	);</span><span class="ln">}</span></code></pre></div>
+<p>全仓扫一遍会发现一个意外：<strong>八个内置工具没有一个设置 <code>terminate</code></strong>。唯二的生产用法是两个示例扩展（<code>structured-output</code>、<code>reload-runtime</code>）加一个 eval——它是留给扩展作者的出口，不是内建行为。详见 §十三 坑 6。</p>
 <p>用 <code>every</code>，不是 <code>some</code>。三个工具里两个说&quot;停&quot;，第三个没表态，就不停。</p>
 <p>原因很实在：模型一批发 5 个调用，是把它当成一个整体计划的。只执行 2 个就停，剩 3 个的 toolResult 缺失，对话历史会变成&quot;有 call 没 result&quot;——大多数 provider 直接报错。</p>
 <p>要么整批执行完，要么整批都要求停。</p>
@@ -1375,13 +1378,83 @@
 <p>默认 <code>steeringMode</code> 是 <code>&quot;one-at-a-time&quot;</code>（<code>agent.ts:255</code>）。连插三句，第一句在下一个 drain 点生效，第二、三句要再等。想一次性全塞，设 <code>steeringMode = &quot;all&quot;</code>。</p>
 <p><strong>5. 串行降级是整批的，不是单个的。</strong></p>
 <p>只要这批里有一个工具是 <code>executionMode: &quot;sequential&quot;</code>，其他本来能并行的也一起变串行（<code>:529</code>）。如果 <code>edit</code> 是串行的，而模型一次发了 1 个 <code>edit</code> + 5 个 <code>read</code>，6 个全串行。想快就把只读工具安排到别的批次，或者接受这个保守选择。</p>
-<p><strong>6. <code>terminate</code> 用 <code>every</code>，别误以为&quot;任意一个就能停&quot;。</strong></p>
-<p><code>result.terminate = true</code> 只在<strong>本批全部</strong>结果为 true 时生效（<code>:700-702</code>）。单条工具想中断，得在 <code>beforeToolCall</code> 里 <code>block</code> + <code>terminate</code>，并且确保其他工具也这么做——否则不生效。</p>
-<p><strong>7. 中止时可能留下&quot;半批&quot;工具结果。</strong></p>
-<p><code>executeToolCallsSequential</code> 的 <code>signal?.aborted</code> 检查在 push 之后（<code>:585-587</code>）：一旦发现中止，剩下的工具不再执行。于是 assistant 消息里发了 3 个 <code>toolCall</code>，transcript 里只有 1 个 toolResult。</p>
-<p>这破坏了&quot;每个 toolCall 必须有对应 toolResult&quot;的不变量。循环自己不检查 <code>signal</code>——它把 signal 一路传进 <code>streamAssistantResponse</code>，靠 provider 在发请求时抛 <code>AbortError</code> 把下一轮变成 <code>stopReason: &quot;aborted&quot;</code>，从 <code>:254</code> 退出。</p>
-<p>如果你自己实现 <code>streamFn</code> 并忽略 <code>signal</code>，就会带着一个残缺的批次去请求，多数 API 直接 400。</p>
-<p>并行版同理，只是位置不同（<code>:651</code>）：先 push 进数组再检查中止，所以已经进数组的 thunk 仍会被 <code>Promise.all</code> 执行，在内部再检查一次然后返回 <code>Operation aborted</code>（<code>:630-638</code>）。<strong>预检通过的工具不会因为中止被跳过，只会被&quot;执行成失败&quot;。</strong></p>
+<p><strong>6. <code>terminate</code> 用 <code>every</code>，而且全仓几乎没人用。</strong></p>
+<p>判定条件写在 <code>shouldTerminateToolBatch</code>（<code>:700-702</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">function</span> <span class="tok-fn">shouldTerminateToolBatch</span>(</span><span class="ln">	finalizedCalls: FinalizedToolCallOutcome[],</span><span class="ln">): <span class="tok-kw">boolean</span> {</span><span class="ln">	<span class="tok-kw">return</span> finalizedCalls.length &gt; <span class="tok-num">0</span></span><span class="ln">		&amp;&amp; finalizedCalls.<span class="tok-fn">every</span>((f) =&gt; f.result.terminate === <span class="tok-kw">true</span>);</span><span class="ln">}</span></code></pre></div>
+<p><code>every</code> 的意思是<strong>本批全部</strong>为 true 才停。所以单条工具想中断整个循环，得让同批其他工具也返回 true——一次 <code>read</code> + 一次 <code>write</code>，只给 <code>write</code> 设 <code>terminate</code> 是无效的。</p>
+<p>比 <code>every</code> 更值得知道的是：<strong>八个内置工具一个都不设置 <code>terminate</code>。</strong> 整仓扫一遍 <code>terminate: true</code>，只落在三处：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>口径</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent/examples/extensions/structured-output.ts:42</code></td>
+<td>示例</td>
+<td>让 agent 在工具调用处结束，直接产出结构化结果</td>
+</tr>
+<tr>
+<td><code>coding-agent/examples/extensions/reload-runtime.ts:37</code></td>
+<td>示例</td>
+<td>重载运行时后不让循环继续</td>
+</tr>
+<tr>
+<td><code>evals/evals/documentation-audit.eval.ts:27</code></td>
+<td>评测</td>
+<td>审计结束时收尾</td>
+</tr>
+</tbody>
+</table></div>
+<p>没有一处是 <code>src/</code> 里的内建行为。<code>types.ts:323</code> 的注释把定位说得很清楚：&quot;A blocked result can also set <code>terminate: true</code> to participate in the batch early-termination rule&quot;——它是<strong>留给扩展作者的出口</strong>，不是主干路径。</p>
+<p>所以你读 CLI 跑出来的事件流时，永远不会看到它生效。要复现，得自己写一个返回 <code>terminate: true</code> 的扩展工具。</p>
+<p><strong>7. 中止时批次不再执行，但已执行的那几条结果照常落账。</strong></p>
+<p>这条原来的写法是&quot;中止会破坏『每个 toolCall 必须有 toolResult』的不变量&quot;。<strong>对着源码重读一遍，结论是反的。</strong></p>
+<p>串行路径（<code>:582-587</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">finalizedCalls.<span class="tok-fn">push</span>(finalized);</span><span class="ln">	messages.<span class="tok-fn">push</span>(toolResultMessage);</span><span class="ln"></span><span class="ln">	<span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p><code>break</code> 在 push <strong>之后</strong>。已经跑完的调用先发齐 <code>toolExecutionEnd</code> 和 <code>toolResultMessage</code>，再跳出循环。剩下的调用根本没进循环，自然不会产生结果。</p>
+<p>再看 <code>runLoop</code> 那一侧（<code>:268-286</code>）：<code>toolResults</code> 来自 <code>executedToolBatch.messages</code>，整批原样 push 进 <code>currentContext.messages</code> 和 <code>newMessages</code>。</p>
+<p>并行路径里，中止有两个处理点，而且都不&quot;丢弃&quot;结果：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (preparation.kind === <span class="tok-str">"immediate"</span>) {</span><span class="ln">	<span class="tok-kw">const</span> finalized = {</span><span class="ln">		toolCall, result: preparation.result, isError: preparation.isError,</span><span class="ln">	} <span class="tok-kw">satisfies</span> FinalizedToolCallOutcome;</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emitToolExecutionEnd</span>(finalized, emit);</span><span class="ln">	finalizedCalls.<span class="tok-fn">push</span>(finalized);            <span class="tok-com">// :622 照样入队</span></span><span class="ln">	<span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span><span class="ln"></span><span class="ln">finalizedCalls.<span class="tok-fn">push</span>(<span class="tok-kw">async</span> () =&gt; {</span><span class="ln">	<span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">		<span class="tok-kw">const</span> finalized = {</span><span class="ln">			toolCall,</span><span class="ln">			result: <span class="tok-fn">createErrorToolResult</span>(<span class="tok-str">"Operation aborted"</span>),</span><span class="ln">			isError: <span class="tok-kw">true</span>,</span><span class="ln">		} <span class="tok-kw">satisfies</span> FinalizedToolCallOutcome;</span><span class="ln">		<span class="tok-kw">await</span> <span class="tok-fn">emitToolExecutionEnd</span>(finalized, emit);</span><span class="ln">		<span class="tok-kw">return</span> finalized;</span><span class="ln">	}</span></code></pre></div>
+<p><code>:651</code> 的 <code>break</code> 也在 <code>finalizedCalls.push</code> 之后，已经进数组的 thunk 仍会被 <code>:656</code> 的 <code>Promise.all</code> 执行，在里面走上面这条 <code>aborted</code> 分支。</p>
+<p>而 <code>prepareToolCall</code> 的两个中止检查点（<code>:748</code>、<code>:767</code>）返回的是 <code>Operation aborted</code> 的 immediate 结果——它会被 <code>:622</code> push 进 <code>finalizedCalls</code>，<strong>不是</strong>&quot;不 push&quot;。</p>
+<p>所以真正的情况是：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>说法</th>
+<th>成立吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每个 toolCall 都有对应 toolResult</td>
+<td><strong>成立</strong>（已预检或已执行的都有；根本未进批次的根本不会出现在 assistant 消息里）</td>
+</tr>
+<tr>
+<td>同一批工具要么全做、要么全不做</td>
+<td><strong>不成立</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>按中止时序分三种：</p>
+<ul>
+<li><strong>批次开始前已中止</strong>：串行下每个调用都在 <code>prepareToolCall</code> 里被 immediate 拦截，第一个就 <code>break</code>，进入 <code>runLoop</code> 的那条路径里 <code>toolResults</code> 为空；并行下则是每条都被拦截、各自 push 一条 <code>Operation aborted</code>，再 <code>break</code>。<strong>两条路径在这一点上行为不一致</strong>——也是一个真实的裂缝：同一次中止，串行得到 0 条结果，并行得到 N 条错误结果。</li>
+<li><strong>串行跑到第 2 个时中止</strong>：第 1 个带真实结果，第 2 个起不再执行，<code>messages</code> 里有 1 条。</li>
+<li><strong>并行执行中途中止</strong>：3 个全部有结果——中止前完成的带真实结果，中止后进 thunk 的带 <code>Operation aborted</code>。</li>
+</ul>
+<p>前两种的 transcript 里结果数少于 <code>toolCall</code> 数，但那是&quot;批次没跑完&quot;，不是&quot;结果丢了&quot;。<strong>被牺牲的是原子性，不是完整性。</strong></p>
+<p>实践上这是有代价的：第 1 个 <code>write</code> 已写进磁盘，第 2 个 <code>edit</code> 没执行，而模型看到的历史像是一个正常的半批次。所以<strong>工具本身要幂等</strong>，别指望循环帮你回滚。</p>
+<p>循环自己不检查 <code>signal</code>——它把 signal 一路传进 <code>streamAssistantResponse</code>（<code>:393</code>），靠 provider 在发请求时抛 <code>AbortError</code>，把下一轮变成 <code>stopReason: &quot;aborted&quot;</code>，从 <code>:254</code> 退出。如果你自己实现 <code>streamFn</code> 并忽略 <code>signal</code>，就会带着结果数不足的批次去请求：多数 API 会因为 <code>toolCall</code> 数量和 <code>toolResult</code> 数量对不上而 400——但那是 provider 的校验在拒绝，<strong>不是 Pi 的 transcript 结构不合法</strong>。</p>
 <p><strong>8. <code>agent_end</code> 里的 <code>messages</code> 是同一个数组引用。</strong></p>
 <p><code>:263</code>、<code>:299</code>、<code>:329</code> 三处都是 <code>emit({ type: &quot;agent_end&quot;, messages: newMessages })</code>，而 <code>runAgentLoop</code> 最后 <code>return newMessages</code>——同一个对象。</p>
 <p>订阅者在 <code>agent_end</code> 里 <code>messages.push(...)</code> 会<strong>直接改掉 run 的返回值</strong>，也会改到 <code>stream.result()</code> 的结果。要改就 <code>[...messages]</code>。</p>
@@ -1463,8 +1536,11 @@
 <code>toolCall</code>；<strong>证据</strong> §6.1。</li>
 <li><strong>你会以为</strong> 并行执行会让结果顺序乱；<strong>实际是</strong> 执行并发、按原序组装；
 <strong>证据</strong> §九 的 <code>orderedFinalizedCalls</code>。</li>
-<li><strong>你会以为</strong> 只要一条工具 <code>terminate</code> 就能停；<strong>实际是</strong> 整批都为 true 才生效；
-<strong>证据</strong> §十三 坑 6。</li>
+<li><strong>你会以为</strong> 只要一条工具 <code>terminate</code> 就能停；<strong>实际是</strong> 整批都为 true 才生效，
+而且内置工具全都不设置它；<strong>证据</strong> §十三 坑 6。</li>
+<li><strong>你会以为</strong> 中止会让 transcript 里「toolCall 比 toolResult 多」从而不合法；
+<strong>实际是</strong> 已执行、已预检的调用都各有一条结果，被牺牲的是批次原子性；
+<strong>证据</strong> §十三 坑 7。</li>
 </ol>
 <hr>
 <h2 id="sec-53-读完自检">读完自检</h2>
@@ -1498,7 +1574,7 @@
 <h2 id="sec-54-下一步">下一步</h2>
 <p>现在我们知道了循环怎么转、什么时候停、消息怎么流动。但有一块被当成黑盒跳过了：<code>streamAssistantResponse</code> 里那句 <code>await streamFunction(...)</code>。</p>
 <p><code>StreamFn</code> 的契约到底是什么？一个 provider 实现要处理多少种流事件？工具调用的参数是怎么一个字一个字吐出来的？为什么 <code>pi-ai</code> 要在 7 家 provider 之上再盖一层归一？</p>
-<p>下一章拆 <code>packages/ai</code>——那 28,551 行里的统一层。</p>
+<p>下一章拆 <code>packages/ai</code>——那 28,581 行里的统一层。</p>
 <blockquote>
 <p>想亲手把这个循环造一遍？Part E 的 E01 用 112 行复刻了同构的两层骨架，零依赖直接跑。</p>
 </blockquote>

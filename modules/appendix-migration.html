@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="active">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -279,7 +281,7 @@
 <pre><code><span class="ln">agent  ai  chord  codemode  coding-agent  durable</span><span class="ln">env  evals  mcp  schema  telemetry  tui</span></code></pre></div>
 <p>新增的七个是 <code>chord</code> <code>codemode</code> <code>env</code> <code>evals</code> <code>mcp</code> <code>schema</code> <code>telemetry</code>。删掉的是一个：<code>orchestrator</code>。</p>
 <h3 id="sec-8-4-2-quot-运行时在-packages-agent-里-quot">4.2 &quot;运行时在 <code>packages/agent</code> 里&quot;</h3>
-<p>作废。<code>packages/agent</code> 现在只有 6 个文件 2,559 行，是<strong>无状态内核</strong>。有状态的运行时在 <code>packages/durable</code>（96 文件 / 33,722 行）。</p>
+<p>作废。<code>packages/agent</code> 现在只有 6 个文件 2,559 行，是<strong>无状态内核</strong>。有状态的运行时在 <code>packages/durable</code>（97 文件 / 33,728 行）。</p>
 <p>一句话分清：</p>
 <blockquote>
 <p><code>agent</code> 管&quot;这一轮怎么跑完&quot;，<code>durable</code> 管&quot;跑到一半崩了之后怎么接着跑&quot;。</p>
@@ -404,7 +406,7 @@
 <tr>
 <td><code>coding-agent</code></td>
 <td>提过</td>
-<td>77,614 行，接下了压缩与会话</td>
+<td>77,658 行，接下了压缩与会话</td>
 </tr>
 <tr>
 <td><code>chord</code></td>
@@ -414,7 +416,7 @@
 <tr>
 <td><code>durable</code></td>
 <td>未提</td>
-<td>33,722 行，旧 <code>harness/</code> 的主要落点</td>
+<td>33,728 行，旧 <code>harness/</code> 的主要落点</td>
 </tr>
 <tr>
 <td><code>schema</code></td>
@@ -439,7 +441,7 @@
 <tr>
 <td><code>codemode</code></td>
 <td>未提</td>
-<td>16 文件 3,034 行</td>
+<td>17 文件 3,054 行</td>
 </tr>
 <tr>
 <td><code>env</code></td>
@@ -575,7 +577,7 @@
 <tbody>
 <tr>
 <td><code>packages/agent/src/index.ts</code></td>
-<td>5</td>
+<td>6</td>
 <td>全部导出</td>
 </tr>
 <tr>

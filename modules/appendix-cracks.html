@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>裂缝 —— Pi 自己没修干净的八件事 · Pi Agent 源码级教程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body class="is-module">
+<div class="progress-rail" id="progress-rail"></div>
+<header class="topbar">
+  <a class="brand" href="../index.html">Pi <b>Agent</b> 源码级教程</a>
+  <span class="spacer"></span>
+  <button id="theme-toggle" type="button">深色</button>
+</header>
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
+                <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
+                <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
+                <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
+                <span class="code">M04</span><span>模型调用 —— 一行代码背后的十层翻译</span></a><a href="m05-tools.html" class="">
+                <span class="code">M05</span><span>工具系统 —— 八个工具，一道文件锁</span></a><a href="m06-messages.html" class="">
+                <span class="code">M06</span><span>消息系统 —— 四种给模型看，八种给系统记</span></a><a href="m07-event-driven.html" class="">
+                <span class="code">M07</span><span>事件驱动 —— 十颗钉子，四十一个挂钩</span></a></div><div class="part"><div class="part-title">Part C · 上下文工程</div><a href="m08-context.html" class="">
+                <span class="code">M08</span><span>上下文装配 —— 八节提示词，一条目录链</span></a><a href="m09-compaction.html" class="">
+                <span class="code">M09</span><span>上下文压缩 —— 两道闸门，两种摘要</span></a><a href="m10-session.html" class="">
+                <span class="code">M10</span><span>会话 —— 从会话树到持久运行时</span></a></div><div class="part"><div class="part-title">Part D · 运行时与生态</div><a href="m11-durable.html" class="">
+                <span class="code">M11</span><span>持久运行时 —— 把 Agent Loop 拆成状态机</span></a><a href="m12-chord.html" class="">
+                <span class="code">M12</span><span>对象与热重载 —— 改代码为什么不用重启</span></a><a href="m13-mcp-codemode.html" class="">
+                <span class="code">M13</span><span>扩展入口 —— MCP 连出去，codemode 收进来</span></a><a href="m14-tui.html" class="">
+                <span class="code">M14</span><span>终端渲染 —— 一个 spinner 只该写 99 个字节</span></a><a href="m15-schema-telemetry.html" class="">
+                <span class="code">M15</span><span>契约与遥测 —— 一份声明，五种解释</span></a></div><div class="part"><div class="part-title">Part E · 造物</div><a href="e01-skeleton.html" class="">
+                <span class="code">E01</span><span>骨架 —— 从空目录，到跑通第一个循环</span></a><a href="e02-memory.html" class="">
+                <span class="code">E02</span><span>记忆 —— 第五种消息，和唯一一道闸</span></a><a href="e03-interface.html" class="">
+                <span class="code">E03</span><span>接口 —— 先造一条能回放的模型，再接真的</span></a><a href="e04-tools.html" class="">
+                <span class="code">E04</span><span>工具 —— 注册表、校验，和一把写锁</span></a><a href="e05-context.html" class="">
+                <span class="code">E05</span><span>上下文 —— 一道阈值，一条摘要，四个数字</span></a><a href="e06-session.html" class="">
+                <span class="code">E06</span><span>会话 —— 一行一条，坏行报行号</span></a><a href="e07-extension.html" class="">
+                <span class="code">E07</span><span>扩展 —— 钩子挂在工具表上，内核不动</span></a><a href="e08-cli.html" class="">
+                <span class="code">E08</span><span>命令行 —— 七块零件，一条命令</span></a></div><div class="part"><div class="part-title">Part F · 应用</div><a href="f01-config.html" class="">
+                <span class="code">F01</span><span>配置 —— 三层文件，一道信任闸门</span></a><a href="f02-models.html" class="">
+                <span class="code">F02</span><span>模型与凭据 —— 六种来源，一张 models.json</span></a><a href="f03-tools.html" class="">
+                <span class="code">F03</span><span>工具开关 —— 八个内置，两个模组，五档暴露</span></a><a href="f04-instructions.html" class="">
+                <span class="code">F04</span><span>指令四层 —— 从 AGENTS.md 到 SKILL.md</span></a><a href="f05-extension-basics.html" class="">
+                <span class="code">F05</span><span>扩展（上）—— 三步落位，一次拦截</span></a><a href="f06-extension-tools.html" class="">
+                <span class="code">F06</span><span>扩展（下）—— 自己造一个工具</span></a><a href="f07-mcp-codemode.html" class="">
+                <span class="code">F07</span><span>MCP 与 codemode —— 接别人的工具，写自己的脚本</span></a><a href="f08-packages.html" class="">
+                <span class="code">F08</span><span>打包分发 —— package.json 里的 pi 清单</span></a><a href="f09-interfaces.html" class="">
+                <span class="code">F09</span><span>五种接口 —— 从终端到 SDK 的五个入口</span></a><a href="f10-safety.html" class="">
+                <span class="code">F10</span><span>上线前 —— 信任、可写、环境三条边界</span></a></div><div class="part"><div class="part-title">附录</div><a href="appendix-integration.html" class="">
+                <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
+                <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
+                <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="active">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
+<div class="main">
+<main class="prose">
+<header class="module-header">
+      <div class="module-eyebrow">APX</div>
+      <h1>裂缝 —— Pi 自己没修干净的八件事</h1>
+      <div class="module-meta">2,446 字 · 含 43 行代码 · 约 18 分钟</div>
+    </header>
+    <p>前四十章都在讲 Pi 怎么把事情做对。</p>
+<p>这一篇反过来：<strong>Pi 哪里没做干净，为什么没做干净，对你意味着什么。</strong></p>
+<p>写这一篇不是为了挑刺。一个跑了一年多的 agent 框架，它的价值有一半藏在&quot;哪些地方它妥协了&quot;里——因为那些妥协正好标出了<strong>这个问题的真实难度</strong>。你在别处读到的都是&quot;应该怎么做&quot;，只有源码能告诉你&quot;实际能做到什么程度&quot;。</p>
+<p>八条，全部来自正文已经讲过的地方，不引入新代码。</p>
+<p><strong>怎么读</strong>：每条四段——现象、源码位置、为什么不修、对你意味着什么。赶时间的话只看每条的第三段，那是判断的依据。</p>
+<hr>
+<h2 id="sec-1-一-中止不是原子的">一、中止不是原子的</h2>
+<p><strong>现象</strong>：你按 Ctrl-C，一批工具执行到一半。前两个已经写进磁盘，第三个没跑。Pi 不会回滚。</p>
+<p><strong>源码位置</strong>：<code>packages/agent/src/agent-loop.ts:582-587</code></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">finalizedCalls.<span class="tok-fn">push</span>(finalized);</span><span class="ln">	messages.<span class="tok-fn">push</span>(toolResultMessage);</span><span class="ln"></span><span class="ln">	<span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">}</span></code></pre></div>
+<p><code>break</code> 在 push 之后。串行路径下，中止前的调用各自带着完整结果落账，中止后的调用直接不执行。</p>
+<p>并行路径稍好一点（<code>:629-638</code>）：中止时占位函数仍然返回一条 <code>Operation aborted</code> 的 <code>isError</code> 结果，所以并行批次里每个调用都有一条结果——只不过有的内容是&quot;我没跑&quot;。</p>
+<p><strong>为什么不修</strong>：回滚需要每个工具都提供 undo，而 <code>bash</code> 执行的命令根本没有 undo。<code>rm -rf</code> 之后回滚什么？Pi 的选择是<strong>不回滚，但保证历史诚实</strong>——已做的有记录，没做的也有记录（并行路径明确写&quot;Operation aborted&quot;）。</p>
+<p>这背后是一句没写在文档里的话：<strong>工具的原子性责任在工具自己，不在循环。</strong></p>
+<p><strong>对你意味着什么</strong>：你要写一个&quot;移动文件&quot;的工具，就得自己保证&quot;移到一半中止&quot;不会留下半个文件。循环不会帮你，也不会提醒你。</p>
+<hr>
+<h2 id="sec-2-二-同一个中止-串行和并行给出不同结果">二、同一个中止，串行和并行给出不同结果</h2>
+<p>这条比上一条更尖锐，而且<strong>在正文里没写过</strong>。</p>
+<p><strong>现象</strong>：同样是在批次开始前就已经中止（<code>AbortSignal</code> 是 aborted 状态），串行模式给出 0 条工具结果，并行模式给出 N 条「Operation aborted」。同一个输入，两种模式两种历史。</p>
+<p><strong>源码位置</strong>：串行 <code>:559</code> 每次调 <code>prepareToolCall</code>，中止在 <code>:767</code> 被拦下，返回 immediate 结果——但串行路径<strong>不用</strong> <code>result.messages</code>，它直接 <code>break</code>（<code>:585</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">	<span class="tok-kw">break</span>;</span><span class="ln">}</span></code></pre></div>
+<p>并行路径的 immediate 分支不一样（<code>:615-627</code>）：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (preparation.kind === <span class="tok-str">"immediate"</span>) {</span><span class="ln">	<span class="tok-kw">const</span> finalized = {</span><span class="ln">		toolCall, result: preparation.result, isError: preparation.isError,</span><span class="ln">	} <span class="tok-kw">satisfies</span> FinalizedToolCallOutcome;</span><span class="ln">	<span class="tok-kw">await</span> <span class="tok-fn">emitToolExecutionEnd</span>(finalized, emit);</span><span class="ln">	finalizedCalls.<span class="tok-fn">push</span>(finalized);            <span class="tok-com">// :622 照样入队</span></span><span class="ln">	<span class="tok-kw">if</span> (signal?.aborted) {</span><span class="ln">		<span class="tok-kw">break</span>;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">continue</span>;</span><span class="ln">}</span></code></pre></div>
+<p><code>finalizedCalls.push</code> 在 <code>break</code> <strong>之前</strong>。</p>
+<p><strong>为什么不修</strong>：没人报。这条路径要求&quot;批次一开始就处于中止态&quot;，日常使用很难撞到——用户按 Ctrl-C 时，通常已经有几个工具在跑了。它是个只在理论上存在的分叉。</p>
+<p><strong>对你意味着什么</strong>：如果你在拓展里依赖&quot;中止后历史里一定有 N 条 aborted 结果&quot;来清理状态，<strong>换成串行模式就会失效</strong>。别赌这个。</p>
+<hr>
+<h2 id="sec-3-三-finishturn-抛异常会吞掉整轮工具结果">三、<code>finishTurn</code> 抛异常会吞掉整轮工具结果</h2>
+<p><strong>现象</strong>：一轮里 5 个工具都跑完了，结果都在内存里。这时你注册的 <code>finishTurn</code> 钩子抛了个异常。这 5 条结果<strong>永远不会进 transcript</strong>，<code>turn_end</code> 也不会发出。</p>
+<p><strong>源码位置</strong>：<code>agent-loop.ts:289-296</code></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">lastCompletedTurn = {</span><span class="ln">	message, toolResults, context: currentContext, newMessages,</span><span class="ln">};</span><span class="ln"><span class="tok-kw">const</span> decision = <span class="tok-kw">await</span> config.finishTurn?.(lastCompletedTurn, signal);</span><span class="ln"><span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"turn_end"</span>, message, toolResults });</span></code></pre></div>
+<p>两行裸 <code>await</code>，没有 try/catch。钩子抛出的 rejection 直接穿出 <code>runLoop</code>，被 <code>Agent.runWithLifecycle</code> 的 catch 接住（<code>packages/agent/src/agent.ts:533-536</code>），交给 <code>handleRunFailure</code> 合成一条空的 assistant 消息。</p>
+<p>工具白跑了。</p>
+<p><strong>为什么不修</strong>：<code>finishTurn</code> 是宿主的&quot;这一轮做完了，要不要继续&quot;的决定点。如果它自己崩了，语义上确实说不清——继续？停止？所以 Pi 选择让整个 run 失败，把问题暴露给上层。这个判断没错。</p>
+<p>问题在<strong>执行顺序</strong>：先调钩子、后发 <code>turn_end</code>。如果先发事件再调钩子，工具结果至少已经广播出去了。</p>
+<p><strong>对比一下 <code>afterToolCall</code></strong>（<code>agent-loop.ts:880-911</code>）：它是被 try/catch 包着的，抛了最多把这一条结果替换成错误消息：</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">} <span class="tok-kw">catch</span> (error) {</span><span class="ln">	result = <span class="tok-fn">createErrorToolResult</span>(</span><span class="ln">		error <span class="tok-kw">instanceof</span> Error ? error.message : <span class="tok-fn">String</span>(error),</span><span class="ln">	);</span><span class="ln">	isError = <span class="tok-kw">true</span>;</span><span class="ln">}</span></code></pre></div>
+<p>同一个&quot;宿主钩子&quot;，两道保险差这么多。写钩子的时候，你得知道自己在哪一档。</p>
+<p><strong>对你意味着什么</strong>：任何可能抛异常的 <code>finishTurn</code> 都要自己包 try/catch。它不是一个&quot;我返回决定&quot;的纯函数位置，而是一个<strong>能让整轮白跑</strong>的位置。</p>
+<hr>
+<h2 id="sec-4-四-terminate-是一个没人用的出口">四、<code>terminate</code> 是一个没人用的出口</h2>
+<p><strong>现象</strong>：书上讲 <code>terminate</code> 用 <code>every</code> 判定，你以为这是主干路径。实际扫一遍全仓，<code>terminate: true</code> 只出现在三个地方，<strong>八个内置工具一个都没有</strong>。</p>
+<p><strong>源码位置</strong>：<code>agent-loop.ts:700-702</code>（判定）+ 全仓 <code>terminate: true</code> 字面量</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>口径</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coding-agent/examples/extensions/structured-output.ts:42</code></td>
+<td>示例</td>
+<td>在工具调用处结束，直接产出结构化结果</td>
+</tr>
+<tr>
+<td><code>coding-agent/examples/extensions/reload-runtime.ts:37</code></td>
+<td>示例</td>
+<td>重载运行时后不让循环继续</td>
+</tr>
+<tr>
+<td><code>evals/evals/documentation-audit.eval.ts:27</code></td>
+<td>评测</td>
+<td>审计结束收尾</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>packages/agent/src/types.ts:323</code> 的注释把它的定位写得很明确：</p>
+<blockquote>
+<p>A blocked result can also set <code>terminate: true</code> to participate in the batch early-termination rule.</p>
+</blockquote>
+<p>&quot;can also set&quot;——<strong>能设，不是必须设</strong>。</p>
+<p><strong>为什么不修</strong>：因为内置工具里没有一个会&quot;说完这句就别再说了&quot;。<code>read</code> 完还要 <code>edit</code>，<code>grep</code> 完还要看结果。真正需要提前收尾的是扩展场景：我把结构化答案放进工具调用的参数里，拿到就该停。</p>
+<p><strong>对你意味着什么</strong>：这是本书里唯一一个&quot;文档说了、代码有、但生产环境没用&quot;的机制。它告诉你的不是&quot;Pi 有个 bug&quot;，而是<strong>一个好框架要为一个尚不存在的用例先留好接口</strong>。你要做扩展时，这是你的。</p>
+<hr>
+<h2 id="sec-5-五-事件里的数组就是那个数组">五、事件里的数组就是那个数组</h2>
+<p><strong>现象</strong>：你订阅了 <code>agent_end</code>，在回调里 <code>messages.push(...)</code> 补了一条系统提示。你以为只改了自己手里的副本。实际你改了 run 的返回值，也改了 <code>stream.result()</code>。</p>
+<p><strong>源码位置</strong>：<code>agent-loop.ts:263</code>、<code>:299</code>、<code>:329</code> 三处</p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">await</span> <span class="tok-fn">emit</span>({ <span class="tok-kw">type</span>: <span class="tok-str">"agent_end"</span>, messages: newMessages });</span></code></pre></div>
+<p>而 <code>runAgentLoop</code> 最后 <code>return newMessages</code>——同一个对象，不是拷贝。</p>
+<p>同样的坑在 <code>turn_end</code> 里也有：<code>lastCompletedTurn</code> 的 <code>context</code> 和 <code>newMessages</code>（<code>:289-294</code>）装的都是引用。</p>
+<p><strong>为什么不修</strong>：拷贝是 O(n)，而消息数组在长会话里能到几百条、每条几 KB。每轮拷一次，代价可观。更重要的是<strong>语义</strong>：Pi 的设计是&quot;事件就是事实&quot;，不是&quot;事件是事实的快照&quot;。订阅者看到的就是正在发生的东西。</p>
+<p><strong>对你意味着什么</strong>：在事件回调里改数组之前，先 <code>[...messages]</code>。想观察变化用只读视角，想改就复制。</p>
+<hr>
+<h2 id="sec-6-六-declaretoolchanges-有时返回新数组-有时返回原数组">六、<code>declareToolChanges</code> 有时返回新数组，有时返回原数组</h2>
+<p><strong>现象</strong>：你想用 <code>===</code> 判断&quot;工具集变了没有&quot;。同一个输入，有时 <code>true</code> 有时 <code>false</code>，看起来像随机。</p>
+<p><strong>源码位置</strong>：<code>agent-loop.ts:362-371</code></p>
+<div class="code-block" data-lang="ts">
+<div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln"><span class="tok-kw">if</span> (pending) {</span><span class="ln">	<span class="tok-kw">if</span> (unchanged &amp;&amp; !pending.toolsAdded?.length</span><span class="ln">		&amp;&amp; !pending.toolsRemoved?.length) {</span><span class="ln">		<span class="tok-kw">return</span> pendingMessages;</span><span class="ln">	}</span><span class="ln">	<span class="tok-kw">return</span> baseline.<span class="tok-kw">map</span>((message, index) =&gt;</span><span class="ln">		index === systemIndex ? <span class="tok-fn">withToolChanges</span>(pending, changes) : message,</span><span class="ln">	);</span><span class="ln">}</span><span class="ln"><span class="tok-kw">if</span> (unchanged) <span class="tok-kw">return</span> pendingMessages;</span></code></pre></div>
+<p>两处 <code>return pendingMessages</code> 是原引用（<code>:364</code>、<code>:367</code>），另外两处是新数组（<code>:365</code>、<code>:371</code>）。所以拿返回值做同一性判断，会在&quot;没变&quot;时得到 true、&quot;变了&quot;时得到 false——<strong>正好反过来</strong>。</p>
+<p>它还会被调两次（<code>:119</code> 注入 prompt、<code>:220</code> 注入 pending），第二次的入参是 <code>[...preparedMessages, ...pendingMessages]</code>，本来就是个新数组。所以&quot;传进去再传回来&quot;也不保证同一性。</p>
+<p><strong>为什么不修</strong>：返回原引用是一个有意为之的优化——&quot;没变化&quot;是最常见的路径（工具集大部分时候不变），直接返回能省一次 <code>.map</code>。代价是同一性语义不稳定。</p>
+<p><strong>对你意味着什么</strong>：<strong>别在返回值上挂状态</strong>，也别用它判断变化。真要知道变没变，比对内部的 <code>toolsAdded</code> / <code>toolsRemoved</code> 长度。</p>
+<hr>
+<h2 id="sec-7-七-quot-ask-quot-在没有-ui-的时候等于拒绝-而且不报错">七、<code>&quot;ask&quot;</code> 在没有 UI 的时候等于拒绝，而且不报错</h2>
+<p><strong>现象</strong>：你在 CI 里跑 <code>pi --mode json</code>，项目里的 <code>.pi/settings.json</code> 明明配了，就是不生效。没有警告，没有日志，只是&quot;没生效&quot;。</p>
+<p><strong>源码位置</strong>：<code>packages/coding-agent/docs/security.md:77-82</code></p>
+<p>Print、JSON、RPC 三种模式<strong>没有内置信任弹窗</strong>。前三段决议（命令行、扩展事件、<code>trust.json</code>）都没给出结论时：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>defaultProjectTrust</code></th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&quot;always&quot;</code></td>
+<td>加载受保护的项目资源</td>
+</tr>
+<tr>
+<td><code>&quot;ask&quot;</code></td>
+<td><strong>跳过</strong></td>
+</tr>
+<tr>
+<td><code>&quot;never&quot;</code></td>
+<td>跳过</td>
+</tr>
+</tbody>
+</table></div>
+<p>默认值是 <code>&quot;ask&quot;</code>。所以在无 UI 环境里，<strong>默认就是拒绝</strong>。</p>
+<p><strong>为什么不修</strong>：因为&quot;问一个不存在的 UI&quot;没有正确答案。<code>&quot;ask&quot;</code> 的字面意思是&quot;问我&quot;，没人可问的时候，最安全的解释就是&quot;不批准&quot;。让 <code>&quot;ask&quot;</code> 退化成 <code>&quot;always&quot;</code> 才是危险的——那等于无 UI 即全信任。</p>
+<p><strong>对你意味着什么</strong>：CI 里跑 Pi，要么显式 <code>--approve</code>，要么把 <code>defaultProjectTrust</code> 改成 <code>&quot;always&quot;</code>（并接受后果）。别指望默认值能工作。</p>
+<hr>
+<h2 id="sec-8-八-信任决议之前-已经读过项目目录了">八、信任决议之前，已经读过项目目录了</h2>
+<p><strong>现象</strong>：你拒绝信任某个目录，以为&quot;它什么也没读&quot;。实际上 Pi 已经读过一次 <code>sessionDir</code> 设置了。</p>
+<p><strong>源码位置</strong>：<code>coding-agent/docs/security.md:31</code></p>
+<blockquote>
+<p>Pi 在决议信任之前就要读项目的 <code>sessionDir</code> 设置——因为得先选出会话文件。拒绝信任也撤不回这一次目录查找。</p>
+</blockquote>
+<p>同一条文档里还有一句更重要的（<code>:33</code>）：</p>
+<blockquote>
+<p>信任不限制工具调用能访问什么。启动之后，启用的工具用的是 Pi 进程的操作系统权限。</p>
+</blockquote>
+<p><strong>为什么不修</strong>：会话文件必须在启动时就确定位置，否则整个恢复流程无从开始。而&quot;读完再决定要不要读&quot;在逻辑上就做不到。</p>
+<p>第二条更根本：<strong>项目信任不是沙箱</strong>。它管的是&quot;加载哪些可执行资源&quot;，不是&quot;能碰哪些文件&quot;。真正的路径隔离只能靠容器或虚拟机。</p>
+<p><strong>对你意味着什么</strong>：如果你把 Pi 放进&quot;跑不受信任的仓库&quot;的场景，项目信任给你的是<strong>代码注入防护</strong>，不是<strong>数据防护</strong>。两者别混。要数据防护，看 F10 那张三档表，走容器。</p>
+<hr>
+<h2 id="sec-9-收尾-这八条的共同形状">收尾：这八条的共同形状</h2>
+<p>八个问题，四种成因：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>成因</th>
+<th>条目</th>
+<th>特征</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>性能取舍</strong></td>
+<td>五、六</td>
+<td>拷贝太贵，于是共享引用</td>
+</tr>
+<tr>
+<td><strong>语义边界</strong></td>
+<td>一、七、八</td>
+<td>&quot;这件事到底该谁负责&quot;没有唯一答案</td>
+</tr>
+<tr>
+<td><strong>用例没发生</strong></td>
+<td>二、四</td>
+<td>接口留好了，没人走到那条路</td>
+</tr>
+<tr>
+<td><strong>顺序使然</strong></td>
+<td>三</td>
+<td>先钩子后事件，一步之差</td>
+</tr>
+</tbody>
+</table></div>
+<p>没有一条是&quot;写错了&quot;。它们是<strong>在真实约束下做出的选择</strong>，只是这些选择的代价没有写在文档里。</p>
+<p>这也正是源码级教程和 API 文档的分界：文档告诉你&quot;有什么&quot;，源码告诉你&quot;代价在哪&quot;。</p>
+<hr>
+<h2 id="sec-10-源码索引">源码索引</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>本章用到的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packages/agent/src/agent-loop.ts</code></td>
+<td>中止 <code>:582-587</code> <code>:615-627</code> <code>:629-638</code> <code>:651</code>；<code>finishTurn</code> <code>:289-296</code>；<code>terminate</code> <code>:700-702</code>；<code>agent_end</code> <code>:263</code> <code>:299</code> <code>:329</code>；<code>declareToolChanges</code> <code>:362-371</code>；<code>afterToolCall</code> 容错 <code>:880-911</code></td>
+</tr>
+<tr>
+<td><code>packages/agent/src/agent.ts</code></td>
+<td>生命周期 catch <code>:533-536</code>，<code>handleRunFailure</code> <code>:542</code> 起</td>
+</tr>
+<tr>
+<td><code>packages/agent/src/types.ts</code></td>
+<td><code>terminate</code> 定位 <code>:323</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/docs/security.md</code></td>
+<td>信任决议 <code>:29-33</code>、无 UI 行为 <code>:77-82</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/examples/extensions/structured-output.ts</code></td>
+<td><code>terminate</code> 的典型用法 <code>:42</code></td>
+</tr>
+<tr>
+<td><code>packages/coding-agent/examples/extensions/reload-runtime.ts</code></td>
+<td><code>terminate</code> 的另一处 <code>:37</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<div class="pager">
+      <a class="prev" href="appendix-typescript.html"><span class="lbl">上一篇</span>附录 B —— 读源码用的 TypeScript 速查</a>
+      <span></span>
+    </div>
+</main>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-一-中止不是原子的" class="">一、中止不是原子的</a><a href="#sec-2-二-同一个中止-串行和并行给出不同结果" class="">二、同一个中止，串行和并行给出不同结果</a><a href="#sec-3-三-finishturn-抛异常会吞掉整轮工具结果" class="">三、finishTurn 抛异常会吞掉整轮工具结果</a><a href="#sec-4-四-terminate-是一个没人用的出口" class="">四、terminate 是一个没人用的出口</a><a href="#sec-5-五-事件里的数组就是那个数组" class="">五、事件里的数组就是那个数组</a><a href="#sec-6-六-declaretoolchanges-有时返回新数组-有时返回原数组" class="">六、declareToolChanges 有时返回新数组，有时返回原数组</a><a href="#sec-7-七-quot-ask-quot-在没有-ui-的时候等于拒绝-而且不报错" class="">七、&amp;quot;ask&amp;quot; 在没有 UI 的时候等于拒绝，而且不报错</a><a href="#sec-8-八-信任决议之前-已经读过项目目录了" class="">八、信任决议之前，已经读过项目目录了</a><a href="#sec-9-收尾-这八条的共同形状" class="">收尾：这八条的共同形状</a><a href="#sec-10-源码索引" class="">源码索引</a></nav>
+</div>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var key = "pi-book-theme";
+  var saved = localStorage.getItem(key);
+  if (saved) root.setAttribute("data-theme", saved);
+  var btn = document.getElementById("theme-toggle");
+  function label() {
+    btn.textContent = root.getAttribute("data-theme") === "dark" ? "浅色" : "深色";
+  }
+  label();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem(key, next);
+    label();
+  });
+
+  var rail = document.getElementById("progress-rail");
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    rail.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a"));
+  if (links.length) {
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    function mark() {
+      var best = -1;
+      targets.forEach(function (t, i) {
+        if (t && t.getBoundingClientRect().top <= 120) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle("active", i === best); });
+    }
+    document.addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return legacyCopy(text); }
+      );
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.top = "-1000px";
+    document.body.appendChild(area);
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  }
+
+  // 代码块复制：双击 HTML 打开时没有 secure context，所以留了 execCommand 退路
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".copy");
+    if (!button) return;
+    var lines = button.closest(".code-block").querySelectorAll(".ln");
+    var text = Array.prototype.map.call(lines, function (line) {
+      return line.textContent;
+    }).join("\n"); // 在模板字符串里必须写成 \n，否则产物中字符串字面量跨行、整块脚本语法错误
+    copyText(text).then(function (ok) {
+      button.textContent = ok ? "已复制" : "复制失败";
+      button.classList.toggle("is-done", ok);
+      setTimeout(function () {
+        button.textContent = "复制";
+        button.classList.remove("is-done");
+      }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>

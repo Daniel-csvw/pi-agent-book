@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -1099,17 +1101,17 @@ promise，agent 就永久卡住。</p>
 <tbody>
 <tr>
 <td><code>packages/agent/src/types.ts</code></td>
-<td>551</td>
+<td>552</td>
 <td><code>AgentEvent</code> <code>:521-551</code>、<code>agent_end</code> 语义 <code>:521-527</code></td>
 </tr>
 <tr>
 <td><code>packages/agent/src/agent-loop.ts</code></td>
-<td>959</td>
+<td>960</td>
 <td><code>AgentEventSink</code> <code>:35</code>、<code>createAgentStream</code> <code>:162-167</code></td>
 </tr>
 <tr>
 <td><code>packages/agent/src/agent.ts</code></td>
-<td>623</td>
+<td>624</td>
 <td><code>listeners</code> <code>:196</code>、<code>subscribe</code> <code>:275-278</code>、<code>processEvents</code> <code>:575-622</code></td>
 </tr>
 <tr>
@@ -1124,12 +1126,12 @@ promise，agent 就永久卡住。</p>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/runner.ts</code></td>
-<td>1,565</td>
+<td>1,566</td>
 <td><code>snapshotEventHandlers</code> <code>:276-278</code>、<code>hasHandlers</code> <code>:772-780</code>、<code>emit</code> <code>:1096</code>、<code>emitMessageEnd</code> <code>:1151</code>、<code>emitToolResult</code> <code>:1190</code>、<code>emitToolCall</code> <code>:1249</code>、<code>emitUserBash</code> <code>:1269</code>、<code>emitContext</code> <code>:1305-1360</code>、<code>emitBoundary</code> <code>:1036</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/extensions/loader.ts</code></td>
-<td>880</td>
+<td>881</td>
 <td><code>createExtensionAPI</code> 状态机 <code>:248-272</code>、<code>createExtension</code> <code>:599-615</code>、jiti <code>:580-585</code>、<code>discoverAndLoadExtensions</code> <code>:832-880</code></td>
 </tr>
 <tr>
@@ -1139,12 +1141,12 @@ promise，agent 就永久卡住。</p>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/event-bus.ts</code></td>
-<td>33</td>
+<td>34</td>
 <td><code>createEventBus</code>、handler 异常隔离 <code>:19-25</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/config.ts</code></td>
-<td>681</td>
+<td>682</td>
 <td><code>CONFIG_DIR_NAME</code> <code>:606</code></td>
 </tr>
 <tr>

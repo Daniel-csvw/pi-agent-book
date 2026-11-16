@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="active">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="active">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,13 +54,14 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">M01</div>
       <h1>开篇 —— 为什么 Pi-Agent 值得你花时间</h1>
-      <div class="module-meta">9,648 字 · 含 186 行代码 · 约 44 分钟</div>
+      <div class="module-meta">9,901 字 · 含 186 行代码 · 约 44 分钟</div>
     </header>
     <p>先看 README 的第一句话：</p>
 <blockquote>
@@ -179,7 +181,7 @@
 <tbody>
 <tr>
 <td><code>coding-agent</code></td>
-<td style="text-align:right">77,614</td>
+<td style="text-align:right">77,658</td>
 <td style="text-align:right">33.9%</td>
 <td>交互式 CLI，主力</td>
 </tr>
@@ -191,13 +193,13 @@
 </tr>
 <tr>
 <td><code>durable</code></td>
-<td style="text-align:right">33,722</td>
+<td style="text-align:right">33,728</td>
 <td style="text-align:right">14.7%</td>
 <td>可持久化运行时</td>
 </tr>
 <tr>
 <td><code>ai</code></td>
-<td style="text-align:right">28,551</td>
+<td style="text-align:right">28,581</td>
 <td style="text-align:right">12.5%</td>
 <td>多 provider 统一层</td>
 </tr>
@@ -221,7 +223,7 @@
 </tr>
 <tr>
 <td><code>codemode</code></td>
-<td style="text-align:right">3,034</td>
+<td style="text-align:right">3,054</td>
 <td style="text-align:right">1.3%</td>
 <td>沙箱脚本执行</td>
 </tr>
@@ -261,7 +263,7 @@
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./agent.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./agent-loop.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./proxy.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> { setDefaultStreamFn } <span class="tok-kw">from</span> <span class="tok-str">"./stream-fn.ts"</span>;</span><span class="ln"><span class="tok-kw">export</span> * <span class="tok-kw">from</span> <span class="tok-str">"./types.ts"</span>;</span></code></pre></div>
 <p>这 5 行里没有一行是逻辑，但它告诉你一件事：<strong>这个包的对外契约全部收敛在 5 个模块里</strong>。读 <code>agent</code> 不需要跳来跳去，六个文件加起来 2,559 行，一下午能读完。</p>
-<p>而这 2,559 行要支撑的是 226,336 行的外围——<strong>内外比 1 : 88</strong>。</p>
+<p>而这 2,559 行要支撑的是 226,436 行的外围——<strong>内外比 1 : 88</strong>。</p>
 <h3 id="sec-4-1-1-但真实行数还要多一倍">1.1 但真实行数还要多一倍</h3>
 <p>上面那个 22.9 万只是 &quot;.ts 文件里的源码&quot;。把 <code>test/</code> 目录也算进去，整个仓库是这样的：</p>
 <div class="table-wrap"><table>
@@ -407,7 +409,7 @@
 <tr>
 <td>各家 provider 的协议差异</td>
 <td><code>ai</code></td>
-<td style="text-align:right">28,551</td>
+<td style="text-align:right">28,581</td>
 </tr>
 <tr>
 <td>终端怎么画得快</td>
@@ -417,12 +419,12 @@
 <tr>
 <td>会话怎么存、怎么恢复</td>
 <td><code>durable</code></td>
-<td style="text-align:right">33,722</td>
+<td style="text-align:right">33,728</td>
 </tr>
 <tr>
 <td>工具怎么安全地并发改文件</td>
 <td><code>coding-agent</code></td>
-<td style="text-align:right">77,614</td>
+<td style="text-align:right">77,658</td>
 </tr>
 <tr>
 <td>插件怎么热更新</td>
@@ -437,7 +439,7 @@
 </tbody>
 </table></div>
 <p>按顺序说。</p>
-<p><strong><code>ai</code>（28,551 行）</strong> —— 7 家 provider 各有一套事件格式、错误码、工具调用协议、thinking 参数。<code>ai</code> 把它们归一成一件事：<code>stream(model, context, options)</code> 返回一个事件流，事件类型固定 12 种。这套归一层之所以占 12.5%，是因为协议适配天然啰嗦——一个 provider 一个文件，每个文件几百到两千行。</p>
+<p><strong><code>ai</code>（28,581 行）</strong> —— 7 家 provider 各有一套事件格式、错误码、工具调用协议、thinking 参数。<code>ai</code> 把它们归一成一件事：<code>stream(model, context, options)</code> 返回一个事件流，事件类型固定 12 种。这套归一层之所以占 12.5%，是因为协议适配天然啰嗦——一个 provider 一个文件，每个文件几百到两千行。</p>
 <p><strong><code>tui</code>（19,971 行）</strong> —— 终端渲染不是 <code>console.log</code>。要处理宽字符、ANSI 转义、光标定位、双缓冲差分。Pi 的 TUI 能做到&quot;改一个字符只发一个字符的字节量&quot;，靠的就是这 2 万行。</p>
 <p><strong><code>durable</code>（33,722 行）</strong> —— 名字容易误解成&quot;会话存储包&quot;。它有 <code>harness/</code>（25 文件）、<code>scheduler.ts</code>（2,999 行）、<code>tool.ts</code>（1,098 行）、<code>generation.ts</code>（1,148 行），是一个<strong>完整的可持久化 agent 运行时</strong>。存只是它的副作用，&quot;中断后从断点继续&quot;才是目的。</p>
 <p><code>durable/src/</code> 的顶层目录把它暴露得很彻底：</p>
@@ -445,7 +447,7 @@
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">harness/    25 文件   运行时主体（scheduler / tool / generation）</span><span class="ln">session/     7 文件   会话与事务</span><span class="ln">storage/     多后端    jsonl / sqlite / memory / indexeddb / store</span><span class="ln">codemode/             沙箱执行</span><span class="ln">tools/                内置工具</span><span class="ln">tool-search/          工具检索</span><span class="ln">images/  env/  testing/</span><span class="ln">tasks.ts  documents.ts  entries.ts  timers.ts  search.ts</span></code></pre></div>
 <p>最后那五个根层 <code>.ts</code> 是信号：一个包如果只有存储，不会有 <code>scheduler</code>（调度）和 <code>timers</code>（定时器）。这两个词出现在哪里，哪里就有&quot;时间&quot;——而&quot;时间&quot;是 agent 运行时最难持久化的东西。</p>
-<p><strong><code>coding-agent</code>（77,614 行）</strong> —— 占三分之一，因为它是产品。CLI 参数、交互模式、命令系统、8 个内置工具、扩展加载、Skills、主题、RPC 服务……所有&quot;用户能感知到的东西&quot;都在这里。</p>
+<p><strong><code>coding-agent</code>（77,658 行）</strong> —— 占三分之一，因为它是产品。CLI 参数、交互模式、命令系统、8 个内置工具、扩展加载、Skills、主题、RPC 服务……所有&quot;用户能感知到的东西&quot;都在这里。</p>
 <p><strong><code>chord</code>（50,101 行）</strong> —— 第二大的包，也是最容易被忽略的。它是个通用插件宿主：contract 契约、replicated state、JSON link 上的 RPC、热重载。它和 agent 没有必然关系，是个独立产品，被 <code>durable</code> 和 <code>env</code> 复用。</p>
 <p><code>chord/src/</code> 有 29 个顶层文件加 7 个子目录，名字能拼出一套完整机制：</p>
 <div class="code-block" data-lang="text">
@@ -669,7 +671,7 @@ and its ExecutionEnv client</p>
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">交互 ─┐</span><span class="ln">print ─┤</span><span class="ln">JSON ─┼→ 事件订阅 → agent-loop → stream(model, context, options)</span><span class="ln">RPC ─┤</span><span class="ln">SDK ─┘                              ↑</span><span class="ln">                          七个 provider 在这里被抹平</span></code></pre></div>
 <p>这就是&quot;极简&quot;的第二个含义：<strong>内核不知道有几个入口</strong>。它只做一件事——产出一串事件；谁消费、怎么渲染、要不要序列化成 JSON，它全不管。</p>
-<p>反过来说，五种入口的代码<strong>一行都不在 <code>agent</code> 包里</strong>。它们全在 <code>coding-agent</code>（77,614 行）里。这解释了内外比为什么是 1 : 88：五个外壳就吃掉了一大半外围。</p>
+<p>反过来说，五种入口的代码<strong>一行都不在 <code>agent</code> 包里</strong>。它们全在 <code>coding-agent</code>（77,658 行）里。这解释了内外比为什么是 1 : 88：五个外壳就吃掉了一大半外围。</p>
 <hr>
 <h2 id="sec-10-七-十行跑起一个-agent-然后拆开看">七、十行跑起一个 agent，然后拆开看</h2>
 <p>先跑通，再拆开。</p>
@@ -688,7 +690,54 @@ and its ExecutionEnv client</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln">你敲一行字</span><span class="ln">  ↓</span><span class="ln">① 变成 UserMessage，追加进 session 的一条 entry</span><span class="ln">  ↓                              coding-agent/core/session-manager.ts</span><span class="ln">② 装配 context：</span><span class="ln">   system prompt（基础指令 + 发现的上下文文件 + 工具说明 + skill 描述）</span><span class="ln">   + 当前活跃分支的历史</span><span class="ln">  ↓                              coding-agent/core/system-prompt.ts</span><span class="ln">③ prepareRequest 钩子：</span><span class="ln">   允许改模型、改思考等级、追加消息</span><span class="ln">  ↓                              agent/src/agent-loop.ts</span><span class="ln">④ 发给 provider，流式回来</span><span class="ln">  ↓                              ai/src/providers/*.ts</span><span class="ln">⑤ assistant 消息落进 transcript（text / thinking / toolCall）</span><span class="ln">  ↓                              agent/src/agent-loop.ts</span><span class="ln">⑥ 有 toolCall → 分派给 8 个内置工具</span><span class="ln">  ↓                              coding-agent/core/tools/*.ts</span><span class="ln">⑦ toolResult 追加进 transcript</span><span class="ln">  ↓</span><span class="ln">⑧ 还有工具或还有排队消息 → 回④，否则进⑨</span><span class="ln">  ↓</span><span class="ln">⑨ turn_end → agent_end</span></code></pre></div>
-<p>九站。其中③⑤⑧在 <code>agent</code> 的 960 行里，④在 <code>ai</code> 的 28,551 行里，①②⑥在 <code>coding-agent</code> 里。</p>
+<p>九站。其中③⑤⑧在 <code>agent</code> 的 960 行里，④在 <code>ai</code> 的 28,581 行里，①②⑥在 <code>coding-agent</code> 里。</p>
+<p>这九站和 M00 的十二节不是两套说法，是同一件事的两个切面。
+M00 讲的是「一次进程的启动」：从 <code>argv</code> 进来到屏幕上出现第一个字，
+正文十个站。这张图讲的是「一轮对话的生命周期」：从 <code>UserMessage</code>
+进来到 <code>turn_end</code>，九站。两边对得上的只有中间一段：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>这一段</th>
+<th style="text-align:center">M00（进程视角，十站）</th>
+<th style="text-align:center">本章（对话视角，九站）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数 → 判模式 → 装配 → 造 session</td>
+<td style="text-align:center">第一–四站</td>
+<td style="text-align:center">—</td>
+</tr>
+<tr>
+<td>系统提示、取那一句、进 TUI</td>
+<td style="text-align:center">第五–六站</td>
+<td style="text-align:center">①②</td>
+</tr>
+<tr>
+<td>进 loop、拼 payload、流式回来</td>
+<td style="text-align:center">第七–九站</td>
+<td style="text-align:center">③④</td>
+</tr>
+<tr>
+<td>字节变字、回到屏幕</td>
+<td style="text-align:center">第九–十站</td>
+<td style="text-align:center">—</td>
+</tr>
+<tr>
+<td>工具调用与回填</td>
+<td style="text-align:center">第十一站（一句话带过）</td>
+<td style="text-align:center">⑤–⑦</td>
+</tr>
+<tr>
+<td>收尾（<code>turn_end</code> → <code>agent_end</code>）</td>
+<td style="text-align:center">—</td>
+<td style="text-align:center">⑧⑨</td>
+</tr>
+</tbody>
+</table></div>
+<p>所以定位代码时用本章的表：它告诉你每一站在哪个文件。
+判断一次启动到底做了什么时用 M00：它给你一条从头到尾不断的线。</p>
 <p>这条链上有一处设计值得提前点出来：<strong><code>session.systemPrompt</code> 是只读的，但它会变</strong>。SDK 文档原话是，它返回&quot;当前生效的系统提示词，含尚未发给模型的变更&quot;——也就是说提示词的变更是<strong>先声明、后生效</strong>，工具集的增删也是先告诉模型再换。这是全书反复出现的主线：<strong>变量只增不改，变更即追加</strong>。</p>
 <p>到这儿你已经能把这一百来行代码对应到具体文件。但那是「看懂」。
 下一节先解决「跑起来」——你不能改一个自己启动不了的东西。</p>
@@ -882,11 +931,11 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </blockquote>
 <p>到这儿，&quot;是什么&quot;和&quot;跑不跑得起来&quot;都交代过了。为什么同一件事（发请求、收结果）
 会被切成十二个包、这一刀切在哪，§三 已经摊开算过一遍。剩下的问题只有一个：
-这 33 章该按什么顺序读——§九。</p>
+这 34 章该按什么顺序读——§九。</p>
 <hr>
 <h2 id="sec-17-九-这本书怎么读">九、这本书怎么读</h2>
-<p>33 章分六部分，按&quot;离内核的距离&quot;排：前三部分读源码，后两部分动手，最后一部分教你把 Pi 用起来。</p>
-<p><strong>Part A · 全景（M01–M02）</strong> —— 就是你现在读的这章，加上下一章的十二包地图。目标：拿到一张能定位任何代码的图。</p>
+<p>34 章正文分六个部分，按&quot;离内核的距离&quot;排：前三部分读源码，中间两部分动手，最后一部分教你把 Pi 用起来。加上五篇附录，站上共 39 篇。</p>
+<p><strong>Part A · 全景（M00–M02）</strong> —— 「第一天」把一次启动从头走到尾，你这章给这份体量称重，下一章把它摊成三层架构图。目标：拿到一条能走的路 + 一张能定位任何代码的图。</p>
 <p><strong>Part B · 内核（M03–M07）</strong> —— <code>agent</code> 包的六个文件（<code>agent-loop</code> / <code>agent</code> / <code>types</code> / <code>proxy</code> / <code>stream-fn</code> / <code>index</code>）+ <code>ai</code> 的归一层 + <code>coding-agent</code> 的工具和消息。这五章是全书密度最高的部分，<code>agent-loop.ts</code> 那 960 行会被拆到不能再拆。</p>
 <p><strong>Part C · 上下文工程（M08–M10）</strong> —— 系统提示词怎么拼、超长对话怎么压、会话怎么存和恢复。这三章回答&quot;模型凭什么知道得这么多&quot;。</p>
 <p><strong>Part D · 盲区（M11–M15）</strong> —— <code>durable</code>、<code>chord</code>、<code>mcp</code>+<code>codemode</code>、<code>tui</code>、<code>schema</code>+<code>telemetry</code>。这五块网上的讲解最少，却占仓库 44% 的代码。</p>
@@ -1178,7 +1227,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </tr>
 <tr>
 <td><code>packages/agent/src/index.ts</code></td>
-<td>5</td>
+<td>6</td>
 <td>全部导出</td>
 </tr>
 <tr>
@@ -1193,7 +1242,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </tr>
 <tr>
 <td><code>packages/agent/test/agent-loop.test.ts</code></td>
-<td>2,234</td>
+<td>2,235</td>
 <td>测试与源码的比例</td>
 </tr>
 <tr>
@@ -1218,12 +1267,12 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/experimental/source-resolver.ts</code></td>
-<td>86</td>
+<td>87</td>
 <td>源码别名解析，关键注释 <code>:6-8</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/main.ts</code></td>
-<td>1,010</td>
+<td>1,011</td>
 <td><code>--version</code> 分支 <code>:646-649</code></td>
 </tr>
 <tr>
@@ -1233,7 +1282,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </tr>
 <tr>
 <td><code>packages/ai/src/providers/amazon-bedrock.models.ts</code></td>
-<td>14</td>
+<td>15</td>
 <td>生成产物，顶层 import JSON <code>:1-4</code></td>
 </tr>
 <tr>
@@ -1245,7 +1294,7 @@ workspace，<code>esbuild</code> 也会再抓一次平台二进制。两条都�
 </table></div>
 
 <div class="pager">
-      <span></span>
+      <a class="prev" href="m00-first-run.html"><span class="lbl">上一篇</span>第一天 —— 一条请求的八分钟</a>
       <a class="next" href="m02-package-map.html"><span class="lbl">下一篇</span>三层架构 —— 十二个包各自站在哪一层</a>
     </div>
 </main>

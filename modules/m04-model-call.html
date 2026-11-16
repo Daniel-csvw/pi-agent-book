@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="active">
@@ -53,7 +54,8 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
@@ -65,7 +67,7 @@
 <div class="code-block" data-lang="ts">
 <div class="code-head"><span class="lang">ts</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
 <pre><code><span class="ln"><span class="tok-kw">const</span> stream = <span class="tok-fn">streamSimple</span>(model, context, options);</span></code></pre></div>
-<p>一行。它背后是 <code>packages/ai</code> 的 28,551 行、204 个文件。</p>
+<p>一行。它背后是 <code>packages/ai</code> 的 28,581 行、206 个文件。</p>
 <p>这一章拆这行。拆完你应该能回答五个问题：</p>
 <ul>
 <li>为什么必须有两层（<code>stream</code> / <code>streamSimple</code>）</li>
@@ -171,7 +173,7 @@
 <tr>
 <td><code>google-generative-ai</code></td>
 <td><code>api/google-generative-ai.ts</code></td>
-<td>467</td>
+<td>466</td>
 </tr>
 <tr>
 <td><code>pi-messages</code></td>
@@ -198,8 +200,8 @@
 <p>所以&quot;十个 api&quot;不等于&quot;十份独立工作量&quot;。真实结构是：</p>
 <div class="code-block" data-lang="text">
 <div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
-<pre><code><span class="ln">独立实现    anthropic 1687   bedrock 1462   mistral 925</span><span class="ln">            openai-completions 1729        codex 1720</span><span class="ln">共享骨架    openai-responses 454  +  shared 892</span><span class="ln">            google-generative-ai 467 + shared 575</span><span class="ln">            google-vertex 562</span><span class="ln">薄壳        azure 256 / pi-messages 466</span></code></pre></div>
-<p>十个翻译器合计 9,728 行，加上共享层 1,467 行，约 11,195 行——占整个 <code>ai</code> 包 28,551 行的 39%。<strong>将近四成代码只做一件事：把同一种意思翻译成十种方言。</strong></p>
+<pre><code><span class="ln">独立实现    anthropic 1687   bedrock 1462   mistral 925</span><span class="ln">            openai-completions 1729        codex 1720</span><span class="ln">共享骨架    openai-responses 454  +  shared 892</span><span class="ln">            google-generative-ai 466 + shared 575</span><span class="ln">            google-vertex 562</span><span class="ln">薄壳        azure 256 / pi-messages 466</span></code></pre></div>
+<p>十个翻译器合计 9,725 行，加上共享层 1,467 行，约 11,192 行——占整个 <code>ai</code> 包 28,581 行的 39%。<strong>将近四成代码只做一件事：把同一种意思翻译成十种方言。</strong></p>
 <hr>
 <h2 id="sec-4-二-分三层-但真正解耦的只有一条线">二、分三层，但真正解耦的只有一条线</h2>
 <p>Pi 的切法：</p>
@@ -1239,7 +1241,7 @@ turn once.</p>
 </tr>
 <tr>
 <td><code>packages/ai/src/utils/event-stream.ts</code></td>
-<td>135</td>
+<td>136</td>
 <td><code>EventStream.push</code> <code>:40-56</code>、计时 <code>:97-130</code></td>
 </tr>
 <tr>
@@ -1264,17 +1266,17 @@ turn once.</p>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/model-resolver.ts</code></td>
-<td>689</td>
+<td>690</td>
 <td>五档梯子 <code>:235-265</code>、后缀开关 <code>:81-88</code>、<code>resolveCliModel</code> <code>:450-534</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/model-runtime.ts</code></td>
-<td>1,049</td>
+<td>1,050</td>
 <td><code>ModelRuntime</code> <code>:174</code>、<code>composeProvider</code> <code>:309-325</code>、<code>prepareRequest</code> <code>:659-705</code></td>
 </tr>
 <tr>
 <td><code>packages/coding-agent/src/core/provider-composer.ts</code></td>
-<td>737</td>
+<td>738</td>
 <td>三层叠加 <code>:560-580</code>、三重分派 <code>:588-608</code></td>
 </tr>
 </tbody>

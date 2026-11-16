@@ -16,7 +16,8 @@
   <span class="spacer"></span>
   <button id="theme-toggle" type="button">深色</button>
 </header>
-<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m01-overview.html" class="">
+<div class="shell"><aside class="sidebar"><div class="part"><div class="part-title">Part A · 全景</div><a href="m00-first-run.html" class="">
+                <span class="code">M00</span><span>第一天 —— 一条请求的八分钟</span></a><a href="m01-overview.html" class="">
                 <span class="code">M01</span><span>开篇 —— 为什么 Pi-Agent 值得你花时间</span></a><a href="m02-package-map.html" class="">
                 <span class="code">M02</span><span>三层架构 —— 十二个包各自站在哪一层</span></a></div><div class="part"><div class="part-title">Part B · 内核</div><a href="m03-agent-loop.html" class="">
                 <span class="code">M03</span><span>Agent Loop —— 两层循环，三条出路</span></a><a href="m04-model-call.html" class="">
@@ -53,15 +54,28 @@
                 <span class="code">APX</span><span>附录 D —— 合龙：一次请求，二十五个落点</span></a><a href="appendix-migration.html" class="">
                 <span class="code">APX</span><span>附录 A —— v0.80 → v1.4 迁移对照</span></a><a href="appendix-service.html" class="">
                 <span class="code">APX</span><span>附录 C —— 把 Agent 装进你的服务</span></a><a href="appendix-typescript.html" class="">
-                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a></div></aside>
+                <span class="code">APX</span><span>附录 B —— 读源码用的 TypeScript 速查</span></a><a href="appendix-cracks.html" class="">
+                <span class="code">APX</span><span>裂缝 —— Pi 自己没修干净的八件事</span></a></div></aside>
 <div class="main">
 <main class="prose">
 <header class="module-header">
       <div class="module-eyebrow">M14</div>
       <h1>终端渲染 —— 一个 spinner 只该写 99 个字节</h1>
-      <div class="module-meta">9,949 字 · 含 319 行代码 · 约 48 分钟</div>
+      <div class="module-meta">10,346 字 · 含 320 行代码 · 约 48 分钟</div>
     </header>
-    <p><code>packages/tui</code>：<strong>46 个文件 / 19,925 行</strong>。本章只细读其中一个 660 行的文件——
+    <p>你人在咖啡馆，笔记本连着手机热点，SSH 到公司的开发机。</p>
+<p>Agent 在跑，底下的 spinner 在转。你看着它转，每转一格都一顿。滚回去看十几分钟前
+的输出，屏幕跳一下，光标回到最底下。你等了一分多钟，觉得哪里不对，
+敲了一个字，输出突然刷了一屏。</p>
+<p>本地跑同样的东西一点都不卡。区别在链路上：字节从开发机出来，先到 SSH，
+再到热点，再到你面前这个终端模拟器。链路上每一跳都要转发你写出去的每一个字节。</p>
+<p>而跑内容满屏的 Agent 对话，最朴素的做法是每帧重画一遍全局：</p>
+<div class="code-block" data-lang="text">
+<div class="code-head"><span class="lang">text</span><button type="button" class="copy" aria-label="复制代码">复制</button></div>
+<pre><code><span class="ln">清屏 → 从第 0 行画到第 149 行</span></code></pre></div>
+<p>一帧 12 KB。spinner 每秒十帧，转一分钟就有 7.2 MB 打进这个伪终端。
+而实际上，这一帧里只有<strong>一行</strong>变了。</p>
+<p><code>packages/tui</code>：<strong>46 个文件 / 19,971 行</strong>。本章只细读其中一个 661 行的文件——
 <code>tui-main-screen.ts</code>，差分渲染。其余四十五个文件，知道它们在哪就行。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -74,57 +88,57 @@
 <tbody>
 <tr>
 <td><code>components/editor.ts</code></td>
-<td>2,483</td>
+<td>2,484</td>
 <td>编辑器：撤销栈、kill ring、补全、鼠标选区</td>
 </tr>
 <tr>
 <td><code>tui-alt-screen.ts</code></td>
-<td>1,800</td>
+<td>1,801</td>
 <td>全屏模式：布局、搜索、选区、滚动条</td>
 </tr>
 <tr>
 <td><code>tui.ts</code></td>
-<td>1,549</td>
+<td>1,550</td>
 <td><code>Component</code> 契约、叠层、假光标、主题查询</td>
 </tr>
 <tr>
 <td><code>keys.ts</code></td>
-<td>1,511</td>
+<td>1,512</td>
 <td>键位解析：Kitty / modifyOtherKeys / 旧序列</td>
 </tr>
 <tr>
 <td><code>latex.ts</code></td>
-<td>1,506</td>
+<td>1,507</td>
 <td>公式转 Unicode 近似</td>
 </tr>
 <tr>
 <td><code>utils.ts</code></td>
-<td>1,467</td>
+<td>1,468</td>
 <td>列宽、截断、折行、ANSI 状态追踪</td>
 </tr>
 <tr>
 <td><code>components/markdown.ts</code></td>
-<td>1,120</td>
+<td>1,121</td>
 <td>marked + CJK 折行</td>
 </tr>
 <tr>
 <td><code>autocomplete.ts</code></td>
-<td>858</td>
+<td>859</td>
 <td>补全</td>
 </tr>
 <tr>
 <td><code>terminal-image.ts</code></td>
-<td>783</td>
+<td>784</td>
 <td>Kitty / iTerm2 图片协议</td>
 </tr>
 <tr>
 <td><code>tui-main-screen.ts</code></td>
-<td>660</td>
+<td>661</td>
 <td><strong>本章主角</strong>：差分渲染</td>
 </tr>
 <tr>
 <td><code>terminal.ts</code></td>
-<td>639</td>
+<td>640</td>
 <td>raw mode、<code>StdinBuffer</code>、键盘协商</td>
 </tr>
 </tbody>
@@ -134,6 +148,9 @@
 <code>ink</code>，没有 React，没有 <code>blessed</code>。</p>
 <p>这不是一个&quot;UI 框架&quot;。它是一台<strong>字节调度器</strong>：把一棵组件树变成一串字节，
 并且尽可能少写。</p>
+<p>它的全部设计可以归为一句：<strong>组件可以笨，渲染器必须抠。</strong>
+组件每次重画整棵树，不用知道任何优化；渲染器把&quot;变了的行&quot;抠出来，
+只写那几个字节。</p>
 <hr>
 <h2 id="sec-1-零-读这章之前-你需要先知道一件事">零、读这章之前，你需要先知道一件事</h2>
 <p><strong>终端转义序列</strong>：终端不是&quot;打印文字&quot;的纸，而是一台老式电传打字机。
@@ -1201,7 +1218,17 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 <p>判据：输出两行，<code>static</code> 和 <code>editor</code>，每行带 <code>written bytes/frame</code>。
 <code>static</code> 那一行的字节数接近 0——什么都没变，一帧只写同步输出的两个标记。</p>
 <hr>
-<h2 id="sec-48-本章小结">本章小结</h2>
+<h2 id="sec-48-五句话">五句话</h2>
+<p>如果只记五句：</p>
+<ol>
+<li><strong>把&quot;画&quot;和&quot;写&quot;拆开。</strong> 组件永远全量重画，渲染器只写变了的行。</li>
+<li><strong>每行自包含。</strong> 开头清行、结尾复位，任意起点写都正确。</li>
+<li><strong>差分的窗口只有一屏高。</strong> 更早的行进了 scrollback，物理上改不了。</li>
+<li><strong>不可恢复的错误要当场崩。</strong> 超宽会触发自动换行，错了修不回来。</li>
+<li><strong>宽度是列不是字符。</strong> CJK、emoji、代理对都要按列算。</li>
+</ol>
+<hr>
+<h2 id="sec-49-本章小结">本章小结</h2>
 <ol>
 <li>一帧只写变了的行：spinner 99 字节，全量 12,025。</li>
 <li>一行是自包含字符串：自带清行、回车、复位。</li>
@@ -1209,7 +1236,7 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 <li>宽度是列不是字符；超宽直接崩，不截断。</li>
 <li>同步输出把一帧包成一对标记，避免撕裂。</li>
 </ol>
-<h2 id="sec-49-概念回顾">概念回顾</h2>
+<h2 id="sec-50-概念回顾">概念回顾</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1246,13 +1273,13 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-50-练习">练习</h2>
+<h2 id="sec-51-练习">练习</h2>
 <p><strong>练习 1（读）</strong>：§十五 实验 3 说 150 行内容改第 0 行，字节数跳回 12,025。
 为什么改第 0 行反而比改最后一行贵？→ 回 §4.2 的表与那个行号判据。</p>
 <p><strong>练习 2（改）</strong>：把实验 3 的 <code>NullTerminal</code> 里 <code>bytesWritten += data.length</code>
 改成 <code>Buffer.byteLength(data)</code>。预期：含中文时字节数变大（字符数≠字节数）；
 回滚：改回 <code>data.length</code>。</p>
-<h2 id="sec-51-常见误区">常见误区</h2>
+<h2 id="sec-52-常见误区">常见误区</h2>
 <ol>
 <li><strong>你会以为</strong> 一帧写多少字节不重要；<strong>实际是</strong> 差分与否差两个数量级；
 <strong>证据</strong> §4.2 的表。</li>
@@ -1261,7 +1288,7 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 <li><strong>你会以为</strong> 颜色是选出来的；<strong>实际是</strong> 按对比度曲线算出来的；<strong>证据</strong> §十二。</li>
 </ol>
 <hr>
-<h2 id="sec-52-读完自检">读完自检</h2>
+<h2 id="sec-53-读完自检">读完自检</h2>
 <p>四条，能不能不看稿说出来？</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1294,8 +1321,8 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 </tr>
 </tbody>
 </table></div>
-<h2 id="sec-53-十六-收束">十六、收束</h2>
-<h3 id="sec-54-16-1-三个可迁移的方法">16.1 三个可迁移的方法</h3>
+<h2 id="sec-54-十六-收束">十六、收束</h2>
+<h3 id="sec-55-16-1-三个可迁移的方法">16.1 三个可迁移的方法</h3>
 <p><strong>一、把&quot;画&quot;和&quot;写&quot;彻底分开。</strong>
 组件每次返回整棵树的完整行（全量、无状态、可缓存），渲染器负责找出差异
 并只写变化。两边都不需要知道对方的优化。这条分界线让 46 个文件里只有
@@ -1309,25 +1336,25 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
 &quot;错了之后再也修不回来&quot;。对这种错误，最省事的处理是当场崩，并且把全部
 上下文写成一份日志（<code>pi-tui-crash.log</code> 里有每一行的宽度和内容）。
 宽容的降级只适用于可恢复的错误。</p>
-<h3 id="sec-55-16-2-这章的边界">16.2 这章的边界</h3>
+<h3 id="sec-56-16-2-这章的边界">16.2 这章的边界</h3>
 <p>没讲的部分：</p>
 <ul>
-<li><code>components/editor.ts</code>（2,483 行）：撤销栈、kill ring、多行编辑、单词
+<li><code>components/editor.ts</code>（2,484 行）：撤销栈、kill ring、多行编辑、单词
 跳转。本章只用到它的 <code>CURSOR_MARKER</code>。</li>
-<li><code>latex.ts</code>（1,506 行）：公式转 Unicode 近似，与渲染主线无关。</li>
-<li><code>tui-alt-screen.ts</code>（1,800 行）的交互层：鼠标选区、双击选词、搜索高亮、
+<li><code>latex.ts</code>（1,507 行）：公式转 Unicode 近似，与渲染主线无关。</li>
+<li><code>tui-alt-screen.ts</code>（1,801 行）的交互层：鼠标选区、双击选词、搜索高亮、
 滚动条拖拽。本章只讲了它的屏幕模型和缓存上限。</li>
 <li><code>native/</code>（不在 <code>src/</code> 里）：剪贴板的 N-API 绑定，darwin / linux / win32
 三套实现。</li>
-<li><code>autocomplete.ts</code>（858 行）：补全触发与上下文推断。</li>
+<li><code>autocomplete.ts</code>（859 行）：补全触发与上下文推断。</li>
 </ul>
-<p>一个数字修正：<code>tui</code> 是 <strong>46 文件 / 19,925 行</strong>，不是 17,734。后者只算了
+<p>一个数字修正：<code>tui</code> 是 <strong>46 文件 / 19,971 行</strong>，不是 17,734。后者只算了
 <code>src/</code> 的一部分。</p>
-<h3 id="sec-56-16-3-下一站">16.3 下一站</h3>
+<h3 id="sec-57-16-3-下一站">16.3 下一站</h3>
 <p><strong>下一章：M15 <code>schema</code> + <code>telemetry</code>——什么值算合法，什么允许进日志。</strong></p>
 <p>M15 讲 <code>schema</code> 与 <code>telemetry</code>：前者 43 文件 / 4,565 行，是一个<strong>不用 <code>eval</code> 的 JSON Schema 校验器</strong>；后者 8 文件 / 1,572 行，是一套与厂商无关的遥测契约。前一章在省字节，最后一章在定边界——什么值算合法，什么允许进日志。</p>
 <hr>
-<h2 id="sec-57-本章源码索引">本章源码索引</h2>
+<h2 id="sec-58-本章源码索引">本章源码索引</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -1445,7 +1472,7 @@ SGR 属性，关 OSC 8 超链接。少关后者，后面所有文本都变成可
       <a class="next" href="m15-schema-telemetry.html"><span class="lbl">下一篇</span>契约与遥测 —— 一份声明，五种解释</a>
     </div>
 </main>
-<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-读这章之前-你需要先知道一件事" class="">零、读这章之前，你需要先知道一件事</a><a href="#sec-2-一-问题-一帧该写多少字节" class="">一、问题：一帧该写多少字节</a><a href="#sec-3-二-组件只有一条契约" class="">二、组件只有一条契约</a><a href="#sec-4-2-1-布局-栈怎么分高度" class="lv3">2.1 布局：栈怎么分高度</a><a href="#sec-5-三-一帧的十条出路" class="">三、一帧的十条出路</a><a href="#sec-6-四-扫描与差分" class="">四、扫描与差分</a><a href="#sec-7-4-1-写出的那一段" class="lv3">4.1 写出的那一段</a><a href="#sec-8-4-2-全量-vs-差分-把字节数算出来" class="lv3">4.2 全量 vs 差分：把字节数算出来</a><a href="#sec-9-五-一行是一个自包含的字符串" class="">五、一行是一个自包含的字符串</a><a href="#sec-10-5-1-浮层-把一行切三段再缝回去" class="lv3">5.1 浮层：把一行切三段再缝回去</a><a href="#sec-11-六-光标是显式状态" class="">六、光标是显式状态</a><a href="#sec-12-6-1-为什么不用-x1b-h" class="lv3">6.1 为什么不用 \x1b[H</a><a href="#sec-13-6-2-真光标要给输入法用" class="lv3">6.2 真光标要给输入法用</a><a href="#sec-14-6-3-假光标-两个零宽标记" class="lv3">6.3 假光标：两个零宽标记</a><a href="#sec-15-七-宽度是列-不是字符" class="">七、宽度是列，不是字符</a><a href="#sec-16-7-1-五条宽度规则" class="lv3">7.1 五条宽度规则</a><a href="#sec-17-7-2-超宽不是截断-是崩溃" class="lv3">7.2 超宽不是截断，是崩溃</a><a href="#sec-18-7-3-截断和折行要带-ansi-状态" class="lv3">7.3 截断和折行要带 ANSI 状态</a><a href="#sec-19-八-同步输出与有界写入" class="">八、同步输出与有界写入</a><a href="#sec-20-8-1-为什么还要分块" class="lv3">8.1 为什么还要分块</a><a href="#sec-21-九-两种屏幕" class="">九、两种屏幕</a><a href="#sec-22-9-1-为什么-main-screen-是默认" class="lv3">9.1 为什么 main screen 是默认</a><a href="#sec-23-9-2-切屏要交接状态" class="lv3">9.2 切屏要交接状态</a><a href="#sec-24-十-图片是行-不是像素" class="">十、图片是行，不是像素</a><a href="#sec-25-10-1-扩范围" class="lv3">10.1 扩范围</a><a href="#sec-26-10-2-删图必须在画之前" class="lv3">10.2 删图必须在画之前</a><a href="#sec-27-10-3-清图会滚动-就退全量" class="lv3">10.3 清图会滚动，就退全量</a><a href="#sec-28-10-4-离屏图片要缓存" class="lv3">10.4 离屏图片要缓存</a><a href="#sec-29-十一-输入侧-把一次-read-拆成按键" class="">十一、输入侧：把一次 read 拆成按键</a><a href="#sec-30-11-1-两个超时" class="lv3">11.1 两个超时</a><a href="#sec-31-11-2-键盘协商-用-da1-当哨兵" class="lv3">11.2 键盘协商：用 DA1 当哨兵</a><a href="#sec-32-11-3-三层解析" class="lv3">11.3 三层解析</a><a href="#sec-33-11-4-kitty-的-csi-u-六种变体-一个正则" class="lv3">11.4 Kitty 的 CSI-u：六种变体，一个正则</a><a href="#sec-34-十二-主题-颜色不是选出来的-是算出来的" class="">十二、主题：颜色不是选出来的，是算出来的</a><a href="#sec-35-12-1-色相是借的-亮度是算的" class="lv3">12.1 色相是借的，亮度是算的</a><a href="#sec-36-12-2-把设计规则写成曲线" class="lv3">12.2 把设计规则写成曲线</a><a href="#sec-37-12-3-100-毫秒-和迟到的回复" class="lv3">12.3 100 毫秒，和迟到的回复</a><a href="#sec-38-12-4-三档降级" class="lv3">12.4 三档降级</a><a href="#sec-39-十三-完整链路" class="">十三、完整链路</a><a href="#sec-40-十四-工程暗坑" class="">十四、工程暗坑</a><a href="#sec-41-十五-自己动手验证" class="">十五、自己动手验证</a><a href="#sec-42-实验-1-spinner-只写一行" class="lv3">实验 1：spinner 只写一行</a><a href="#sec-43-实验-2-确认走的是差分-不是全量" class="lv3">实验 2：确认走的是差分，不是全量</a><a href="#sec-44-实验-3-量字节" class="lv3">实验 3：量字节</a><a href="#sec-45-实验-4-列宽" class="lv3">实验 4：列宽</a><a href="#sec-46-实验-5-输入分帧" class="lv3">实验 5：输入分帧</a><a href="#sec-47-实验-6-看-churn" class="lv3">实验 6：看 churn</a><a href="#sec-48-本章小结" class="">本章小结</a><a href="#sec-49-概念回顾" class="">概念回顾</a><a href="#sec-50-练习" class="">练习</a><a href="#sec-51-常见误区" class="">常见误区</a><a href="#sec-52-读完自检" class="">读完自检</a><a href="#sec-53-十六-收束" class="">十六、收束</a><a href="#sec-54-16-1-三个可迁移的方法" class="lv3">16.1 三个可迁移的方法</a><a href="#sec-55-16-2-这章的边界" class="lv3">16.2 这章的边界</a><a href="#sec-56-16-3-下一站" class="lv3">16.3 下一站</a><a href="#sec-57-本章源码索引" class="">本章源码索引</a></nav>
+<nav class="toc"><div class="toc-title">本章目录</div><a href="#sec-1-零-读这章之前-你需要先知道一件事" class="">零、读这章之前，你需要先知道一件事</a><a href="#sec-2-一-问题-一帧该写多少字节" class="">一、问题：一帧该写多少字节</a><a href="#sec-3-二-组件只有一条契约" class="">二、组件只有一条契约</a><a href="#sec-4-2-1-布局-栈怎么分高度" class="lv3">2.1 布局：栈怎么分高度</a><a href="#sec-5-三-一帧的十条出路" class="">三、一帧的十条出路</a><a href="#sec-6-四-扫描与差分" class="">四、扫描与差分</a><a href="#sec-7-4-1-写出的那一段" class="lv3">4.1 写出的那一段</a><a href="#sec-8-4-2-全量-vs-差分-把字节数算出来" class="lv3">4.2 全量 vs 差分：把字节数算出来</a><a href="#sec-9-五-一行是一个自包含的字符串" class="">五、一行是一个自包含的字符串</a><a href="#sec-10-5-1-浮层-把一行切三段再缝回去" class="lv3">5.1 浮层：把一行切三段再缝回去</a><a href="#sec-11-六-光标是显式状态" class="">六、光标是显式状态</a><a href="#sec-12-6-1-为什么不用-x1b-h" class="lv3">6.1 为什么不用 \x1b[H</a><a href="#sec-13-6-2-真光标要给输入法用" class="lv3">6.2 真光标要给输入法用</a><a href="#sec-14-6-3-假光标-两个零宽标记" class="lv3">6.3 假光标：两个零宽标记</a><a href="#sec-15-七-宽度是列-不是字符" class="">七、宽度是列，不是字符</a><a href="#sec-16-7-1-五条宽度规则" class="lv3">7.1 五条宽度规则</a><a href="#sec-17-7-2-超宽不是截断-是崩溃" class="lv3">7.2 超宽不是截断，是崩溃</a><a href="#sec-18-7-3-截断和折行要带-ansi-状态" class="lv3">7.3 截断和折行要带 ANSI 状态</a><a href="#sec-19-八-同步输出与有界写入" class="">八、同步输出与有界写入</a><a href="#sec-20-8-1-为什么还要分块" class="lv3">8.1 为什么还要分块</a><a href="#sec-21-九-两种屏幕" class="">九、两种屏幕</a><a href="#sec-22-9-1-为什么-main-screen-是默认" class="lv3">9.1 为什么 main screen 是默认</a><a href="#sec-23-9-2-切屏要交接状态" class="lv3">9.2 切屏要交接状态</a><a href="#sec-24-十-图片是行-不是像素" class="">十、图片是行，不是像素</a><a href="#sec-25-10-1-扩范围" class="lv3">10.1 扩范围</a><a href="#sec-26-10-2-删图必须在画之前" class="lv3">10.2 删图必须在画之前</a><a href="#sec-27-10-3-清图会滚动-就退全量" class="lv3">10.3 清图会滚动，就退全量</a><a href="#sec-28-10-4-离屏图片要缓存" class="lv3">10.4 离屏图片要缓存</a><a href="#sec-29-十一-输入侧-把一次-read-拆成按键" class="">十一、输入侧：把一次 read 拆成按键</a><a href="#sec-30-11-1-两个超时" class="lv3">11.1 两个超时</a><a href="#sec-31-11-2-键盘协商-用-da1-当哨兵" class="lv3">11.2 键盘协商：用 DA1 当哨兵</a><a href="#sec-32-11-3-三层解析" class="lv3">11.3 三层解析</a><a href="#sec-33-11-4-kitty-的-csi-u-六种变体-一个正则" class="lv3">11.4 Kitty 的 CSI-u：六种变体，一个正则</a><a href="#sec-34-十二-主题-颜色不是选出来的-是算出来的" class="">十二、主题：颜色不是选出来的，是算出来的</a><a href="#sec-35-12-1-色相是借的-亮度是算的" class="lv3">12.1 色相是借的，亮度是算的</a><a href="#sec-36-12-2-把设计规则写成曲线" class="lv3">12.2 把设计规则写成曲线</a><a href="#sec-37-12-3-100-毫秒-和迟到的回复" class="lv3">12.3 100 毫秒，和迟到的回复</a><a href="#sec-38-12-4-三档降级" class="lv3">12.4 三档降级</a><a href="#sec-39-十三-完整链路" class="">十三、完整链路</a><a href="#sec-40-十四-工程暗坑" class="">十四、工程暗坑</a><a href="#sec-41-十五-自己动手验证" class="">十五、自己动手验证</a><a href="#sec-42-实验-1-spinner-只写一行" class="lv3">实验 1：spinner 只写一行</a><a href="#sec-43-实验-2-确认走的是差分-不是全量" class="lv3">实验 2：确认走的是差分，不是全量</a><a href="#sec-44-实验-3-量字节" class="lv3">实验 3：量字节</a><a href="#sec-45-实验-4-列宽" class="lv3">实验 4：列宽</a><a href="#sec-46-实验-5-输入分帧" class="lv3">实验 5：输入分帧</a><a href="#sec-47-实验-6-看-churn" class="lv3">实验 6：看 churn</a><a href="#sec-48-五句话" class="">五句话</a><a href="#sec-49-本章小结" class="">本章小结</a><a href="#sec-50-概念回顾" class="">概念回顾</a><a href="#sec-51-练习" class="">练习</a><a href="#sec-52-常见误区" class="">常见误区</a><a href="#sec-53-读完自检" class="">读完自检</a><a href="#sec-54-十六-收束" class="">十六、收束</a><a href="#sec-55-16-1-三个可迁移的方法" class="lv3">16.1 三个可迁移的方法</a><a href="#sec-56-16-2-这章的边界" class="lv3">16.2 这章的边界</a><a href="#sec-57-16-3-下一站" class="lv3">16.3 下一站</a><a href="#sec-58-本章源码索引" class="">本章源码索引</a></nav>
 </div>
 </div>
 <script>
